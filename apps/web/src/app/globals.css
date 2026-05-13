@@ -990,3 +990,26 @@ details[open] .chev { transform: rotate(180deg); }
     @apply font-sans;
   }
 }
+
+@layer components {
+  .oc-pdf-viewer div:has(
+      > button:is(
+          [aria-label="selection.copy"],
+          [aria-label="복사"],
+          [aria-label="Copy"],
+          [title="selection.copy"],
+          [title="복사"],
+          [title="Copy"]
+        )
+    ),
+  .oc-pdf-viewer button:is(
+      [aria-label="selection.copy"],
+      [aria-label="복사"],
+      [aria-label="Copy"],
+      [title="selection.copy"],
+      [title="복사"],
+      [title="Copy"]
+    ) {
+    display: none !important;
+  }
+}

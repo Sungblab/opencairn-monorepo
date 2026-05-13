@@ -28,6 +28,9 @@
     },
     "csvTable": "표 형식 · {rows}행",
     "column": "열 {index}",
+    "officeConvertingTitle": "PDF로 변환 중...",
+    "officeConvertingDescription": "변환이 끝나면 이 화면이 자동으로 PDF 뷰어로 바뀝니다.",
+    "officePreviewUnavailable": "PDF 변환 결과를 사용할 수 없습니다. 원본 파일을 다운로드해 확인하세요.",
     "download": "원본 다운로드",
     "ingest": "인제스트 실행",
     "compile": "LaTeX 컴파일",
@@ -35,6 +38,34 @@
     "googleExport": "Google Workspace로 내보내기",
     "googleExportConnectRequired": "Google Drive 연결 필요",
     "googleSettingsTitle": "Google Drive 설정",
+    "material": {
+      "sourceNoteTab": "추출 노트",
+      "graphTab": "프로젝트 지식맵",
+      "advanced": "고급 보기",
+      "status": {
+        "not_started": "분석 전",
+        "queued": "분석 대기",
+        "running": "분석 중",
+        "completed": "분석 완료",
+        "failed": "분석 실패"
+      },
+      "statusDetail": {
+        "notStarted": "원문 분석을 실행하면 에이전트가 이 자료를 더 정확히 참고할 수 있습니다.",
+        "running": "원문, 표, 이미지 정보를 정리하는 중입니다. 끝나면 자동으로 상태가 바뀝니다.",
+        "completed": "이 자료는 분석되어 에이전트 질문과 노트 생성에 바로 사용할 수 있습니다.",
+        "failed": "분석이 실패했습니다. 다시 분석을 실행하거나 원본 파일을 확인해 주세요."
+      },
+      "actions": {
+        "note": "정리 노트",
+        "wiki": "개념 위키",
+        "quiz": "퀴즈",
+        "reanalyze": "다시 분석",
+        "retry": "재시도",
+        "openExtract": "추출 노트 열기",
+        "openGraph": "지식맵 열기",
+        "download": "원본 다운로드"
+      }
+    },
     "version": "v{version}",
     "compileStatus": {
       "not_started": "컴파일 전",

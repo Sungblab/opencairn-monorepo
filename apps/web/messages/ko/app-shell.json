@@ -87,6 +87,15 @@
       "frameTitle": "{title} PDF 뷰어",
       "open": "새 탭에서 열기",
       "download": "다운로드",
+      "drawing": {
+        "label": "PDF 그리기 도구",
+        "move": "이동",
+        "pen": "펜",
+        "highlighter": "형광펜",
+        "hintMove": "문서를 이동하거나 선택합니다.",
+        "hintPen": "왼쪽 버튼을 누른 채 움직이면 그려집니다.",
+        "hintHighlighter": "왼쪽 버튼을 누른 채 움직이면 강조 표시됩니다."
+      },
       "rail": {
         "title": "PDF 작업 패널",
         "close": "닫기",

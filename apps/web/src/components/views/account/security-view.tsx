@@ -57,25 +57,30 @@ export function SecurityView() {
   }
 
   return (
-    <section className="max-w-2xl space-y-5">
+    <section className="max-w-4xl space-y-5">
       <div>
-        <h1 className="mb-2 text-xl font-semibold">{t("heading")}</h1>
+        <h1 className="text-2xl font-semibold tracking-normal">{t("heading")}</h1>
         <p className="text-sm text-muted-foreground">{t("description")}</p>
       </div>
 
-      <div className="rounded-[var(--radius-card)] border border-border bg-background p-4">
-        <h2 className="text-sm font-semibold">{t("session.heading")}</h2>
+      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="rounded-[var(--radius-card)] border border-border bg-background shadow-sm">
+        <div className="border-b border-border px-4 py-4 sm:px-5">
+          <h2 className="text-sm font-semibold">{t("session.heading")}</h2>
+        </div>
         {isPending ? (
-          <p className="mt-2 text-sm text-muted-foreground">{t("loading")}</p>
+          <p className="px-4 py-5 text-sm text-muted-foreground sm:px-5">
+            {t("loading")}
+          </p>
         ) : (
-          <dl className="mt-3 grid gap-2 text-sm">
-            <div className="flex justify-between gap-4">
+          <dl className="grid gap-3 px-4 py-5 text-sm sm:px-5">
+            <div className="flex min-w-0 justify-between gap-4">
               <dt className="text-muted-foreground">{t("session.email")}</dt>
               <dd className="truncate">{email || "-"}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">{t("session.verified")}</dt>
-              <dd>
+              <dd className="font-medium">
                 {session?.user.emailVerified
                   ? t("session.yes")
                   : t("session.no")}
@@ -85,14 +90,16 @@ export function SecurityView() {
         )}
       </div>
 
-      <div className="rounded-[var(--radius-card)] border border-border bg-background p-4">
-        <h2 className="text-sm font-semibold">{t("actions.heading")}</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <div className="rounded-[var(--radius-card)] border border-border bg-background shadow-sm">
+        <div className="border-b border-border px-4 py-4 sm:px-5">
+          <h2 className="text-sm font-semibold">{t("actions.heading")}</h2>
+        </div>
+        <div className="flex flex-wrap gap-2 px-4 py-5 sm:px-5">
           <button
             type="button"
             onClick={sendVerification}
             disabled={!email || busy !== null || session?.user.emailVerified}
-            className="app-btn-primary rounded-[var(--radius-control)] px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            className="app-btn-primary min-h-10 rounded-[var(--radius-control)] px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             {busy === "verify" ? t("actions.sending") : t("actions.verify")}
           </button>
@@ -100,12 +107,15 @@ export function SecurityView() {
             type="button"
             onClick={sendReset}
             disabled={!email || busy !== null}
-            className="app-btn-ghost rounded-[var(--radius-control)] border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+            className="app-btn-ghost min-h-10 rounded-[var(--radius-control)] border border-border px-4 py-2 text-sm disabled:opacity-50"
           >
             {busy === "reset" ? t("actions.sending") : t("actions.reset")}
           </button>
+          {message && (
+            <p className="basis-full text-sm text-muted-foreground">{message}</p>
+          )}
         </div>
-        {message && <p className="mt-3 text-sm text-muted-foreground">{message}</p>}
+      </div>
       </div>
     </section>
   );

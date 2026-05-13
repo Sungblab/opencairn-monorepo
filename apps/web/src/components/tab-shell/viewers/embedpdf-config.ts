@@ -60,6 +60,59 @@ export const EMBEDPDF_SELF_CONTAINED_CONFIG = {
   },
 } satisfies Pick<PDFViewerConfig, "fonts" | "stamp">;
 
+export const EMBEDPDF_DISABLED_EDIT_CATEGORIES = [
+  "shapes",
+  "form",
+  "insert",
+  "redaction",
+  "redact",
+  "signature",
+  "stamp",
+] as const;
+
+export const EMBEDPDF_PEN_ANNOTATION_CONFIG = {
+  autoCommit: true,
+  annotationAuthor: "OpenCairn",
+  deactivateToolAfterCreate: false,
+  selectAfterCreate: false,
+  colorPresets: [
+    "#2563eb",
+    "#ef4444",
+    "#f59e0b",
+    "#22c55e",
+    "#111827",
+    "#ffffff",
+  ],
+  tools: [
+    {
+      id: "ink",
+      defaults: {
+        strokeColor: "#2563eb",
+        color: "#2563eb",
+        strokeWidth: 2,
+        opacity: 1,
+      },
+    },
+    {
+      id: "inkHighlighter",
+      defaults: {
+        strokeColor: "#facc15",
+        color: "#facc15",
+        strokeWidth: 10,
+        opacity: 0.35,
+      },
+    },
+    {
+      id: "highlight",
+      defaults: {
+        strokeColor: "#facc15",
+        color: "#facc15",
+        opacity: 0.35,
+      },
+    },
+  ],
+} satisfies NonNullable<PDFViewerConfig["annotations"]>;
+
 const KOREAN_EMBEDPDF_LOCALE: Locale = {
   code: "ko",
   name: "한국어",
@@ -123,6 +176,9 @@ const KOREAN_EMBEDPDF_LOCALE: Locale = {
         pan: "이동",
       },
     },
+    selection: {
+      copy: "복사",
+    },
     mode: {
       view: "보기",
       annotate: "주석",
@@ -130,6 +186,16 @@ const KOREAN_EMBEDPDF_LOCALE: Locale = {
       form: "양식",
       redact: "가리기",
       insert: "삽입",
+    },
+    insert: {
+      rubberStamp: "스탬프",
+      signature: "서명",
+      image: "이미지",
+      text: "텍스트",
+      freeText: "텍스트",
+      ink: "펜",
+      highlight: "형광펜",
+      drawing: "그리기",
     },
     panel: {
       sidebar: "사이드바",
@@ -233,6 +299,7 @@ const KOREAN_EMBEDPDF_LOCALE: Locale = {
       closeAllAnnotations: "모든 주석 닫기",
     },
     annotation: {
+      defaults: "기본 주석",
       selectAnnotation: "주석을 선택하세요.",
       fillColor: "채우기 색",
       strokeColor: "선 색",

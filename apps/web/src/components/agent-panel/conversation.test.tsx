@@ -12,6 +12,7 @@ vi.mock("next-intl", () => ({
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ wsSlug: "ws-test" }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
 let messages: ChatMessage[] = [];

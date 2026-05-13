@@ -67,6 +67,8 @@ function FallbackTabItem({ tab, active }: { tab: Tab; active: boolean }) {
         <button
           type="button"
           aria-label={labels.item.close}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             tabActions.closeTab(tab.id);

@@ -60,17 +60,19 @@ export function LanguageRegionView() {
   });
 
   return (
-    <section className="max-w-3xl space-y-6">
+    <section className="max-w-4xl space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">{t("heading")}</h1>
+        <h1 className="text-2xl font-semibold tracking-normal">{t("heading")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {t("description")}
         </p>
       </div>
 
-      <section className="rounded-[var(--radius-card)] border border-border bg-background p-4">
-        <h2 className="text-sm font-semibold">{t("appLanguage")}</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <section className="rounded-[var(--radius-card)] border border-border bg-background shadow-sm">
+        <div className="border-b border-border px-4 py-4 sm:px-5">
+          <h2 className="text-sm font-semibold">{t("appLanguage")}</h2>
+        </div>
+        <div className="flex flex-wrap gap-2 px-4 py-5 sm:px-5">
           {locales.map((loc) => {
             const active = loc === locale;
             return (
@@ -79,9 +81,9 @@ export function LanguageRegionView() {
                 href={localeHref(pathname, locale, loc)}
                 onClick={() => writeLocaleCookie(loc)}
                 aria-current={active ? "page" : undefined}
-                className={`inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] border px-3 py-1.5 text-sm transition-colors ${
+                className={`inline-flex min-h-10 items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm transition-colors ${
                   active
-                    ? "border-foreground bg-muted font-semibold text-foreground"
+                    ? "border-foreground/20 bg-foreground font-semibold text-background"
                     : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
@@ -93,20 +95,22 @@ export function LanguageRegionView() {
         </div>
       </section>
 
-      <section className="rounded-[var(--radius-card)] border border-border bg-background p-4">
-        <h2 className="text-sm font-semibold">{t("emailRegion")}</h2>
+      <section className="rounded-[var(--radius-card)] border border-border bg-background shadow-sm">
+        <div className="border-b border-border px-4 py-4 sm:px-5">
+          <h2 className="text-sm font-semibold">{t("emailRegion")}</h2>
+        </div>
         {!profileQuery.data ? (
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="px-4 py-5 text-sm text-muted-foreground sm:px-5">
             {tNotifications("loading")}
           </p>
         ) : (
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 px-4 py-5 sm:grid-cols-2 sm:px-5">
             <label className="block text-sm">
               <span className="mb-1 block text-xs font-medium text-muted-foreground">
                 {tNotifications("locale")}
               </span>
               <select
-                className="min-h-9 w-full rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5"
+                className="min-h-10 w-full rounded-[var(--radius-control)] border border-border bg-background px-3 py-2"
                 value={profileQuery.data.locale}
                 onChange={(e) =>
                   updateProfile.mutate({
@@ -124,7 +128,7 @@ export function LanguageRegionView() {
                 {tNotifications("timezone")}
               </span>
               <select
-                className="min-h-9 w-full rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5"
+                className="min-h-10 w-full rounded-[var(--radius-control)] border border-border bg-background px-3 py-2"
                 value={profileQuery.data.timezone}
                 onChange={(e) =>
                   updateProfile.mutate({ timezone: e.currentTarget.value })

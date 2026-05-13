@@ -238,23 +238,15 @@ export async function listTreeChildren(input: {
     ? sql`n.parent_id = ${input.parentId}::uuid`
     : sql`n.parent_id IS NULL`;
   const result = await db.execute<RawProjectTreeRow>(sql`
-    WITH artifact_group_child_counts AS (
-      SELECT parent_id AS node_id, COUNT(*)::int AS child_count
-      FROM project_tree_nodes
-      WHERE project_id = ${input.projectId}::uuid
-        AND parent_id IS NOT NULL
-        AND deleted_at IS NULL
-        AND NOT (kind = 'agent_file' AND metadata->>'role' = 'original')
-      GROUP BY parent_id
-    ),
-    visible_nodes AS (
+    WITH visible_nodes AS (
       SELECT n.*
       FROM project_tree_nodes n
-      LEFT JOIN artifact_group_child_counts agcc ON agcc.node_id = n.id
       WHERE n.project_id = ${input.projectId}::uuid
         AND n.deleted_at IS NULL
         AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
-        AND NOT (n.kind = 'artifact_group' AND COALESCE(agcc.child_count, 0) = 0)
+        AND n.kind <> 'artifact_group'
+        AND n.kind <> 'artifact'
+        AND NOT (n.kind = 'note' AND n.metadata->>'role' = 'source_note')
     ),
     child_counts AS (
       SELECT parent_id, COUNT(*)::int AS child_count
@@ -267,6 +259,10 @@ export async function listTreeChildren(input: {
       n.id AS "id",
       n.parent_id AS "parentId",
       COALESCE(
+        CASE
+          WHEN n.kind = 'note' AND n.metadata->>'role' = 'source_note' THEN NULLIF(n.label, '')
+          ELSE NULL
+        END,
         NULLIF(nt.title, ''),
         NULLIF(f.name, ''),
         NULLIF(af.title, ''),
@@ -335,23 +331,15 @@ export async function listTreeChildrenForParents(input: {
     sql`, `,
   );
   const result = await db.execute<RawProjectTreeRow>(sql`
-    WITH artifact_group_child_counts AS (
-      SELECT parent_id AS node_id, COUNT(*)::int AS child_count
-      FROM project_tree_nodes
-      WHERE project_id = ${input.projectId}::uuid
-        AND parent_id IS NOT NULL
-        AND deleted_at IS NULL
-        AND NOT (kind = 'agent_file' AND metadata->>'role' = 'original')
-      GROUP BY parent_id
-    ),
-    visible_nodes AS (
+    WITH visible_nodes AS (
       SELECT n.*
       FROM project_tree_nodes n
-      LEFT JOIN artifact_group_child_counts agcc ON agcc.node_id = n.id
       WHERE n.project_id = ${input.projectId}::uuid
         AND n.deleted_at IS NULL
         AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
-        AND NOT (n.kind = 'artifact_group' AND COALESCE(agcc.child_count, 0) = 0)
+        AND n.kind <> 'artifact_group'
+        AND n.kind <> 'artifact'
+        AND NOT (n.kind = 'note' AND n.metadata->>'role' = 'source_note')
     ),
     child_counts AS (
       SELECT parent_id, COUNT(*)::int AS child_count
@@ -364,6 +352,10 @@ export async function listTreeChildrenForParents(input: {
       n.id AS "id",
       n.parent_id AS "parentId",
       COALESCE(
+        CASE
+          WHEN n.kind = 'note' AND n.metadata->>'role' = 'source_note' THEN NULLIF(n.label, '')
+          ELSE NULL
+        END,
         NULLIF(nt.title, ''),
         NULLIF(f.name, ''),
         NULLIF(af.title, ''),

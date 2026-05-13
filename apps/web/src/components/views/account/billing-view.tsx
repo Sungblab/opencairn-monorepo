@@ -5,9 +5,15 @@ import { useTranslations } from "next-intl";
 export function BillingView() {
   const t = useTranslations("account.billing");
   return (
-    <section className="max-w-2xl rounded-[var(--radius-card)] border border-border bg-background p-4">
-      <h1 className="mb-3 text-xl font-semibold">{t("heading")}</h1>
-      <p className="text-sm text-muted-foreground">{t("stub")}</p>
+    <section className="max-w-3xl space-y-5">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-normal">
+          {t("heading")}
+        </h1>
+      </div>
+      <div className="rounded-[var(--radius-card)] border border-border bg-background px-4 py-5 shadow-sm sm:px-5">
+        <p className="max-w-2xl text-sm text-muted-foreground">{t("stub")}</p>
+      </div>
     </section>
   );
 }

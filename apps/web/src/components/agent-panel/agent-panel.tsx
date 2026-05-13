@@ -26,7 +26,7 @@ import {
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { saveSuggestionSchema } from "@opencairn/shared";
-import { Activity, Bell, Bot, FileText, Sparkles, Wrench, X } from "lucide-react";
+import { FileText, Sparkles, X } from "lucide-react";
 
 import { useChatSend } from "@/hooks/use-chat-send";
 import { useChatThreads } from "@/hooks/use-chat-threads";
@@ -41,7 +41,10 @@ import {
 import { useTabsStore } from "@/stores/tabs-store";
 import { useThreadsStore } from "@/stores/threads-store";
 import { usePanelStore, type AgentPanelTab } from "@/stores/panel-store";
-import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
+import {
+  useAgentWorkbenchStore,
+  type AgentWorkflowSubmission,
+} from "@/stores/agent-workbench-store";
 import { NotificationListPanel } from "@/components/notifications/notification-list-panel";
 import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
 import {
@@ -73,6 +76,7 @@ import {
 } from "./agent-commands";
 import { PanelHeader } from "./panel-header";
 import { ProjectToolsPanel } from "./project-tools-panel";
+import { AgentWorkflowCard } from "./agent-workflow-card";
 import {
   buildAgentContextPayload,
   type ActionApprovalMode,
@@ -104,6 +108,7 @@ type AgentPanelSendInput = {
   mode: string;
   command?: AgentCommandId;
   interactionResponse?: InteractionCardSubmit;
+  workflowIntent?: AgentWorkflowSubmission;
 };
 
 const ACTION_APPROVAL_MODE_STORAGE_KEY = "opencairn:agent:actionApprovalMode";
@@ -128,6 +133,8 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const consumeDocumentGenerationPreset = useAgentWorkbenchStore(
     (s) => s.consumeDocumentGenerationPreset,
   );
+  const pendingWorkflow = useAgentWorkbenchStore((s) => s.pendingWorkflow);
+  const closeWorkflow = useAgentWorkbenchStore((s) => s.closeWorkflow);
   const { projectId: shellProjectId } = useCurrentProjectContext();
   const composerT = useTranslations("agentPanel.composer");
   const commandPromptT = useTranslations("agentPanel.composer.slash.prompt");
@@ -183,7 +190,9 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     [],
   );
   const pendingDocumentGenerationPreset = pendingDocumentGenerationPresetIntent
-    ? getDocumentGenerationPreset(pendingDocumentGenerationPresetIntent.presetId)
+    ? getDocumentGenerationPreset(
+        pendingDocumentGenerationPresetIntent.presetId,
+      )
     : null;
   const sendInFlightRef = useRef(false);
   const autoSavedSuggestionKeysRef = useRef(new Set<string>());
@@ -224,6 +233,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     async (
       commandId?: AgentCommandId,
       interactionResponse?: AgentPanelSendInput["interactionResponse"],
+      workflowIntent?: AgentPanelSendInput["workflowIntent"],
     ) => {
       const command = getAgentCommand(commandId);
       const scopedActiveTab = activeContextEnabled ? activeTab : undefined;
@@ -237,6 +247,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         command: commandId,
         fallbackProjectId: activeProjectId ?? shellProjectId,
         attachedReferences,
+        workflowIntent,
         resolveNoteProjectId: async (noteId) => {
           try {
             return (await api.getNote(noteId)).projectId;
@@ -329,6 +340,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
             scope: await buildScopePayload(
               input.command,
               input.interactionResponse,
+              input.workflowIntent,
             ),
             threadId,
           });
@@ -363,6 +375,24 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     },
     [commandPromptT, handleCommand, handleSend],
   );
+
+  const workflowCard = pendingWorkflow ? (
+    <AgentWorkflowCard
+      key={pendingWorkflow.id}
+      workflow={pendingWorkflow}
+      projectId={activeProjectId}
+      workspaceId={workspaceId}
+      onClose={() => closeWorkflow(pendingWorkflow.id)}
+      onSubmitWorkflow={(submission) => {
+        handleSend({
+          content: submission.prompt,
+          mode: "auto",
+          workflowIntent: submission,
+        });
+        closeWorkflow(pendingWorkflow.id);
+      }}
+    />
+  ) : null;
 
   useEffect(() => {
     if (!workspaceId && pendingWorkbenchIntent?.kind === "runCommand") return;
@@ -713,8 +743,8 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
           projectId={activeProjectId}
           workspaceId={workspaceId}
           wsSlug={wsSlug}
-          onRun={handleRunAction}
           onOpenActivity={() => setPanelTab("activity")}
+          onOpenChat={() => setPanelTab("chat")}
         />
       ) : null}
       {panelTab === "chat" ? (
@@ -729,6 +759,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
               onSaveSuggestion={handleSaveSuggestion}
               onInteractionCardSubmit={handleInteractionCardSubmit}
               onThreadUnavailable={() => setActive(null)}
+              workflowCard={workflowCard}
               emptyState={
                 <AgentPanelEmptyState
                   hasContext={Boolean(
@@ -741,14 +772,20 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
               }
             />
           ) : (
-            <AgentPanelEmptyState
-              hasContext={Boolean(
-                invocationContextLabel || attachedReferences.length,
-              )}
-              onSuggestion={(content) =>
-                handleSend({ content, mode: "auto" })
-              }
-            />
+            workflowCard ? (
+              <div className="app-scrollbar-thin min-h-0 flex-1 overflow-auto bg-background/35 p-3">
+                {workflowCard}
+              </div>
+            ) : (
+              <AgentPanelEmptyState
+                hasContext={Boolean(
+                  invocationContextLabel || attachedReferences.length,
+                )}
+                onSuggestion={(content) =>
+                  handleSend({ content, mode: "auto" })
+                }
+              />
+            )
           )}
           <div className="border-t border-border bg-background pt-2">
             {queuedPrompt ? (
@@ -843,17 +880,10 @@ function AgentPanelTabs({
 }) {
   const t = useTranslations("agentPanel.tabs");
   const tabs: AgentPanelTab[] = ["chat", "tools", "activity", "notifications"];
-  const icons = {
-    chat: Bot,
-    tools: Wrench,
-    activity: Activity,
-    notifications: Bell,
-  } satisfies Record<AgentPanelTab, typeof Bot>;
 
   return (
     <div className="grid grid-cols-4 border-b border-border">
       {tabs.map((tab) => {
-        const Icon = icons[tab];
         return (
           <button
             key={tab}
@@ -866,7 +896,6 @@ function AgentPanelTabs({
                 : "bg-background text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Icon aria-hidden className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{t(tab)}</span>
           </button>
         );
@@ -901,7 +930,9 @@ function ComposerContextStrip({
             })}
           </span>
           {activeLabel.title ? (
-            <span className="truncate text-foreground">{activeLabel.title}</span>
+            <span className="truncate text-foreground">
+              {activeLabel.title}
+            </span>
           ) : null}
         </span>
       ) : null}

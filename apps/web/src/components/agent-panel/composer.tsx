@@ -20,12 +20,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
+  Check,
   FilePlus,
   FileText,
   Mic,
   Plus,
-  ShieldCheck,
-  ShieldQuestion,
   Sparkles,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -90,7 +89,9 @@ export function Composer({
   const t = useTranslations("agentPanel.composer");
   const [value, setValue] = useState("");
   const [mode, setMode] = useState<ChatMode>("auto");
-  const [selectedCommand, setSelectedCommand] = useState<AgentCommand | null>(null);
+  const [selectedCommand, setSelectedCommand] = useState<AgentCommand | null>(
+    null,
+  );
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -165,7 +166,8 @@ export function Composer({
       }
     }
 
-    const finalContent = content || (command ? resolvePrompt(command) : value.trim());
+    const finalContent =
+      content || (command ? resolvePrompt(command) : value.trim());
     if (!finalContent) return;
     onSend({
       content: finalContent,
@@ -371,28 +373,11 @@ export function Composer({
           }}
         />
         <div className="flex-1" />
-        <button
-          type="button"
-          aria-label={t(
-            actionApprovalMode === "auto_safe"
-              ? "actionApproval.auto_aria"
-              : "actionApproval.require_aria",
-          )}
-          title={t(
-            actionApprovalMode === "auto_safe"
-              ? "actionApproval.auto_aria"
-              : "actionApproval.require_aria",
-          )}
-          onClick={() => onToggleActionApprovalMode?.()}
+        <ActionApprovalSelector
+          value={actionApprovalMode}
+          onToggle={onToggleActionApprovalMode}
           disabled={disabled}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border text-muted-foreground transition-colors hover:border-foreground/35 hover:text-foreground disabled:opacity-50"
-        >
-          {actionApprovalMode === "auto_safe" ? (
-            <ShieldCheck aria-hidden className="h-3.5 w-3.5 shrink-0" />
-          ) : (
-            <ShieldQuestion aria-hidden className="h-3.5 w-3.5 shrink-0" />
-          )}
-        </button>
+        />
         <ModeSelector value={mode} onChange={setMode} />
         {hasText ? (
           <button
@@ -415,5 +400,64 @@ export function Composer({
         )}
       </div>
     </div>
+  );
+}
+
+function ActionApprovalSelector({
+  value,
+  onToggle,
+  disabled,
+}: {
+  value: ActionApprovalMode;
+  onToggle?: () => void;
+  disabled?: boolean;
+}) {
+  const t = useTranslations("agentPanel.composer.actionApproval");
+  const options: ActionApprovalMode[] = ["require", "auto_safe"];
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        type="button"
+        aria-label={t("trigger_aria")}
+        disabled={disabled}
+        className="inline-flex min-h-7 items-center rounded-[var(--radius-control)] border border-border bg-background px-2.5 py-1 text-xs transition-colors hover:border-foreground hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none disabled:opacity-50"
+      >
+        {t(value)}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        sideOffset={6}
+        className="w-56 rounded-[var(--radius-control)] border border-border bg-background p-1 shadow-sm ring-0"
+      >
+        {options.map((option) => (
+          <DropdownMenuItem
+            key={option}
+            onSelect={() => {
+              if (option !== value) onToggle?.();
+            }}
+            className={`flex min-h-10 items-start gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-xs transition-colors hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground ${
+              value === option
+                ? "bg-muted/60 text-foreground"
+                : "text-muted-foreground"
+            }`}
+          >
+            {value === option ? (
+              <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground" />
+            ) : (
+              <span className="w-3.5 shrink-0" />
+            )}
+            <span className="min-w-0">
+              <span className="block font-medium text-foreground">
+                {t(`${option}_label`)}
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">
+                {t(`${option}_description`)}
+              </span>
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -15,6 +15,8 @@ import { useCurrentProjectContext } from "@/components/sidebar/use-current-proje
 import { pdfAnnotationsApi, type PdfAnnotationPayload } from "@/lib/api-client";
 import { SourceContextRail } from "./source-context-rail";
 import {
+  EMBEDPDF_DISABLED_EDIT_CATEGORIES,
+  EMBEDPDF_PEN_ANNOTATION_CONFIG,
   EMBEDPDF_SELF_CONTAINED_CONFIG,
   embedPdfI18nConfig,
   embedPdfZoomConfig,
@@ -23,6 +25,7 @@ import {
   pdfViewStateKey,
   useEmbedPdfPagePersistence,
 } from "./embedpdf-view-state";
+import { PdfDrawingToolbar } from "./pdf-drawing-toolbar";
 
 const EmbedPDFViewer = dynamic<PDFViewerProps>(
   () => import("@embedpdf/react-pdf-viewer").then((mod) => mod.PDFViewer),
@@ -37,12 +40,6 @@ const EmbedPDFViewer = dynamic<PDFViewerProps>(
   },
 );
 
-const READ_ONLY_DISABLED_CATEGORIES = [
-  "annotation",
-  "redaction",
-  "signature",
-  "stamp",
-] as const;
 function emitViewerReady(tab: Tab, registry: PluginRegistry) {
   if (!tab.targetId || typeof window === "undefined") return;
 
@@ -163,10 +160,9 @@ export function SourceViewer({ tab }: { tab: Tab }) {
             ...EMBEDPDF_SELF_CONTAINED_CONFIG,
             tabBar: "never",
             theme: { preference: "system" },
-            disabledCategories: [...READ_ONLY_DISABLED_CATEGORIES],
+            disabledCategories: [...EMBEDPDF_DISABLED_EDIT_CATEGORIES],
             annotations: {
-              autoCommit: true,
-              annotationAuthor: "OpenCairn",
+              ...EMBEDPDF_PEN_ANNOTATION_CONFIG,
             },
             export: { defaultFileName: title },
             i18n: embedPdfI18nConfig(locale),
@@ -193,9 +189,10 @@ export function SourceViewer({ tab }: { tab: Tab }) {
   return (
     <div
       data-testid="source-viewer"
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-neutral-200 text-neutral-950 dark:bg-neutral-950 dark:text-neutral-50 xl:flex-row"
+      className="oc-pdf-viewer flex h-full min-h-0 flex-col overflow-hidden bg-neutral-200 text-neutral-950 dark:bg-neutral-950 dark:text-neutral-50 xl:flex-row"
     >
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+        <PdfDrawingToolbar registry={registry} />
         <section
           id={viewerElementId}
           data-testid="source-pdf-area"

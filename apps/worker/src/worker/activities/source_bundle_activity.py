@@ -51,6 +51,8 @@ async def update_source_bundle_status(inp: dict[str, Any]) -> dict[str, Any]:
     body = {"status": status}
     if inp.get("reason"):
         body["reason"] = inp["reason"]
+    if inp.get("viewer_pdf_object_key"):
+        body["viewerPdfObjectKey"] = inp["viewer_pdf_object_key"]
     result = await post_internal(
         f"/api/internal/source-bundles/{bundle_node_id}/status",
         body,

@@ -1,7 +1,7 @@
 {
   "header": {
     "title": "Agent",
-    "subtitle": "AI · activity · notifications",
+    "subtitle": "Chat · tools · activity · notifications",
     "new_thread": "New",
     "new_thread_aria": "New conversation",
     "history": "History",
@@ -18,7 +18,7 @@
     "delete_failed": "Could not delete the conversation."
   },
   "tabs": {
-    "chat": "AI",
+    "chat": "Agent",
     "tools": "Tools",
     "activity": "Activity",
     "notifications": "Notifications"
@@ -67,6 +67,11 @@
     "customInput": "Custom answer",
     "customSubmit": "Send",
     "answered": "Selected: {label}"
+  },
+  "workflowCard": {
+    "subtitle": "Configure and run this workflow directly inside the agent chat.",
+    "close": "Close workflow",
+    "sendToAgent": "Ask agent"
   },
   "noteUpdateReview": {
     "title": "Note edit proposal",
@@ -339,12 +344,17 @@
       "activeTabOn": "Auto-reference active tab",
       "activeTabOff": "Active-tab auto-reference off",
       "memoryOff": "Exclude project memory",
-      "autoApplyOn": "Safe auto-apply on",
-      "autoApplyOff": "Safe auto-apply"
+      "autoApplyOn": "Actions: auto",
+      "autoApplyOff": "Actions: ask"
     },
     "actionApproval": {
-      "require": "Ask first",
-      "auto": "Auto-run",
+      "require": "Ask",
+      "auto_safe": "Auto",
+      "require_label": "Ask before running",
+      "require_description": "Show approval cards before creating or changing notes.",
+      "auto_safe_label": "Auto-run safe actions",
+      "auto_safe_description": "Run reversible low-risk actions immediately.",
+      "trigger_aria": "Select action execution mode",
       "require_aria": "Ask before running actions",
       "auto_aria": "Auto-run safe actions"
     },
@@ -360,6 +370,7 @@
         "factcheck": "Check claims and evidence",
         "extract_citations": "Extract citation candidates",
         "make_note": "Create a note draft",
+        "concept_wiki": "Build concept wiki",
         "narrate_note": "Draft audio narration",
         "generate_report": "Generate a report",
         "generate_figure": "Create figure",
@@ -381,6 +392,7 @@
         "factcheck": "Check the current claims and evidence, and mark uncertain parts.",
         "extract_citations": "Extract the key sentences and sources worth citing from the current material.",
         "make_note": "Turn the current material into a new note draft.",
+        "concept_wiki": "Extract the core concepts from the current material and create concept wiki note drafts. Each note should include a definition, explanation, examples, related concepts, and exam-prep points, then save them as new note actions.",
         "narrate_note": "Draft the core flow and script for turning the current note into audio narration.",
         "generate_report": "Create a report draft from the current project material.",
         "generate_figure": "Use the current project material to prepare an explanatory figure or diagram direction.",

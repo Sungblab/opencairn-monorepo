@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import type {
@@ -15,9 +16,12 @@ import {
   Eye,
   ExternalLink,
   FileCode,
+  FileDown,
   FileText,
   GitBranch,
+  Loader2,
   Play,
+  Presentation,
   RefreshCcw,
   Table2,
   UploadCloud,
@@ -31,13 +35,19 @@ import {
   type StudyArtifact,
 } from "@opencairn/shared";
 import "react-json-view-lite/dist/index.css";
+import type { AgentCommandId } from "@/components/agent-panel/agent-commands";
+import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
+import { usePanelStore } from "@/stores/panel-store";
 import type { Tab } from "@/stores/tabs-store";
 import { useTabsStore } from "@/stores/tabs-store";
 import { documentGenerationApi, integrationsApi } from "@/lib/api-client";
 import { newTab } from "@/lib/tab-factory";
+import { urls } from "@/lib/urls";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
+  EMBEDPDF_DISABLED_EDIT_CATEGORIES,
+  EMBEDPDF_PEN_ANNOTATION_CONFIG,
   EMBEDPDF_SELF_CONTAINED_CONFIG,
   embedPdfI18nConfig,
   embedPdfZoomConfig,
@@ -46,6 +56,7 @@ import {
   pdfViewStateKey,
   useEmbedPdfPagePersistence,
 } from "./embedpdf-view-state";
+import { PdfDrawingToolbar } from "./pdf-drawing-toolbar";
 
 interface AgentFileResponse {
   file: AgentFileSummary;
@@ -70,6 +81,24 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
   const { data, isLoading, isError } = useQuery<AgentFileResponse>({
     queryKey: ["agent-file", targetId],
     enabled: Boolean(targetId),
+    refetchInterval: (query) => {
+      const file = (query.state.data as AgentFileResponse | undefined)?.file;
+      if (
+        file &&
+        isOfficeDocument(file) &&
+        file.compiledMimeType !== "application/pdf" &&
+        file.ingestStatus !== "failed"
+      ) {
+        return 2500;
+      }
+      if (
+        file?.ingestStatus === "queued" ||
+        file?.ingestStatus === "running"
+      ) {
+        return 2500;
+      }
+      return false;
+    },
     queryFn: async () => {
       const res = await fetch(`/api/agent-files/${targetId}`, {
         credentials: "include",
@@ -93,8 +122,12 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
       if (!res.ok) throw new Error(`compile ${res.status}`);
       return (await res.json()) as AgentFileResponse;
     },
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["agent-file", targetId] }),
+    onSuccess: (result) => {
+      void qc.invalidateQueries({ queryKey: ["agent-file", targetId] });
+      void qc.invalidateQueries({
+        queryKey: ["project-tree", result.file.projectId],
+      });
+    },
   });
 
   const ingest = useMutation({
@@ -271,40 +304,13 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
         </div>
       ) : null}
       <div className="relative min-h-0 flex-1">
-        {file.kind === "pdf" ? (
-          <div className="absolute right-3 top-3 z-20 flex items-center gap-1 rounded-md border border-border/70 bg-background/90 p-1 shadow-sm backdrop-blur">
-            <a
-              href={fileUrl}
-              download={file.filename}
-              title={t("download")}
-              aria-label={t("download")}
-              className={buttonVariants({ size: "sm", variant: "ghost" })}
-            >
-              <Download className="h-4 w-4" />
-            </a>
-            <Button
-              size="sm"
-              variant="ghost"
-              title={t("ingest")}
-              aria-label={t("ingest")}
-              onClick={() => ingest.mutate()}
-              disabled={ingest.isPending}
-            >
-              <UploadCloud className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              title={googleExportLabel}
-              aria-label={googleExportLabel}
-              onClick={handleGoogleExport}
-              disabled={googleIntegration.isLoading || googleExport.isPending}
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Button>
-          </div>
-        ) : null}
-        <FileBody file={file} fileUrl={fileUrl} compiledUrl={compiledUrl} />
+        <FileBody
+          file={file}
+          fileUrl={fileUrl}
+          compiledUrl={compiledUrl}
+          onIngest={() => ingest.mutate()}
+          ingestPending={ingest.isPending}
+        />
       </div>
     </div>
   );
@@ -354,10 +360,14 @@ function FileBody({
   file,
   fileUrl,
   compiledUrl,
+  onIngest,
+  ingestPending,
 }: {
   file: AgentFileSummary;
   fileUrl: string;
   compiledUrl: string;
+  onIngest: () => void;
+  ingestPending: boolean;
 }) {
   const t = useTranslations("agentFiles.viewer");
   const textLike = useMemo(
@@ -389,7 +399,25 @@ function FileBody({
     );
   }
   if (file.kind === "pdf") {
-    return <AgentFilePdfViewer file={file} fileUrl={fileUrl} />;
+    return (
+      <AgentFilePdfViewer
+        file={file}
+        fileUrl={fileUrl}
+        onIngest={onIngest}
+        ingestPending={ingestPending}
+      />
+    );
+  }
+  if (isOfficeDocument(file)) {
+    return (
+      <OfficeDocumentPreview
+        file={file}
+        fileUrl={fileUrl}
+        compiledUrl={compiledUrl}
+        onIngest={onIngest}
+        ingestPending={ingestPending}
+      />
+    );
   }
   if (file.kind === "latex" && file.compileStatus === "completed") {
     return (
@@ -415,12 +443,277 @@ function FileBody({
   );
 }
 
-function AgentFilePdfViewer({
+function isOfficeDocument(file: AgentFileSummary) {
+  const filename = file.filename.toLowerCase();
+  return (
+    file.kind === "docx" ||
+    file.kind === "pptx" ||
+    file.kind === "xlsx" ||
+    filename.endsWith(".docx") ||
+    filename.endsWith(".pptx") ||
+    filename.endsWith(".xlsx") ||
+    file.mimeType.includes("officedocument") ||
+    file.mimeType.includes("powerpoint") ||
+    file.mimeType.includes("spreadsheet")
+  );
+}
+
+function OfficeDocumentPreview({
   file,
   fileUrl,
+  compiledUrl,
+  onIngest,
+  ingestPending,
 }: {
   file: AgentFileSummary;
   fileUrl: string;
+  compiledUrl: string;
+  onIngest: () => void;
+  ingestPending: boolean;
+}) {
+  const t = useTranslations("agentFiles.viewer");
+  const isConverting =
+    file.ingestStatus === "not_started" ||
+    file.ingestStatus === "queued" ||
+    file.ingestStatus === "running";
+
+  if (file.compiledMimeType === "application/pdf") {
+    return (
+      <AgentFilePdfViewer
+        file={file}
+        fileUrl={compiledUrl}
+        downloadUrl={fileUrl}
+        onIngest={onIngest}
+        ingestPending={ingestPending}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center bg-muted/20 p-6">
+      <div className="w-full max-w-md rounded-[var(--radius-card)] border border-border bg-background p-5 text-sm shadow-sm">
+        <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+          {isConverting ? (
+            <Loader2
+              className="h-4 w-4 animate-spin text-primary"
+              aria-hidden
+            />
+          ) : file.kind === "pptx" ? (
+            <Presentation className="h-4 w-4 text-orange-600" aria-hidden />
+          ) : (
+            <FileText className="h-4 w-4 text-muted-foreground" aria-hidden />
+          )}
+          <span className="min-w-0 truncate">
+            {isConverting ? t("officeConvertingTitle") : file.filename}
+          </span>
+        </div>
+        <p className="text-muted-foreground">
+          {isConverting
+            ? t("officeConvertingDescription")
+            : t("officePreviewUnavailable")}
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <a
+            href={fileUrl}
+            download={file.filename}
+            className={buttonVariants({ size: "sm", variant: "outline" })}
+          >
+            <FileDown className="mr-1.5 h-4 w-4" />
+            {t("download")}
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function useMaterialCommandRunner() {
+  return useCallback((commandId: AgentCommandId) => {
+    usePanelStore.getState().openAgentPanelTab("chat");
+    useAgentWorkbenchStore.getState().requestCommand(commandId);
+  }, []);
+}
+
+function firstRouteParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function SourceMaterialPanel({
+  file,
+  fileUrl,
+  onIngest,
+  ingestPending,
+}: {
+  file: AgentFileSummary;
+  fileUrl: string;
+  onIngest: () => void;
+  ingestPending: boolean;
+}) {
+  const t = useTranslations("agentFiles.viewer.material");
+  const locale = useLocale();
+  const router = useRouter();
+  const params = useParams<{ wsSlug?: string | string[] }>();
+  const wsSlug = firstRouteParam(params.wsSlug);
+  const runCommand = useMaterialCommandRunner();
+  const isAnalyzing =
+    ingestPending ||
+    file.ingestStatus === "queued" ||
+    file.ingestStatus === "running";
+  const canOpenSourceNote = Boolean(file.sourceNoteId && wsSlug);
+  const statusTone =
+    file.ingestStatus === "completed"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300"
+      : file.ingestStatus === "failed"
+        ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+        : isAnalyzing
+          ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300"
+          : "border-border bg-muted/40 text-muted-foreground";
+
+  const openSourceNote = () => {
+    if (!file.sourceNoteId || !wsSlug) return;
+    const tabs = useTabsStore.getState();
+    tabs.addTab(
+      newTab({
+        kind: "note",
+        targetId: file.sourceNoteId,
+        title: t("sourceNoteTab"),
+        mode: "reading",
+        preview: false,
+      }),
+    );
+    router.push(urls.workspace.note(locale, wsSlug, file.sourceNoteId));
+  };
+
+  const openProjectGraph = () => {
+    if (!wsSlug) return;
+    const tabs = useTabsStore.getState();
+    tabs.addTab(
+      newTab({
+        kind: "project",
+        targetId: file.projectId,
+        title: t("graphTab"),
+        titleKey: "appShell.tabTitles.graph",
+        mode: "graph",
+        preview: false,
+      }),
+    );
+    router.push(urls.workspace.projectGraph(locale, wsSlug, file.projectId));
+  };
+
+  return (
+    <div className="border-b bg-background/95 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="truncate text-sm font-medium">{file.filename}</span>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                statusTone,
+              )}
+            >
+              {isAnalyzing ? (
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+              ) : null}
+              {t(`status.${file.ingestStatus}`)}
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {file.ingestStatus === "completed"
+              ? t("statusDetail.completed")
+              : file.ingestStatus === "failed"
+                ? t("statusDetail.failed")
+                : isAnalyzing
+                  ? t("statusDetail.running")
+                  : t("statusDetail.notStarted")}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="default"
+            onClick={() => runCommand("make_note")}
+          >
+            <FileText className="mr-1.5 h-4 w-4" />
+            {t("actions.note")}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => runCommand("concept_wiki")}
+          >
+            <GitBranch className="mr-1.5 h-4 w-4" />
+            {t("actions.wiki")}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => runCommand("quiz")}
+          >
+            <FileText className="mr-1.5 h-4 w-4" />
+            {t("actions.quiz")}
+          </Button>
+          <Button
+            size="sm"
+            variant={file.ingestStatus === "failed" ? "default" : "ghost"}
+            onClick={onIngest}
+            disabled={isAnalyzing}
+          >
+            {isAnalyzing ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCcw className="mr-1.5 h-4 w-4" />
+            )}
+            {file.ingestStatus === "failed"
+              ? t("actions.retry")
+              : t("actions.reanalyze")}
+          </Button>
+        </div>
+      </div>
+      <details className="mt-2 text-xs text-muted-foreground">
+        <summary className="cursor-pointer select-none text-xs font-medium text-foreground">
+          {t("advanced")}
+        </summary>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={openSourceNote}
+            disabled={!canOpenSourceNote}
+          >
+            <Eye className="mr-1.5 h-4 w-4" />
+            {t("actions.openExtract")}
+          </Button>
+          <Button size="sm" variant="outline" onClick={openProjectGraph}>
+            <GitBranch className="mr-1.5 h-4 w-4" />
+            {t("actions.openGraph")}
+          </Button>
+          <a
+            href={fileUrl}
+            download={file.filename}
+            className={buttonVariants({ size: "sm", variant: "outline" })}
+          >
+            <Download className="mr-1.5 h-4 w-4" />
+            {t("actions.download")}
+          </a>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function AgentFilePdfViewer({
+  file,
+  fileUrl,
+  downloadUrl,
+  onIngest,
+  ingestPending,
+}: {
+  file: AgentFileSummary;
+  fileUrl: string;
+  downloadUrl?: string;
+  onIngest: () => void;
+  ingestPending: boolean;
 }) {
   const locale = useLocale();
   const [registry, setRegistry] = useState<PluginRegistry | null>(null);
@@ -431,7 +724,10 @@ function AgentFilePdfViewer({
       tabBar: "never",
       theme: { preference: "system" },
       export: { defaultFileName: file.filename },
-      disabledCategories: ["annotation", "redaction", "signature", "stamp"],
+      disabledCategories: [...EMBEDPDF_DISABLED_EDIT_CATEGORIES],
+      annotations: {
+        ...EMBEDPDF_PEN_ANNOTATION_CONFIG,
+      },
       i18n: embedPdfI18nConfig(locale),
       zoom: embedPdfZoomConfig(locale),
     }),
@@ -445,13 +741,22 @@ function AgentFilePdfViewer({
   return (
     <div
       data-testid="agent-file-pdf-viewer"
-      className="h-full min-h-0 w-full bg-neutral-100 dark:bg-neutral-950"
+      className="oc-pdf-viewer flex h-full min-h-0 w-full flex-col bg-neutral-100 dark:bg-neutral-950"
     >
-      <EmbedPDFViewer
-        config={config}
-        onReady={onReady}
-        style={{ width: "100%", height: "100%" }}
+      <SourceMaterialPanel
+        file={file}
+        fileUrl={downloadUrl ?? fileUrl}
+        onIngest={onIngest}
+        ingestPending={ingestPending}
       />
+      <PdfDrawingToolbar registry={registry} />
+      <div className="min-h-0 flex-1">
+        <EmbedPDFViewer
+          config={config}
+          onReady={onReady}
+          style={{ width: "100%", height: "100%" }}
+        />
+      </div>
     </div>
   );
 }

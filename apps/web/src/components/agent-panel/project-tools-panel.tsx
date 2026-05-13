@@ -4,37 +4,36 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { Star } from "lucide-react";
-import type { StudyArtifactType } from "@opencairn/shared";
+import { ChevronRight, Star, UploadCloud } from "lucide-react";
 
-import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
-import { useIngestUpload } from "@/hooks/use-ingest-upload";
 import {
-  integrationsApi,
-  studioToolsApi,
-  type StudioToolPreflightResponse,
-} from "@/lib/api-client";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useIngestUpload } from "@/hooks/use-ingest-upload";
+import { integrationsApi } from "@/lib/api-client";
 import { urls } from "@/lib/urls";
-import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
-import type { AgentCommand, AgentCommandId } from "./agent-commands";
-import { getAgentCommand } from "./agent-commands";
+import {
+  useAgentWorkbenchStore,
+  type AgentWorkflowIntent,
+} from "@/stores/agent-workbench-store";
 import {
   getToolDiscoveryGroups,
   type ToolDiscoveryItem,
 } from "./tool-discovery-catalog";
-import {
-  getToolDiscoveryTileClassName,
-  ToolDiscoveryTileContent,
-} from "./tool-discovery-tile";
-import { DeepResearchLaunchDialog } from "./deep-research-launch-dialog";
-import { StudyArtifactGenerateDialog } from "./study-artifact-generate-dialog";
+import type { AgentCommand } from "./agent-commands";
+import { ToolDiscoveryTileContent } from "./tool-discovery-tile";
 
 interface Props {
   projectId: string | null;
   workspaceId: string | null;
   wsSlug?: string;
-  onRun(command: AgentCommand): void;
+  onRun?(command: AgentCommand): void;
   onOpenActivity(): void;
+  onOpenChat?(): void;
 }
 
 const ACCEPT_ATTR = [
@@ -59,20 +58,6 @@ const ACCEPT_ATTR = [
 
 const FAVORITE_TOOLS_KEY = "opencairn.agentTools.favoriteIds";
 const RECENT_TOOLS_KEY = "opencairn.agentTools.recentIds";
-type PreflightState =
-  | { status: "idle" }
-  | { status: "loading"; itemId: string }
-  | {
-      status: "confirm";
-      item: ToolDiscoveryItem;
-      preflight: StudioToolPreflightResponse["preflight"];
-    }
-  | {
-      status: "blocked";
-      item: ToolDiscoveryItem;
-      preflight: StudioToolPreflightResponse["preflight"];
-    }
-  | { status: "error"; item: ToolDiscoveryItem };
 
 function readStoredToolIds(key: string): string[] {
   if (typeof window === "undefined") return [];
@@ -95,16 +80,19 @@ export function ProjectToolsPanel({
   projectId,
   workspaceId,
   wsSlug,
-  onRun,
   onOpenActivity,
+  onOpenChat = () => {},
 }: Props) {
   const locale = useLocale();
   const router = useRouter();
   const t = useTranslations("project.tools");
   const panelT = useTranslations("agentPanel.projectTools");
+  const uploadT = useTranslations("sidebar.upload");
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadBatchInFlightRef = useRef(false);
-  const [literatureOpen, setLiteratureOpen] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [pendingUploadFiles, setPendingUploadFiles] = useState<File[]>([]);
+  const [uploadError, setUploadError] = useState(false);
   const [uploadingLocal, setUploadingLocal] = useState(false);
   const [query, setQuery] = useState("");
   const [favoriteIds, setFavoriteIds] = useState(() =>
@@ -113,19 +101,9 @@ export function ProjectToolsPanel({
   const [recentIds, setRecentIds] = useState(() =>
     readStoredToolIds(RECENT_TOOLS_KEY),
   );
-  const [preflightState, setPreflightState] = useState<PreflightState>({
-    status: "idle",
-  });
-  const [studyArtifactType, setStudyArtifactType] =
-    useState<StudyArtifactType | null>(null);
-  const [deepResearchOpen, setDeepResearchOpen] = useState(false);
-  const [deepResearchBillingPath, setDeepResearchBillingPath] =
-    useState<"managed" | "byok">("byok");
-  const { upload, isUploading } = useIngestUpload();
+  const { uploadMany, isUploading } = useIngestUpload();
   const uploading = isUploading || uploadingLocal;
-  const requestDocumentGenerationPreset = useAgentWorkbenchStore(
-    (s) => s.requestDocumentGenerationPreset,
-  );
+  const requestWorkflow = useAgentWorkbenchStore((s) => s.requestWorkflow);
   const toolGroups = useMemo(() => getToolDiscoveryGroups("agent_tools"), []);
   const favoriteIdSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
   const recentIdSet = useMemo(() => new Set(recentIds), [recentIds]);
@@ -176,24 +154,30 @@ export function ProjectToolsPanel({
     };
   }, []);
 
-  function runCommand(commandId: AgentCommandId) {
-    const command = getAgentCommand(commandId);
-    if (command) onRun(command);
-  }
-
-  function uploadFiles(files: FileList | null) {
+  function uploadFiles(files: Iterable<File> | ArrayLike<File> | null) {
     if (!projectId || !files) return;
     const selected = Array.from(files);
     if (selected.length === 0 || uploadBatchInFlightRef.current) return;
     uploadBatchInFlightRef.current = true;
+    setUploadError(false);
     setUploadingLocal(true);
-    void Promise.allSettled(
-      selected.map((file) => upload(file, projectId)),
-    ).finally(() => {
-      uploadBatchInFlightRef.current = false;
-      setUploadingLocal(false);
-    });
-    onOpenActivity();
+    void uploadMany(selected, projectId, { concurrency: 3 })
+      .then((results) => {
+        const failed = results.some((item) => !item.ok);
+        setUploadError(failed);
+        if (!failed) {
+          setPendingUploadFiles([]);
+          setUploadDialogOpen(false);
+        }
+        onOpenActivity();
+      })
+      .catch(() => {
+        setUploadError(true);
+      })
+      .finally(() => {
+        uploadBatchInFlightRef.current = false;
+        setUploadingLocal(false);
+      });
   }
 
   const routeDisabled = disabled || !wsSlug;
@@ -216,18 +200,6 @@ export function ProjectToolsPanel({
       router.push(urls.workspace.projectAgents(locale, wsSlug, projectId));
       return;
     }
-    if (route === "project_learn_flashcards") {
-      router.push(
-        urls.workspace.projectLearnFlashcards(locale, wsSlug, projectId),
-      );
-      return;
-    }
-    if (route === "project_learn_socratic") {
-      router.push(
-        urls.workspace.projectLearnSocratic(locale, wsSlug, projectId),
-      );
-      return;
-    }
     if (route === "workspace_integrations") {
       router.push(
         urls.workspace.settingsSection(
@@ -239,88 +211,39 @@ export function ProjectToolsPanel({
       );
       return;
     }
-    if (route === "workspace_import_web") {
-      router.push(
-        `${urls.workspace.import(locale, wsSlug)}?projectId=${encodeURIComponent(projectId)}&source=web`,
-      );
-      return;
-    }
-    if (route === "workspace_import_youtube") {
-      router.push(
-        `${urls.workspace.import(locale, wsSlug)}?projectId=${encodeURIComponent(projectId)}&source=youtube`,
-      );
-      return;
-    }
     router.push(urls.workspace.projectLearn(locale, wsSlug, projectId));
   }
 
-  function executeItemAfterPreflight(
-    item: ToolDiscoveryItem,
-    preflight?: StudioToolPreflightResponse["preflight"],
-  ) {
+  function executeItem(item: ToolDiscoveryItem) {
     markRecent(item.id);
     switch (item.action.type) {
       case "route":
+        if (routeShouldOpenAsWorkflow(item.action.route)) {
+          requestWorkflow(workflowForItem(item));
+          onOpenChat();
+          return;
+        }
         openRoute(item.action.route);
         return;
       case "upload":
-        inputRef.current?.click();
+        setUploadDialogOpen(true);
         return;
       case "literature_search":
-        setLiteratureOpen(true);
-        return;
       case "deep_research":
-        setDeepResearchBillingPath(preflight?.billingPath ?? "byok");
-        setDeepResearchOpen(true);
+      case "study_artifact_generate":
+      case "document_generation_preset":
+        requestWorkflow(workflowForItem(item));
+        onOpenChat();
         return;
       case "workbench_command":
-        runCommand(item.action.commandId);
-        return;
-      case "study_artifact_generate":
-        setStudyArtifactType(item.action.artifactType);
+        requestWorkflow(workflowForItem(item));
+        onOpenChat();
         return;
       case "open_activity":
       case "open_review":
         onOpenActivity();
         return;
-      case "document_generation_preset":
-        requestDocumentGenerationPreset(item.action.presetId);
-        onOpenActivity();
-        return;
     }
-  }
-
-  async function executeItem(item: ToolDiscoveryItem) {
-    if (!item.preflight || !projectId) {
-      executeItemAfterPreflight(item);
-      return;
-    }
-    setPreflightState({ status: "loading", itemId: item.id });
-    try {
-      const { preflight } = await studioToolsApi.preflight(projectId, {
-        tool: item.preflight.tool,
-        sourceTokenEstimate: item.preflight.sourceTokenEstimate,
-      });
-      if (!preflight.canStart) {
-        setPreflightState({ status: "blocked", item, preflight });
-        return;
-      }
-      if (preflight.requiresConfirmation) {
-        setPreflightState({ status: "confirm", item, preflight });
-        return;
-      }
-      setPreflightState({ status: "idle" });
-      executeItemAfterPreflight(item, preflight);
-    } catch {
-      setPreflightState({ status: "error", item });
-    }
-  }
-
-  function confirmPreflight() {
-    if (preflightState.status !== "confirm") return;
-    const { item, preflight } = preflightState;
-    setPreflightState({ status: "idle" });
-    executeItemAfterPreflight(item, preflight);
   }
 
   function markRecent(itemId: string) {
@@ -345,27 +268,22 @@ export function ProjectToolsPanel({
   }
 
   function isItemDisabled(item: ToolDiscoveryItem): boolean {
-    if (
-      preflightState.status === "blocked" &&
-      preflightState.item.id === item.id
-    ) {
-      return true;
+    if (item.action.type === "route") {
+      return routeShouldOpenAsWorkflow(item.action.route)
+        ? disabled
+        : routeDisabled;
     }
-    if (item.action.type === "route") return routeDisabled;
     if (item.action.type === "upload") return disabled || uploading;
-    if (preflightState.status === "loading") return true;
     return disabled;
   }
 
   function unavailableLabel(item: ToolDiscoveryItem): string | null {
-    if (
-      preflightState.status === "blocked" &&
-      preflightState.item.id === item.id
-    ) {
-      return panelT("unavailable.overQuota");
-    }
     if (!projectId) return panelT("unavailable.missingProject");
-    if (item.action.type === "route" && !wsSlug) {
+    if (
+      item.action.type === "route" &&
+      !routeShouldOpenAsWorkflow(item.action.route) &&
+      !wsSlug
+    ) {
       return panelT("unavailable.missingWorkspace");
     }
     return null;
@@ -398,37 +316,13 @@ export function ProjectToolsPanel({
           className="h-9 w-full rounded-[var(--radius-control)] border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground"
         />
       </div>
-      <PreflightBanner
-        state={preflightState}
-        confirmLabel={panelT("preflight.confirmStart")}
-        cancelLabel={panelT("preflight.cancel")}
-        loadingLabel={panelT("preflight.loading")}
-        blockedLabel={
-          preflightState.status === "blocked"
-            ? panelT("preflight.blocked", {
-                credits: preflightState.preflight.cost.billableCredits,
-                available: preflightState.preflight.balance.availableCredits,
-              })
-            : ""
-        }
-        confirmText={
-          preflightState.status === "confirm"
-            ? panelT("preflight.confirm", {
-                credits: preflightState.preflight.cost.billableCredits,
-              })
-            : ""
-        }
-        errorLabel={panelT("preflight.error")}
-        onConfirm={confirmPreflight}
-        onCancel={() => setPreflightState({ status: "idle" })}
-      />
       <div className="space-y-3">
         {visibleToolGroups.map((group) => (
           <section key={group.category} className="space-y-1.5">
             <h4 className="px-1 text-[0.68rem] font-semibold uppercase tracking-normal text-muted-foreground">
               {t(`categories.${group.category}.title`)}
             </h4>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-1">
               {group.items.map((item) => {
                 const title =
                   item.action.type === "upload" && uploading
@@ -452,7 +346,7 @@ export function ProjectToolsPanel({
                     favoriteActiveLabel={panelT("favoriteActive")}
                     recentActiveLabel={panelT("recentActive")}
                     onToggleFavorite={() => toggleFavorite(item.id)}
-                    onClick={() => void executeItem(item)}
+                    onClick={() => executeItem(item)}
                   />
                 );
               })}
@@ -472,103 +366,192 @@ export function ProjectToolsPanel({
         accept={ACCEPT_ATTR}
         multiple
         onChange={(event) => {
-          uploadFiles(event.currentTarget.files);
+          const selected = event.currentTarget.files
+            ? Array.from(event.currentTarget.files)
+            : [];
+          setPendingUploadFiles(selected);
           event.currentTarget.value = "";
         }}
       />
-      <LiteratureSearchModal
-        open={literatureOpen}
-        onOpenChange={setLiteratureOpen}
-        workspaceId={workspaceId}
-        defaultProjectId={projectId}
-      />
-      <StudyArtifactGenerateDialog
-        open={studyArtifactType !== null}
-        projectId={projectId}
-        defaultType={studyArtifactType ?? "quiz_set"}
+      <Dialog
+        open={uploadDialogOpen}
         onOpenChange={(open) => {
-          if (!open) setStudyArtifactType(null);
+          if (uploading) return;
+          setUploadDialogOpen(open);
+          if (!open) {
+            setPendingUploadFiles([]);
+            setUploadError(false);
+          }
         }}
-      />
-      <DeepResearchLaunchDialog
-        open={deepResearchOpen}
-        workspaceId={workspaceId}
-        projectId={projectId}
-        wsSlug={wsSlug}
-        billingPath={deepResearchBillingPath}
-        onOpenChange={setDeepResearchOpen}
-      />
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{uploadT("title")}</DialogTitle>
+            <DialogDescription>{uploadT("description")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div
+              className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--radius-card)] border border-dashed border-border bg-muted/20 px-4 text-center text-sm transition hover:border-foreground hover:bg-muted/40"
+              role="button"
+              tabIndex={0}
+              onClick={() => inputRef.current?.click()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  inputRef.current?.click();
+                }
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setUploadError(false);
+                setPendingUploadFiles(Array.from(event.dataTransfer.files));
+              }}
+            >
+              <UploadCloud
+                aria-hidden
+                className="h-7 w-7 text-muted-foreground"
+              />
+              <span className="font-medium">
+                {pendingUploadFiles.length === 1
+                  ? uploadT("selected", { name: pendingUploadFiles[0]!.name })
+                  : pendingUploadFiles.length > 1
+                    ? uploadT("selected_many", {
+                        count: pendingUploadFiles.length,
+                      })
+                    : uploadT("drop")}
+              </span>
+              <span className="max-w-sm text-xs leading-5 text-muted-foreground">
+                {uploadT("hint")}
+              </span>
+            </div>
+            {uploadError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {uploadT("error")}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              disabled={pendingUploadFiles.length === 0 || uploading}
+              onClick={() => uploadFiles(pendingUploadFiles)}
+              className="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {uploading ? uploadT("uploading") : uploadT("start")}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function PreflightBanner({
-  state,
-  confirmLabel,
-  cancelLabel,
-  loadingLabel,
-  blockedLabel,
-  confirmText,
-  errorLabel,
-  onConfirm,
-  onCancel,
-}: {
-  state: PreflightState;
-  confirmLabel: string;
-  cancelLabel: string;
-  loadingLabel: string;
-  blockedLabel: string;
-  confirmText: string;
-  errorLabel: string;
-  onConfirm(): void;
-  onCancel(): void;
-}) {
-  if (state.status === "idle") return null;
-  if (state.status === "loading") {
-    return (
-      <p className="mb-3 rounded-[var(--radius-control)] border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-        {loadingLabel}
-      </p>
-    );
+function workflowPrompt(toolId: string): string {
+  switch (toolId) {
+    case "literature":
+      return "현재 프로젝트 주제에 맞는 논문을 찾아서 후보를 정리하고, 가져올 만한 자료를 추천해줘.";
+    case "research":
+      return "현재 프로젝트 자료를 바탕으로 깊이 있는 리서치를 시작해줘. 필요한 외부 자료와 근거를 함께 찾아줘.";
+    case "summarize":
+      return "현재 프로젝트 자료를 핵심 개념, 근거, 시험/활용 포인트 중심으로 요약해줘.";
+    case "pdf_report_fast":
+      return "현재 프로젝트 자료를 바탕으로 빠르게 공유할 수 있는 PDF 보고서를 만들어줘.";
+    case "pdf_report_latex":
+      return "현재 프로젝트 자료를 바탕으로 논문형 LaTeX PDF 보고서를 만들어줘.";
+    case "docx_report":
+      return "현재 프로젝트 자료를 바탕으로 편집 가능한 DOCX 보고서를 만들어줘.";
+    case "pptx_deck":
+      return "현재 프로젝트 자료를 발표자료 흐름으로 정리해줘.";
+    case "xlsx_table":
+      return "현재 프로젝트 자료를 비교 가능한 표와 스프레드시트로 정리해줘.";
+    case "source_figure":
+      return "현재 프로젝트 자료를 설명하는 핵심 피규어나 구조도를 만들어줘.";
+    case "study_artifact_generator":
+      return "현재 프로젝트 자료로 학습 자료를 만들어줘. 먼저 적절한 유형과 난이도를 제안해줘.";
+    case "flashcards":
+      return "현재 프로젝트 자료로 플래시카드를 만들어줘. 핵심 개념, 정의, 예시, 시험 포인트를 포함해줘.";
+    case "teach_to_learn":
+      return "현재 프로젝트 자료를 바탕으로 나에게 질문하면서 설명하는 Teach to Learn 세션을 시작해줘.";
+    case "web_import":
+      return "웹 URL을 현재 프로젝트 자료로 가져오고 요약까지 이어갈 수 있게 도와줘.";
+    case "youtube_import":
+      return "YouTube URL을 현재 프로젝트 자료로 가져오고 핵심 내용을 정리할 수 있게 도와줘.";
+    default:
+      return "현재 프로젝트 자료를 바탕으로 이 작업을 진행해줘.";
   }
-  const text =
-    state.status === "confirm"
-      ? confirmText
-      : state.status === "blocked"
-        ? blockedLabel
-        : errorLabel;
+}
+
+function routeShouldOpenAsWorkflow(
+  route: Extract<ToolDiscoveryItem["action"], { type: "route" }>["route"],
+): boolean {
   return (
-    <div className="mb-3 rounded-[var(--radius-control)] border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-      <p>{text}</p>
-      {state.status === "confirm" ? (
-        <div className="mt-2 flex gap-2">
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="rounded-[var(--radius-control)] bg-foreground px-2 py-1 font-medium text-background"
-          >
-            {confirmLabel}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-[var(--radius-control)] border border-border px-2 py-1 font-medium text-foreground"
-          >
-            {cancelLabel}
-          </button>
-        </div>
-      ) : null}
-      {state.status === "blocked" || state.status === "error" ? (
-        <button
-          type="button"
-          onClick={onCancel}
-          className="mt-2 rounded-[var(--radius-control)] border border-border px-2 py-1 font-medium text-foreground"
-        >
-          {cancelLabel}
-        </button>
-      ) : null}
-    </div>
+    route === "project_learn" ||
+    route === "project_learn_flashcards" ||
+    route === "project_learn_socratic" ||
+    route === "workspace_import_web" ||
+    route === "workspace_import_youtube"
   );
+}
+
+function workflowForItem(item: ToolDiscoveryItem): Omit<AgentWorkflowIntent, "id"> {
+  switch (item.action.type) {
+    case "literature_search":
+      return {
+        kind: "literature_search",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+      };
+    case "study_artifact_generate":
+      return {
+        kind: "study_artifact",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+        artifactType: item.action.artifactType,
+      };
+    case "document_generation_preset":
+      return {
+        kind: "document_generation",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+        presetId: item.action.presetId,
+      };
+    case "deep_research":
+      return {
+        kind: "agent_prompt",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+      };
+    case "workbench_command":
+      return {
+        kind: "agent_prompt",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+      };
+    case "route":
+      return {
+        kind:
+          item.action.route === "project_learn_socratic"
+            ? "teach_to_learn"
+            : "agent_prompt",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+        route: item.action.route,
+      };
+    default:
+      return {
+        kind: "agent_prompt",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+      };
+  }
 }
 
 function ToolTile({
@@ -612,54 +595,54 @@ function ToolTile({
         type="button"
         disabled={disabled}
         onClick={onClick}
-        className={getToolDiscoveryTileClassName({
-          emphasis,
-          size: "panel",
-          className: "w-full pr-9",
-        })}
+        className={`group flex min-h-12 w-full items-center gap-2 rounded-[var(--radius-control)] border px-2.5 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${
+          emphasis
+            ? "border-foreground/20 bg-foreground text-background hover:opacity-90"
+            : "border-transparent bg-background text-foreground hover:border-border hover:bg-muted/60"
+        }`}
       >
         <ToolDiscoveryTileContent
           icon={icon}
           title={title}
           description={description}
           emphasis={emphasis}
+          layout="row"
         />
-        {unavailableLabel ? (
-          <span className="mt-auto rounded-[var(--radius-control)] bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {unavailableLabel}
-          </span>
-        ) : null}
-        {statusLabel ? (
-          <span className="mt-auto rounded-[var(--radius-control)] border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {statusLabel}
-          </span>
-        ) : null}
-        {favorite || recent ? (
-          <span className="mt-auto flex flex-wrap gap-1 text-[11px] font-medium">
-            {favorite ? (
-              <span
-                className={
-                  emphasis
-                    ? "text-primary-foreground/80"
-                    : "text-muted-foreground"
-                }
-              >
-                {favoriteActiveLabel}
-              </span>
-            ) : null}
-            {recent ? (
-              <span
-                className={
-                  emphasis
-                    ? "text-primary-foreground/80"
-                    : "text-muted-foreground"
-                }
-              >
-                {recentActiveLabel}
-              </span>
-            ) : null}
-          </span>
-        ) : null}
+        <span className="ml-auto flex shrink-0 items-center gap-1 pr-7">
+          {unavailableLabel ? (
+            <span className="rounded-[var(--radius-control)] bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {unavailableLabel}
+            </span>
+          ) : null}
+          {statusLabel ? (
+            <span className="rounded-[var(--radius-control)] border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {statusLabel}
+            </span>
+          ) : null}
+          {favorite ? (
+            <span
+              className={
+                emphasis ? "text-background/70" : "text-muted-foreground"
+              }
+            >
+              {favoriteActiveLabel}
+            </span>
+          ) : recent ? (
+            <span
+              className={
+                emphasis ? "text-background/70" : "text-muted-foreground"
+              }
+            >
+              {recentActiveLabel}
+            </span>
+          ) : null}
+          <ChevronRight
+            aria-hidden
+            className={`size-3.5 ${
+              emphasis ? "text-background/70" : "text-muted-foreground"
+            }`}
+          />
+        </span>
       </button>
       <button
         type="button"

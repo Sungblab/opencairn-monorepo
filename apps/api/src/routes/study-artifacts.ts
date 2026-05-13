@@ -32,6 +32,7 @@ import {
 } from "../lib/billing";
 import { getChatProvider } from "../lib/llm";
 import { recordLlmUsageEvent } from "../lib/llm-usage";
+import { envInt } from "../lib/env";
 import {
   LLMNotConfiguredError,
   type LLMProvider,
@@ -312,7 +313,7 @@ async function collectModelText(
   let usage: Usage | null = null;
   for await (const chunk of provider.streamGenerate({
     messages,
-    maxOutputTokens: 8_000,
+    maxOutputTokens: envInt("STUDY_ARTIFACT_MAX_OUTPUT_TOKENS", 16_000),
     temperature: 0.2,
     thinkingLevel: "low",
   })) {

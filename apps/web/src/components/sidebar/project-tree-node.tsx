@@ -59,6 +59,7 @@ export function ProjectTreeNode({
   const { wsSlug } = useParams<{ wsSlug: string }>();
   const locale = useLocale();
   const t = useTranslations("sidebar.tree_menu");
+  const tBadge = useTranslations("sidebar.tree_badges");
   const router = useRouter();
   const ctx = useProjectTreeCtx();
   const modKeyLabel = useModKeyLabel();
@@ -77,11 +78,12 @@ export function ProjectTreeNode({
         aria-level={node.level + 1}
         data-kind={kind}
         data-id={node.data.id}
-        className="group flex h-full min-h-11 w-full min-w-0 items-center gap-2 overflow-hidden rounded-[var(--radius-control)] px-2.5 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+        className="group relative flex h-full min-h-11 w-full min-w-0 items-center gap-2 overflow-hidden rounded-[var(--radius-control)] px-2.5 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
         onClick={() => {
           if (parentId) ctx.onCreateNote(parentId);
         }}
       >
+        <TreeBranchGuide level={node.level} />
         <span aria-hidden className="ml-2 h-4 w-4 shrink-0" />
         <Plus
           aria-hidden
@@ -99,8 +101,6 @@ export function ProjectTreeNode({
   const canHaveChildren = new Set([
     "folder",
     "note",
-    "source_bundle",
-    "artifact_group",
     "code_workspace",
   ]);
   const canExpand = canHaveChildren.has(kind);
@@ -164,10 +164,6 @@ export function ProjectTreeNode({
   function handleRowClick(e: React.MouseEvent<HTMLDivElement>) {
     if (isRenaming) return;
     const targetId = node.data.target_id ?? node.data.id;
-    if (kind === "artifact_group" && node.data.metadata?.role === "analysis") {
-      ctx.onOpenAnalysisGroup?.(node.data.id, displayLabel);
-      return;
-    }
     if (canExpand && !opensOnRowClick.has(kind)) {
       if (e.detail > 1) return;
       node.toggle();
@@ -372,10 +368,11 @@ export function ProjectTreeNode({
             }}
             onKeyDown={handleRowKeyDown}
             title={t("row_hint")}
-            className="group flex h-full min-h-8 w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-[var(--radius-control)] px-2.5 text-sm text-foreground transition-colors hover:bg-muted/70 focus-visible:bg-muted data-[drop-target=true]:bg-muted"
+            className="group relative flex h-full min-h-8 w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-[var(--radius-control)] px-2.5 text-sm text-foreground transition-colors hover:bg-muted/70 focus-visible:bg-muted data-[drop-target=true]:bg-muted"
           />
         }
       >
+        <TreeBranchGuide level={node.level} />
         {canExpand ? (
           <ChevronRight
             aria-hidden
@@ -423,7 +420,7 @@ export function ProjectTreeNode({
         ) : (
           <>
             <span className="min-w-0 flex-1 truncate">{displayLabel}</span>
-            <NodeTypeBadge node={node.data} />
+            <NodeTypeBadge node={node.data} t={tBadge} />
           </>
         )}
         {!isRenaming ? (
@@ -607,6 +604,17 @@ export function ProjectTreeNode({
   );
 }
 
+function TreeBranchGuide({ level }: { level: number }) {
+  if (level <= 0) return null;
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute bottom-0 top-0 w-px bg-border/70"
+      style={{ left: `${Math.max(14, level * 18)}px` }}
+    />
+  );
+}
+
 function NodeIcon({ node }: { node: TreeNode }) {
   if (node.kind === "folder") {
     return (
@@ -717,8 +725,16 @@ function treeNodeDisplayLabel(
   return node.label;
 }
 
-function NodeTypeBadge({ node }: { node: TreeNode }) {
-  const label = badgeLabel(node);
+function NodeTypeBadge({
+  node,
+  t,
+}: {
+  node: TreeNode;
+  t: (
+    key: "analysis_completed" | "analysis_running" | "analysis_failed",
+  ) => string;
+}) {
+  const label = badgeLabel(node, t);
   if (!label) return null;
   return (
     <span
@@ -730,8 +746,19 @@ function NodeTypeBadge({ node }: { node: TreeNode }) {
   );
 }
 
-function badgeLabel(node: TreeNode): string | null {
+function badgeLabel(
+  node: TreeNode,
+  t: (
+    key: "analysis_completed" | "analysis_running" | "analysis_failed",
+  ) => string,
+): string | null {
   if (node.kind === "source_bundle") {
+    const status =
+      typeof node.metadata?.status === "string" ? node.metadata.status : "";
+    if (status === "completed") return t("analysis_completed");
+    if (status === "running" || status === "queued")
+      return t("analysis_running");
+    if (status === "failed") return t("analysis_failed");
     const mime =
       typeof node.metadata?.mimeType === "string" ? node.metadata.mimeType : "";
     return fileBadgeFromMime(mime) ?? "자료";
@@ -754,6 +781,19 @@ function badgeLabel(node: TreeNode): string | null {
 }
 
 function badgeClass(node: TreeNode): string {
+  if (node.kind === "source_bundle") {
+    const status =
+      typeof node.metadata?.status === "string" ? node.metadata.status : "";
+    if (status === "completed") {
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    }
+    if (status === "running" || status === "queued") {
+      return "border-sky-200 bg-sky-50 text-sky-700";
+    }
+    if (status === "failed") {
+      return "border-red-200 bg-red-50 text-red-700";
+    }
+  }
   const mime =
     node.kind === "source_bundle"
       ? typeof node.metadata?.mimeType === "string"

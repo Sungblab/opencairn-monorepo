@@ -103,21 +103,23 @@ export function NotificationsView() {
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-5xl space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">{t("title")}</h2>
+        <h1 className="text-2xl font-semibold tracking-normal">{t("title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("description")}</p>
       </div>
 
-      <section className="rounded-[var(--radius-card)] border border-border bg-background p-4">
-        <h3 className="mb-3 text-sm font-medium">{t("preferences.heading")}</h3>
+      <section className="rounded-[var(--radius-card)] border border-border bg-background shadow-sm">
+        <div className="border-b border-border px-4 py-4 sm:px-5">
+          <h2 className="text-sm font-semibold">{t("preferences.heading")}</h2>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
-            <thead className="text-left text-xs text-muted-foreground">
+            <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
               <tr>
-                <th className="pb-2 pr-4 font-medium">{t("preferences.tableHeaders.kind")}</th>
-                <th className="pb-2 pr-4 font-medium">{t("preferences.tableHeaders.email")}</th>
-                <th className="pb-2 font-medium">{t("preferences.tableHeaders.frequency")}</th>
+                <th className="px-4 py-3 font-medium sm:px-5">{t("preferences.tableHeaders.kind")}</th>
+                <th className="px-4 py-3 font-medium">{t("preferences.tableHeaders.email")}</th>
+                <th className="px-4 py-3 font-medium sm:px-5">{t("preferences.tableHeaders.frequency")}</th>
               </tr>
             </thead>
             <tbody>
@@ -126,13 +128,13 @@ export function NotificationsView() {
                 if (!row) return null;
                 return (
                   <tr key={kind} className="border-t border-border align-top">
-                    <td className="py-3 pr-4">
+                    <td className="px-4 py-4 sm:px-5">
                       <div className="font-medium">{t(`preferences.kinds.${kind}.label`)}</div>
                       <div className="text-xs text-muted-foreground">
                         {t(`preferences.kinds.${kind}.description`)}
                       </div>
                     </td>
-                  <td className="py-3 pr-4">
+                  <td className="px-4 py-4">
                       <label className="relative inline-flex h-7 w-7 items-center justify-center">
                         <input
                           type="checkbox"
@@ -151,10 +153,10 @@ export function NotificationsView() {
                         </span>
                       </label>
                   </td>
-                    <td className="py-3">
+                    <td className="px-4 py-4 sm:px-5">
                       <select
                         aria-label={t("preferences.tableHeaders.frequency")}
-                        className="min-h-8 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1 text-sm"
+                        className="min-h-9 rounded-[var(--radius-control)] border border-border bg-background px-3 py-1.5 text-sm"
                         value={row.frequency}
                         disabled={!row.emailEnabled}
                         onChange={(e) =>
@@ -178,16 +180,18 @@ export function NotificationsView() {
         </div>
       </section>
 
-      <section className="rounded-[var(--radius-card)] border border-border bg-background p-4">
-        <h3 className="mb-1 text-sm font-medium">{t("profile.heading")}</h3>
-        <p className="mb-3 text-xs text-muted-foreground">{t("profile.description")}</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <section className="rounded-[var(--radius-card)] border border-border bg-background shadow-sm">
+        <div className="border-b border-border px-4 py-4 sm:px-5">
+          <h2 className="text-sm font-semibold">{t("profile.heading")}</h2>
+          <p className="mt-1 text-xs text-muted-foreground">{t("profile.description")}</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 px-4 py-5 sm:grid-cols-2 sm:px-5">
           <label className="block text-sm">
             <span className="mb-1 block text-xs font-medium text-muted-foreground">
               {t("profile.locale")}
             </span>
             <select
-              className="min-h-9 w-full rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5"
+              className="min-h-10 w-full rounded-[var(--radius-control)] border border-border bg-background px-3 py-2"
               value={profileQuery.data.locale}
               onChange={(e) =>
                 updateProfile.mutate({
@@ -204,7 +208,7 @@ export function NotificationsView() {
               {t("profile.timezone")}
             </span>
             <select
-              className="min-h-9 w-full rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5"
+              className="min-h-10 w-full rounded-[var(--radius-control)] border border-border bg-background px-3 py-2"
               value={profileQuery.data.timezone}
               onChange={(e) =>
                 updateProfile.mutate({ timezone: e.currentTarget.value })

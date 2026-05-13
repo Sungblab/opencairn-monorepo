@@ -1,6 +1,23 @@
 "use client";
 
 import { urls } from "@/lib/urls";
+import {
+  Bell,
+  Cable,
+  CreditCard,
+  KeyRound,
+  Languages,
+  Link2,
+  Palette,
+  PlugZap,
+  Settings,
+  Shield,
+  Trash2,
+  User,
+  UserPlus,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { ProfileView } from "../account/profile-view";
@@ -105,6 +122,22 @@ const GROUPS: Array<{
   },
 ];
 
+const SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
+  "personal/profile": User,
+  "personal/appearance": Palette,
+  "personal/language": Languages,
+  "personal/notifications": Bell,
+  "personal/security": Shield,
+  "ai/providers": KeyRound,
+  "ai/mcp": PlugZap,
+  "workspace/members": Users,
+  "workspace/invites": UserPlus,
+  "workspace/integrations": Cable,
+  "workspace/shared-links": Link2,
+  "workspace/trash": Trash2,
+  "billing/plan": CreditCard,
+};
+
 function sectionFromPath(path: string[] | undefined, legacySub?: string) {
   const parts = path?.length ? path : legacySub ? [legacySub] : [];
   const joined = parts.join("/");
@@ -178,6 +211,15 @@ export function WorkspaceSettingsView({
   const tWorkspace = useTranslations("workspaceSettings");
   const tAccount = useTranslations("account");
   const current = sectionFromPath(path, sub);
+  const currentItem = GROUPS.flatMap((group) => group.items).find(
+    (item) => item.id === current,
+  );
+  const currentTitle =
+    currentItem?.labelNs === "workspaceSettings"
+      ? tWorkspace(currentItem.labelKey)
+      : currentItem
+        ? tAccount(currentItem.labelKey)
+        : tWorkspace("title");
 
   const body = (() => {
     switch (current) {
@@ -213,34 +255,52 @@ export function WorkspaceSettingsView({
   return (
     <div
       data-testid="route-ws-settings"
-      className="flex min-h-full min-w-0 flex-col bg-background md:flex-row"
+      className="flex min-h-full min-w-0 flex-col bg-muted/20 text-foreground lg:flex-row"
     >
-      <aside className="w-full shrink-0 border-b border-border bg-background p-4 md:w-60 md:border-b-0 md:border-r">
-        <p className="mb-3 text-xs uppercase tracking-wide text-muted-foreground">
-          {tWorkspace("title")}
-        </p>
-        <nav className="flex flex-row gap-3 overflow-x-auto pb-1 md:flex-col md:gap-4 md:overflow-x-visible md:pb-0">
+      <aside className="w-full shrink-0 border-b border-border bg-background/95 p-3 shadow-sm lg:sticky lg:top-0 lg:h-full lg:w-72 lg:border-b-0 lg:border-r lg:p-5 lg:shadow-none">
+        <div className="mb-3 flex items-center gap-2 px-1 lg:mb-5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-muted text-foreground">
+            <Settings aria-hidden className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">{tWorkspace("title")}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {currentTitle}
+            </p>
+          </div>
+        </div>
+        <nav className="flex gap-3 overflow-x-auto pb-1 lg:flex-col lg:gap-5 lg:overflow-x-visible lg:pb-0">
           {GROUPS.map((group) => (
-            <section key={group.id} className="shrink-0 md:shrink">
-              <p className="mb-1 px-2.5 text-[11px] font-semibold uppercase text-muted-foreground">
+            <section key={group.id} className="shrink-0 lg:shrink">
+              <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase text-muted-foreground">
                 {tWorkspace(`groups.${group.id}`)}
               </p>
-              <div className="flex flex-row gap-1 md:flex-col">
+              <div className="flex gap-1 lg:flex-col">
                 {group.items.map((item) => {
                   const active = current === item.id;
                   const t =
                     item.labelNs === "account" ? tAccount : tWorkspace;
+                  const Icon = SECTION_ICONS[item.id];
                   return (
                     <Link
                       key={item.id}
                       href={sectionHref(locale, wsSlug, item.id)}
-                      className={`block shrink-0 rounded-[var(--radius-control)] px-2.5 py-1.5 text-sm transition-colors ${
+                      aria-current={active ? "page" : undefined}
+                      className={`group inline-flex min-h-10 shrink-0 items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm transition-colors lg:w-full ${
                         active
-                          ? "bg-muted font-semibold text-foreground"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          ? "border-foreground/15 bg-foreground text-background shadow-sm"
+                          : "border-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
                       }`}
                     >
-                      {t(item.labelKey)}
+                      <Icon
+                        aria-hidden
+                        className={`h-4 w-4 shrink-0 ${
+                          active
+                            ? "text-background"
+                            : "text-muted-foreground group-hover:text-foreground"
+                        }`}
+                      />
+                      <span className="whitespace-nowrap">{t(item.labelKey)}</span>
                     </Link>
                   );
                 })}
@@ -249,7 +309,9 @@ export function WorkspaceSettingsView({
           ))}
         </nav>
       </aside>
-      <main className="min-w-0 flex-1 p-6">{body}</main>
+      <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+        <div className="mx-auto w-full max-w-5xl">{body}</div>
+      </main>
     </div>
   );
 }

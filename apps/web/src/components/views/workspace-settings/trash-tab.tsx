@@ -37,17 +37,54 @@ export function TrashTab({
       apiClient(`/notes/${id}/permanent`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey }),
   });
+  const emptyTrash = useMutation({
+    mutationFn: () =>
+      apiClient<{ deleted: number }>(`/notes/trash?workspaceId=${wsId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey }),
+  });
   const notes = data?.notes ?? [];
+  const mutationPending =
+    restore.isPending || destroy.isPending || emptyTrash.isPending;
+
+  function confirmEmptyTrash() {
+    if (notes.length === 0) return;
+    if (!window.confirm(t("emptyAllConfirm", { count: notes.length }))) return;
+    emptyTrash.mutate();
+  }
 
   return (
     <section>
       {showHeader ? (
-        <>
-          <h2 className="mb-3 text-lg font-semibold">{t("heading")}</h2>
-          <p className="mb-4 text-sm text-muted-foreground">
-            {t("retention")}
-          </p>
-        </>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold">{t("heading")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t("retention")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={confirmEmptyTrash}
+            disabled={notes.length === 0 || mutationPending}
+            className="shrink-0 rounded-[var(--radius-control)] border border-destructive/40 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+          >
+            {emptyTrash.isPending ? t("emptyAllPending") : t("emptyAll")}
+          </button>
+        </div>
+      ) : null}
+      {!showHeader && notes.length > 0 ? (
+        <div className="mb-3 flex justify-end">
+          <button
+            type="button"
+            onClick={confirmEmptyTrash}
+            disabled={mutationPending}
+            className="rounded-[var(--radius-control)] border border-destructive/40 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+          >
+            {emptyTrash.isPending ? t("emptyAllPending") : t("emptyAll")}
+          </button>
+        </div>
       ) : null}
       {isLoading && <TrashTabSkeleton />}
       {isError && <p className="text-sm text-destructive">{t("loadFailed")}</p>}
@@ -83,7 +120,7 @@ export function TrashTab({
                 <button
                   type="button"
                   onClick={() => restore.mutate(note.id)}
-                  disabled={restore.isPending || destroy.isPending}
+                  disabled={mutationPending}
                   className="app-btn-ghost rounded-[var(--radius-control)] border border-border px-2 py-1 text-xs disabled:opacity-50"
                 >
                   {t("restore")}
@@ -91,7 +128,7 @@ export function TrashTab({
                 <button
                   type="button"
                   onClick={() => destroy.mutate(note.id)}
-                  disabled={restore.isPending || destroy.isPending}
+                  disabled={mutationPending}
                   className="rounded-[var(--radius-control)] border border-destructive/40 px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
                 >
                   {t("deleteForever")}

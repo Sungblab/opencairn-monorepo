@@ -71,7 +71,8 @@ const pdfAnnotationsSchema = z.object({
     .array(z.record(z.string(), z.unknown()))
     .max(2000)
     .refine(
-      (annotations) => hasBoundedJsonDepth(annotations, MAX_PDF_ANNOTATION_DEPTH),
+      (annotations) =>
+        hasBoundedJsonDepth(annotations, MAX_PDF_ANNOTATION_DEPTH),
       "annotations_too_deep",
     ),
 });
@@ -117,11 +118,11 @@ function isPdfSourceNote(
   note: Awaited<ReturnType<typeof findReadableSourcePdfNote>>,
 ): note is NonNullable<Awaited<ReturnType<typeof findReadableSourcePdfNote>>> {
   return Boolean(
-    note
-      && note.type === "source"
-      && note.sourceType === "pdf"
-      && note.sourceFileKey
-      && (!note.mimeType || note.mimeType === "application/pdf"),
+    note &&
+    note.type === "source" &&
+    note.sourceType === "pdf" &&
+    note.sourceFileKey &&
+    (!note.mimeType || note.mimeType === "application/pdf"),
   );
 }
 
@@ -251,6 +252,57 @@ export const noteRoutes = new Hono<AppEnv>()
         updatedAt: n.updatedAt.toISOString(),
       })),
     });
+  })
+
+  .delete("/trash", async (c) => {
+    const user = c.get("user");
+    const workspaceId = c.req.query("workspaceId") ?? "";
+    if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canWrite(user.id, { type: "workspace", id: workspaceId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    await purgeExpiredTrash(workspaceId);
+    const trashed = await db
+      .select({
+        id: notes.id,
+        projectId: notes.projectId,
+        folderId: notes.folderId,
+      })
+      .from(notes)
+      .where(
+        and(eq(notes.workspaceId, workspaceId), isNotNull(notes.deletedAt)),
+      );
+    if (trashed.length === 0) return c.json({ deleted: 0 });
+
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`
+        DELETE FROM project_tree_nodes
+         WHERE target_table = 'notes'
+           AND target_id IN (${sql.join(
+             trashed.map((note) => sql`${note.id}::uuid`),
+             sql`, `,
+           )})
+      `);
+      await tx.execute(sql`
+        DELETE FROM notes
+         WHERE id IN (${sql.join(
+           trashed.map((note) => sql`${note.id}::uuid`),
+           sql`, `,
+         )})
+      `);
+    });
+
+    const at = new Date().toISOString();
+    for (const note of trashed) {
+      emitTreeEvent({
+        kind: "tree.note_deleted",
+        projectId: note.projectId,
+        id: note.id,
+        parentId: note.folderId,
+        at,
+      });
+    }
+    return c.json({ deleted: trashed.length });
   })
 
   // Role lookup — server-rendered note page uses this to compute `readOnly`
@@ -391,7 +443,9 @@ export const noteRoutes = new Hono<AppEnv>()
     if (!note) return c.json({ error: "Not found" }, 404);
 
     const user = c.get("user");
-    if (!(await canRead(user.id, { type: "workspace", id: note.workspaceId }))) {
+    if (
+      !(await canRead(user.id, { type: "workspace", id: note.workspaceId }))
+    ) {
       return c.json({ error: "Not found" }, 404);
     }
     if (!(await canRead(user.id, { type: "note", id }))) {
@@ -426,13 +480,16 @@ export const noteRoutes = new Hono<AppEnv>()
       if (!note) return c.json({ error: "Not found" }, 404);
 
       const user = c.get("user");
-      if (!(await canRead(user.id, { type: "workspace", id: note.workspaceId }))) {
+      if (
+        !(await canRead(user.id, { type: "workspace", id: note.workspaceId }))
+      ) {
         return c.json({ error: "Not found" }, 404);
       }
       if (!(await canRead(user.id, { type: "note", id }))) {
         return c.json({ error: "Forbidden" }, 403);
       }
-      if (!isPdfSourceNote(note)) return c.json({ error: "not_pdf_source" }, 409);
+      if (!isPdfSourceNote(note))
+        return c.json({ error: "not_pdf_source" }, 409);
       if (!(await canWrite(user.id, { type: "note", id }))) {
         return c.json({ error: "Forbidden" }, 403);
       }

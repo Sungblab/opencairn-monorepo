@@ -247,6 +247,7 @@ class IngestWorkflow:
         text: str = ""
         needs_enhance = False
         parse_result: dict = {}
+        viewer_pdf_object_key: str | None = None
 
         activity_input = _activity_input(inp, workflow_id, started_at_ms)
 
@@ -308,10 +309,8 @@ class IngestWorkflow:
             )
             text = result["text"]
         elif mime in _OFFICE_MIMES:
-            # Plan 3 follow-up Office/HWP. parse_office returns
-            # {text, viewer_pdf_object_key, has_complex_layout}; we drop
-            # the viewer key on the floor for now (no consumer wired yet)
-            # and pass text/complex flag through the same shape as PDF.
+            # Office uploads keep the extracted text for notes and attach the
+            # best-effort viewer PDF to the original file when conversion works.
             result = await workflow.execute_activity(
                 "parse_office",
                 activity_input,
@@ -320,6 +319,7 @@ class IngestWorkflow:
                 retry_policy=_RETRY,
             )
             text = result["text"]
+            viewer_pdf_object_key = result.get("viewer_pdf_object_key")
             needs_enhance = result.get("has_complex_layout", False)
         elif mime in _HWP_MIMES:
             # HWP/HWPX go through unoserver+H2Orestart → opendataloader-pdf.
@@ -331,6 +331,7 @@ class IngestWorkflow:
                 retry_policy=_RETRY,
             )
             text = result["text"]
+            viewer_pdf_object_key = result.get("viewer_pdf_object_key")
             needs_enhance = result.get("has_complex_layout", False)
         else:
             raise ValueError(f"Unsupported mime_type: {mime}")
@@ -446,6 +447,7 @@ class IngestWorkflow:
                         "workflow_id": workflow_id,
                         "bundle_node_id": inp.source_bundle_node_id,
                         "status": "completed",
+                        "viewer_pdf_object_key": viewer_pdf_object_key,
                     },
                     schedule_to_close_timeout=_SHORT_TIMEOUT,
                     heartbeat_timeout=_SHORT_HEARTBEAT,
@@ -485,34 +487,12 @@ class IngestWorkflow:
                 "project_id": inp.project_id,
                 "user_id": inp.user_id,
                 "parent_node_id": inp.parsed_group_node_id,
-                "kind": "agent_file",
-                "label": "parsed.md",
-                "filename": "parsed.md",
-                "mime_type": "text/markdown",
+                "kind": "note",
+                "label": "full_extract_note",
                 "role": "parsed",
                 "text": parse_result.get("markdown") or parse_result.get("text") or "",
             }
         )
-
-        for page in parse_result.get("page_artifacts", []):
-            await create_artifact(
-                {
-                    "workflow_id": workflow_id,
-                    "bundle_node_id": inp.source_bundle_node_id,
-                    "workspace_id": inp.workspace_id,
-                    "project_id": inp.project_id,
-                    "user_id": inp.user_id,
-                    "parent_node_id": inp.parsed_group_node_id,
-                    "kind": "agent_file",
-                    "label": page.get("label", "page.md"),
-                    "filename": page.get("label", "page.md"),
-                    "mime_type": "text/markdown",
-                    "role": "parsed_page",
-                    "text": page.get("text", ""),
-                    "page_index": page.get("page_index"),
-                    "metadata": {"ocrEngine": page.get("ocr_engine")},
-                }
-            )
 
         for figure in parse_result.get("figure_artifacts", []):
             await create_artifact(
@@ -523,8 +503,10 @@ class IngestWorkflow:
                     "project_id": inp.project_id,
                     "user_id": inp.user_id,
                     "parent_node_id": inp.figures_group_node_id,
-                    "kind": "artifact",
+                    "kind": "agent_file",
                     "label": figure.get("label", "figure.png"),
+                    "filename": figure.get("label", "figure.png"),
+                    "mime_type": figure.get("mime_type") or "image/png",
                     "role": "figure",
                     "page_index": figure.get("page_index"),
                     "figure_index": figure.get("figure_index"),

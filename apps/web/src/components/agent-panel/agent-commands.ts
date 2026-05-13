@@ -12,6 +12,7 @@ export type AgentCommandId =
   | "factcheck"
   | "extract_citations"
   | "make_note"
+  | "concept_wiki"
   | "narrate_note"
   | "generate_report"
   | "generate_figure"
@@ -94,6 +95,19 @@ export const AGENT_COMMANDS: AgentCommand[] = [
     mode: "accurate",
     effect: "send",
     promptKey: "make_note",
+    contextPatch: {
+      sourcePolicy: "auto_project",
+      memoryPolicy: "auto",
+      externalSearch: "allowed",
+    },
+  },
+  {
+    id: "concept_wiki",
+    category: "create",
+    aliases: ["/wiki", "/concept-wiki", "/개념위키", "/위키"],
+    mode: "accurate",
+    effect: "send",
+    promptKey: "concept_wiki",
     contextPatch: {
       sourcePolicy: "auto_project",
       memoryPolicy: "auto",

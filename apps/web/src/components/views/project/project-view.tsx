@@ -15,7 +15,6 @@ import {
   Network,
   UploadCloud,
 } from "lucide-react";
-import type { StudyArtifactType } from "@opencairn/shared";
 import {
   integrationsApi,
   plan8AgentsApi,
@@ -28,25 +27,21 @@ import {
   type StudioToolPreflightResponse,
 } from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
-import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
-import {
-  WorkbenchActivityButton,
-  WorkbenchCommandButton,
-} from "@/components/agent-panel/workbench-trigger-button";
+import { WorkbenchActivityButton } from "@/components/agent-panel/workbench-trigger-button";
 import { SourceUploadButton } from "@/components/sidebar/SourceUploadButton";
-import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
+import {
+  useAgentWorkbenchStore,
+  type AgentWorkflowIntent,
+} from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
 import {
   getToolDiscoveryGroups,
-  type DocumentGenerationPresetId,
   type ToolDiscoveryItem,
 } from "@/components/agent-panel/tool-discovery-catalog";
 import {
   getToolDiscoveryTileClassName,
   ToolDiscoveryTileContent,
 } from "@/components/agent-panel/tool-discovery-tile";
-import { DeepResearchLaunchDialog } from "@/components/agent-panel/deep-research-launch-dialog";
-import { StudyArtifactGenerateDialog } from "@/components/agent-panel/study-artifact-generate-dialog";
 import { ProjectMetaRow } from "./project-meta-row";
 import { ProjectNotesTable } from "./project-notes-table";
 
@@ -77,20 +72,11 @@ export function ProjectView({
   const queryClient = useQueryClient();
   const t = useTranslations("project");
   const workspaceId = useWorkspaceId(wsSlug);
-  const requestDocumentGenerationPreset = useAgentWorkbenchStore(
-    (s) => s.requestDocumentGenerationPreset,
-  );
-  const requestCommand = useAgentWorkbenchStore((s) => s.requestCommand);
+  const requestWorkflow = useAgentWorkbenchStore((s) => s.requestWorkflow);
   const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
   const [preflightState, setPreflightState] = useState<PreflightState>({
     status: "idle",
   });
-  const [literatureOpen, setLiteratureOpen] = useState(false);
-  const [studyArtifactType, setStudyArtifactType] =
-    useState<StudyArtifactType | null>(null);
-  const [deepResearchOpen, setDeepResearchOpen] = useState(false);
-  const [deepResearchBillingPath, setDeepResearchBillingPath] =
-    useState<"managed" | "byok">("byok");
   const toolGroups = useMemo(() => getToolDiscoveryGroups("project_home"), []);
   const googleIntegrationQuery = useQuery({
     queryKey: ["project-tools-google-integration", workspaceId],
@@ -201,31 +187,15 @@ export function ProjectView({
     return view ? `${base}?view=${view}` : base;
   }
 
-  function openDocumentPreset(presetId: DocumentGenerationPresetId) {
-    requestDocumentGenerationPreset(presetId);
-  }
-
   function executeProjectTool(
     item: ToolDiscoveryItem,
     preflight?: StudioToolPreflightResponse["preflight"],
   ) {
-    if (item.action.type === "workbench_command") {
-      requestCommand(item.action.commandId);
+    if (toolShouldOpenAsWorkflow(item)) {
+      void preflight;
+      requestWorkflow(workflowForProjectItem(item));
       openAgentPanelTab("chat");
       return;
-    }
-    if (item.action.type === "deep_research") {
-      setDeepResearchBillingPath(preflight?.billingPath ?? "byok");
-      setDeepResearchOpen(true);
-      return;
-    }
-    if (item.action.type === "document_generation_preset") {
-      openDocumentPreset(item.action.presetId);
-      openAgentPanelTab("activity");
-      return;
-    }
-    if (item.action.type === "study_artifact_generate") {
-      setStudyArtifactType(item.action.artifactType);
     }
   }
 
@@ -320,6 +290,19 @@ export function ProjectView({
 
     switch (item.action.type) {
       case "route":
+        if (routeShouldOpenAsWorkflow(item.action.route)) {
+          return (
+            <ToolButton
+              key={item.id}
+              icon={item.icon}
+              title={title}
+              description={description}
+              emphasis={item.emphasis}
+              statusLabel={status}
+              onClick={() => executeProjectTool(item)}
+            />
+          );
+        }
         return (
           <ToolLink
             key={item.id}
@@ -348,7 +331,8 @@ export function ProjectView({
             icon={item.icon}
             title={title}
             description={description}
-            onClick={() => setLiteratureOpen(true)}
+            statusLabel={status}
+            onClick={() => executeProjectTool(item)}
           />
         );
       case "deep_research":
@@ -365,28 +349,20 @@ export function ProjectView({
           />
         );
       case "workbench_command":
-        if (item.preflight) {
-          return (
-            <ToolButton
-              key={item.id}
-              icon={item.icon}
-              title={title}
-              description={description}
-              emphasis={item.emphasis}
-              unavailableLabel={unavailable}
-              disabled={Boolean(unavailable)}
-              onClick={() => void runProjectToolWithPreflight(item)}
-            />
-          );
-        }
         return (
-          <ToolCommandButton
+          <ToolButton
             key={item.id}
-            commandId={item.action.commandId}
             icon={item.icon}
             title={title}
             description={description}
             emphasis={item.emphasis}
+            unavailableLabel={unavailable}
+            disabled={Boolean(unavailable)}
+            onClick={() =>
+              item.preflight
+                ? void runProjectToolWithPreflight(item)
+                : executeProjectTool(item)
+            }
           />
         );
       case "study_artifact_generate":
@@ -418,29 +394,20 @@ export function ProjectView({
           />
         );
       case "document_generation_preset":
-        const presetId = item.action.presetId;
-        if (item.preflight) {
-          return (
-            <ToolButton
-              key={item.id}
-              icon={item.icon}
-              title={title}
-              description={description}
-              emphasis={item.emphasis}
-              unavailableLabel={unavailable}
-              disabled={Boolean(unavailable)}
-              onClick={() => void runProjectToolWithPreflight(item)}
-            />
-          );
-        }
         return (
-          <ToolPresetButton
+          <ToolButton
             key={item.id}
             icon={item.icon}
             title={title}
             description={description}
             emphasis={item.emphasis}
-            onOpen={() => openDocumentPreset(presetId)}
+            unavailableLabel={unavailable}
+            disabled={Boolean(unavailable)}
+            onClick={() =>
+              item.preflight
+                ? void runProjectToolWithPreflight(item)
+                : executeProjectTool(item)
+            }
           />
         );
     }
@@ -592,28 +559,6 @@ export function ProjectView({
         projectId={projectId}
         counts={counts}
         onLoaded={(rows) => setAllNotes(rows)}
-      />
-      <LiteratureSearchModal
-        open={literatureOpen}
-        onOpenChange={setLiteratureOpen}
-        workspaceId={workspaceId}
-        defaultProjectId={projectId}
-      />
-      <StudyArtifactGenerateDialog
-        open={studyArtifactType !== null}
-        projectId={projectId}
-        defaultType={studyArtifactType ?? "quiz_set"}
-        onOpenChange={(open) => {
-          if (!open) setStudyArtifactType(null);
-        }}
-      />
-      <DeepResearchLaunchDialog
-        open={deepResearchOpen}
-        workspaceId={workspaceId}
-        projectId={projectId}
-        wsSlug={wsSlug}
-        billingPath={deepResearchBillingPath}
-        onOpenChange={setDeepResearchOpen}
       />
     </div>
   );
@@ -943,34 +888,6 @@ function ToolLink({
   );
 }
 
-function ToolCommandButton({
-  commandId,
-  icon,
-  title,
-  description,
-  emphasis = false,
-}: {
-  commandId: Parameters<typeof WorkbenchCommandButton>[0]["commandId"];
-  icon: ToolDiscoveryItem["icon"];
-  title: string;
-  description: string;
-  emphasis?: boolean;
-}) {
-  return (
-    <WorkbenchCommandButton
-      commandId={commandId}
-      className={getToolDiscoveryTileClassName({ emphasis })}
-    >
-      <ToolDiscoveryTileContent
-        icon={icon}
-        title={title}
-        description={description}
-        emphasis={emphasis}
-      />
-    </WorkbenchCommandButton>
-  );
-}
-
 function ToolActivityButton({
   icon,
   title,
@@ -984,34 +901,6 @@ function ToolActivityButton({
 }) {
   return (
     <WorkbenchActivityButton
-      className={getToolDiscoveryTileClassName({ emphasis })}
-    >
-      <ToolDiscoveryTileContent
-        icon={icon}
-        title={title}
-        description={description}
-        emphasis={emphasis}
-      />
-    </WorkbenchActivityButton>
-  );
-}
-
-function ToolPresetButton({
-  icon,
-  title,
-  description,
-  emphasis = false,
-  onOpen,
-}: {
-  icon: ToolDiscoveryItem["icon"];
-  title: string;
-  description: string;
-  emphasis?: boolean;
-  onOpen: () => void;
-}) {
-  return (
-    <WorkbenchActivityButton
-      onClick={onOpen}
       className={getToolDiscoveryTileClassName({ emphasis })}
     >
       <ToolDiscoveryTileContent
@@ -1098,6 +987,7 @@ function ToolButton({
   description,
   emphasis = false,
   unavailableLabel,
+  statusLabel,
   disabled = false,
   onClick,
 }: {
@@ -1106,6 +996,7 @@ function ToolButton({
   description: string;
   emphasis?: boolean;
   unavailableLabel?: string | null;
+  statusLabel?: string | null;
   disabled?: boolean;
   onClick: () => void;
 }) {
@@ -1120,7 +1011,13 @@ function ToolButton({
         icon={icon}
         title={title}
         description={description}
+        emphasis={emphasis}
       />
+      {statusLabel ? (
+        <span className="mt-auto rounded-[var(--radius-control)] border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+          {statusLabel}
+        </span>
+      ) : null}
       {unavailableLabel ? (
         <span className="mt-auto rounded-[var(--radius-control)] bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
           {unavailableLabel}
@@ -1155,4 +1052,114 @@ function ToolUploadButton({
       />
     </SourceUploadButton>
   );
+}
+
+function toolShouldOpenAsWorkflow(item: ToolDiscoveryItem): boolean {
+  switch (item.action.type) {
+    case "literature_search":
+    case "deep_research":
+    case "workbench_command":
+    case "study_artifact_generate":
+    case "document_generation_preset":
+      return true;
+    case "route":
+      return routeShouldOpenAsWorkflow(item.action.route);
+    default:
+      return false;
+  }
+}
+
+function routeShouldOpenAsWorkflow(
+  route: Extract<ToolDiscoveryItem["action"], { type: "route" }>["route"],
+): boolean {
+  return (
+    route === "project_learn" ||
+    route === "project_learn_flashcards" ||
+    route === "project_learn_socratic" ||
+    route === "workspace_import_web" ||
+    route === "workspace_import_youtube"
+  );
+}
+
+function workflowPrompt(toolId: string): string {
+  switch (toolId) {
+    case "literature":
+      return "현재 프로젝트 주제에 맞는 논문을 찾아서 후보를 정리하고, 가져올 만한 자료를 추천해줘.";
+    case "research":
+      return "현재 프로젝트 자료를 바탕으로 깊이 있는 리서치를 시작해줘. 필요한 외부 자료와 근거를 함께 찾아줘.";
+    case "summarize":
+      return "현재 프로젝트 자료를 핵심 개념, 근거, 시험/활용 포인트 중심으로 요약해줘.";
+    case "pdf_report_fast":
+      return "현재 프로젝트 자료를 바탕으로 빠르게 공유할 수 있는 PDF 보고서를 만들어줘.";
+    case "pdf_report_latex":
+      return "현재 프로젝트 자료를 바탕으로 논문형 LaTeX PDF 보고서를 만들어줘.";
+    case "docx_report":
+      return "현재 프로젝트 자료를 바탕으로 편집 가능한 DOCX 보고서를 만들어줘.";
+    case "pptx_deck":
+      return "현재 프로젝트 자료를 발표자료 흐름으로 정리해줘.";
+    case "xlsx_table":
+      return "현재 프로젝트 자료를 비교 가능한 표와 스프레드시트로 정리해줘.";
+    case "source_figure":
+      return "현재 프로젝트 자료를 설명하는 핵심 피규어나 구조도를 만들어줘.";
+    case "study_artifact_generator":
+      return "현재 프로젝트 자료로 학습 자료를 만들어줘. 먼저 적절한 유형과 난이도를 제안해줘.";
+    case "flashcards":
+      return "현재 프로젝트 자료로 플래시카드를 만들어줘. 핵심 개념, 정의, 예시, 시험 포인트를 포함해줘.";
+    case "teach_to_learn":
+      return "현재 프로젝트 자료를 바탕으로 나에게 질문하면서 설명하는 Teach to Learn 세션을 시작해줘.";
+    case "web_import":
+      return "웹 URL을 현재 프로젝트 자료로 가져오고 요약까지 이어갈 수 있게 도와줘.";
+    case "youtube_import":
+      return "YouTube URL을 현재 프로젝트 자료로 가져오고 핵심 내용을 정리할 수 있게 도와줘.";
+    default:
+      return "현재 프로젝트 자료를 바탕으로 이 작업을 진행해줘.";
+  }
+}
+
+function workflowForProjectItem(
+  item: ToolDiscoveryItem,
+): Omit<AgentWorkflowIntent, "id"> {
+  switch (item.action.type) {
+    case "literature_search":
+      return {
+        kind: "literature_search",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+      };
+    case "study_artifact_generate":
+      return {
+        kind: "study_artifact",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+        artifactType: item.action.artifactType,
+      };
+    case "document_generation_preset":
+      return {
+        kind: "document_generation",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+        presetId: item.action.presetId,
+      };
+    case "route":
+      return {
+        kind:
+          item.action.route === "project_learn_socratic"
+            ? "teach_to_learn"
+            : "agent_prompt",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+        route: item.action.route,
+      };
+    default:
+      return {
+        kind: "agent_prompt",
+        toolId: item.id,
+        i18nKey: item.i18nKey,
+        prompt: workflowPrompt(item.id),
+      };
+  }
 }

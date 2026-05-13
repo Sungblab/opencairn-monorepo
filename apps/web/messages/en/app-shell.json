@@ -87,6 +87,15 @@
       "frameTitle": "{title} PDF viewer",
       "open": "Open in new tab",
       "download": "Download",
+      "drawing": {
+        "label": "PDF drawing tools",
+        "move": "Move",
+        "pen": "Pen",
+        "highlighter": "Highlighter",
+        "hintMove": "Move or select the document.",
+        "hintPen": "Hold the left mouse button and move to draw.",
+        "hintHighlighter": "Hold the left mouse button and move to highlight."
+      },
       "rail": {
         "title": "PDF work panel",
         "close": "Close",

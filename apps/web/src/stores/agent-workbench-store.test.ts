@@ -78,4 +78,29 @@ describe("agent-workbench-store", () => {
       presetId: "pptx_deck",
     });
   });
+
+  it("queues and clears agent workflow intents separately from legacy intents", () => {
+    useAgentWorkbenchStore.getState().requestWorkflow({
+      kind: "study_artifact",
+      toolId: "flashcards",
+      i18nKey: "flashcards",
+      prompt: "Create flashcards from the current project materials.",
+      artifactType: "flashcard_deck",
+    });
+    const workflow = useAgentWorkbenchStore.getState().pendingWorkflow;
+
+    expect(workflow).toMatchObject({
+      kind: "study_artifact",
+      toolId: "flashcards",
+      artifactType: "flashcard_deck",
+    });
+    expect(useAgentWorkbenchStore.getState().pendingIntent).toBeNull();
+    expect(
+      useAgentWorkbenchStore.getState().pendingDocumentGenerationPreset,
+    ).toBeNull();
+
+    useAgentWorkbenchStore.getState().closeWorkflow(workflow?.id ?? "");
+
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toBeNull();
+  });
 });

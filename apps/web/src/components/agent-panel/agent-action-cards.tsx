@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ExternalLink, Loader2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { AgentAction } from "@opencairn/shared";
 
 import { agentActionsApi } from "@/lib/api-client";
-import { pushWorkspaceTabUrl } from "@/lib/client-tab-url";
 import { newTab } from "@/lib/tab-factory";
 import { useTabsStore } from "@/stores/tabs-store";
+import { useTabNavigate } from "@/hooks/use-tab-navigate";
 
 const CHAT_PROJECT_ACTIONS = new Set([
   "note.create",
@@ -65,6 +65,33 @@ export function AgentActionCards({ actions }: { actions: AgentAction[] }) {
   const normalized = useMemo(() => asAgentActionCards(actions), [actions]);
   const [overrides, setOverrides] = useState<Record<string, AgentAction>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const actionIds = useMemo(
+    () => normalized.map((action) => action.id).join(","),
+    [normalized],
+  );
+
+  useEffect(() => {
+    if (!actionIds) return;
+    let cancelled = false;
+    void (async () => {
+      const results = await Promise.allSettled(
+        normalized.map((action) => agentActionsApi.get(action.id)),
+      );
+      if (cancelled) return;
+      const fresh: Record<string, AgentAction> = {};
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          fresh[result.value.action.id] = result.value.action;
+        }
+      }
+      if (Object.keys(fresh).length > 0) {
+        setOverrides((current) => ({ ...current, ...fresh }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [actionIds, normalized]);
 
   if (normalized.length === 0) return null;
 
@@ -97,6 +124,7 @@ function AgentActionCard({
   onBusyChange(busy: boolean): void;
 }) {
   const t = useTranslations("agentPanel.actionCard");
+  const navigate = useTabNavigate();
   const title = actionTitle(action);
   const openTarget = openableResult(action);
   const openLabel =
@@ -107,7 +135,7 @@ function AgentActionCard({
     try {
       const { action: updated } = await agentActionsApi.apply(action.id);
       onUpdated(updated);
-      openCreatedTarget(updated);
+      openCreatedTarget(updated, navigate);
     } finally {
       onBusyChange(false);
     }
@@ -170,7 +198,7 @@ function AgentActionCard({
               type="button"
               aria-label={openLabel}
               disabled={busy}
-              onClick={() => openTargetTab(openTarget)}
+              onClick={() => openTargetTab(openTarget, navigate)}
               className="rounded-[var(--radius-control)] border border-border p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50"
             >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -193,7 +221,10 @@ function AgentActionCard({
 }
 
 function statusKey(action: AgentAction): string {
-  if (action.kind === "note.create" || action.kind === "note.create_from_markdown") {
+  if (
+    action.kind === "note.create" ||
+    action.kind === "note.create_from_markdown"
+  ) {
     if (action.status === "completed") return "noteCreateCompleted";
     if (action.status === "approval_required") return "noteCreateApproval";
     if (action.status === "running" || action.status === "queued") {
@@ -219,7 +250,10 @@ type OpenTarget =
 
 function openableResult(action: AgentAction): OpenTarget | null {
   if (action.status !== "completed") return null;
-  if (action.kind === "note.create" || action.kind === "note.create_from_markdown") {
+  if (
+    action.kind === "note.create" ||
+    action.kind === "note.create_from_markdown"
+  ) {
     const note = isRecord(action.result) ? action.result.note : null;
     if (
       isRecord(note) &&
@@ -247,22 +281,29 @@ function openableResult(action: AgentAction): OpenTarget | null {
   return null;
 }
 
-function openCreatedTarget(action: AgentAction) {
+function openCreatedTarget(
+  action: AgentAction,
+  navigate: ReturnType<typeof useTabNavigate>,
+) {
   const target = openableResult(action);
-  if (target) openTargetTab(target);
+  if (target) openTargetTab(target, navigate);
 }
 
-function openTargetTab(target: OpenTarget) {
+function openTargetTab(
+  target: OpenTarget,
+  navigate: ReturnType<typeof useTabNavigate>,
+) {
   const tabs = useTabsStore.getState();
   const existing = tabs.findTabByTarget(target.kind, target.id);
+  const route = {
+    kind: target.kind,
+    targetId: target.id,
+    mode: target.kind === "note" ? ("plate" as const) : ("agent-file" as const),
+  };
   if (existing) {
     tabs.promoteFromPreview(existing.id);
     tabs.setActive(existing.id);
-    pushWorkspaceTabUrl({
-      kind: target.kind,
-      targetId: target.id,
-      mode: target.kind === "note" ? "plate" : "agent-file",
-    });
+    navigate(route);
     return;
   }
   tabs.addTab(
@@ -274,9 +315,5 @@ function openTargetTab(target: OpenTarget) {
       preview: false,
     }),
   );
-  pushWorkspaceTabUrl({
-    kind: target.kind,
-    targetId: target.id,
-    mode: target.kind === "note" ? "plate" : "agent-file",
-  });
+  navigate(route);
 }

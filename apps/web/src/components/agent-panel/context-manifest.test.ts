@@ -177,6 +177,34 @@ describe("buildAgentContextPayload", () => {
     expect(context.manifest.actionApprovalMode).toBe("require");
   });
 
+  it("carries structured workflow intent through the chat scope", async () => {
+    await expect(
+      buildAgentContextPayload({
+        activeTab: undefined,
+        workspaceId: "workspace-1",
+        sourcePolicy: "auto_project",
+        memoryPolicy: "auto",
+        externalSearch: "allowed",
+        fallbackProjectId: "project-1",
+        workflowIntent: {
+          kind: "document_generation",
+          toolId: "pdf_report",
+          prompt: "PDF 보고서를 만들어줘",
+          payload: { action: "generate_project_object", format: "pdf" },
+        },
+      }),
+    ).resolves.toMatchObject({
+      manifest: {
+        projectId: "project-1",
+      },
+      workflowIntent: {
+        kind: "document_generation",
+        toolId: "pdf_report",
+        payload: { action: "generate_project_object", format: "pdf" },
+      },
+    });
+  });
+
   it("keeps pinned references while active tab focus is disabled", async () => {
     await expect(
       buildAgentContextPayload({

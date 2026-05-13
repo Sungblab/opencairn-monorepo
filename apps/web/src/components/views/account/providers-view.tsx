@@ -11,9 +11,13 @@ import { ByokKeyCardLoader } from "@/components/settings/ByokKeyCardLoader";
 export function ProvidersView() {
   const t = useTranslations("account.providers");
   return (
-    <section className="max-w-3xl">
-      <h1 className="mb-3 text-xl font-semibold">{t("heading")}</h1>
-      <p className="mb-6 text-sm text-muted-foreground">{t("description")}</p>
+    <section className="max-w-4xl space-y-5">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-normal">{t("heading")}</h1>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          {t("description")}
+        </p>
+      </div>
       <ByokKeyCardLoader />
     </section>
   );

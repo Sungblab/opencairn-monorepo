@@ -112,6 +112,14 @@ interface State extends Persisted {
   setActive(id: string): void;
   updateTab(id: string, patch: Partial<Tab>): void;
   findTabByTarget(kind: TabKind, targetId: string | null): Tab | undefined;
+  closeTabsByTarget(
+    kind: TabKind,
+    targetId: string | null,
+  ): {
+    closedActive: boolean;
+    closedCount: number;
+    nextActive: Tab | null;
+  };
   dedupeTabsByKind(kind: TabKind, keepId: string): void;
   reorderTab(from: number, to: number): void;
   togglePin(id: string): void;
@@ -307,6 +315,44 @@ export const useTabsStore = create<State>((set, get) => ({
 
   addTab: (tab) => {
     const s = get();
+    const existing = s.tabs.find(
+      (current) =>
+        current.kind === tab.kind &&
+        current.targetId !== null &&
+        current.targetId === tab.targetId,
+    );
+    if (existing) {
+      const tabs = s.tabs.map((current) =>
+        current.id === existing.id
+          ? {
+              ...current,
+              title: tab.title || current.title,
+              mode: tab.mode ?? current.mode,
+              preview: false,
+            }
+          : current,
+      );
+      const activeId = existing.id;
+      const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, activeId);
+      set({
+        tabs,
+        activeId,
+        activePane: "primary",
+        split: null,
+        recentlyActiveTabIds,
+      });
+      if (s.workspaceId)
+        flush(s.workspaceId, {
+          version: 1,
+          tabs,
+          activeId,
+          activePane: "primary",
+          split: null,
+          closedStack: s.closedStack,
+          recentlyActiveTabIds,
+        });
+      return;
+    }
     const tabs = [...s.tabs, tab];
     const activeId = tab.id;
     const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, activeId);
@@ -357,7 +403,14 @@ export const useTabsStore = create<State>((set, get) => ({
       s.recentlyActiveTabIds.filter((tabId) => tabId !== id),
       activeId,
     );
-    set({ tabs, activeId, activePane, split, closedStack, recentlyActiveTabIds });
+    set({
+      tabs,
+      activeId,
+      activePane,
+      split,
+      closedStack,
+      recentlyActiveTabIds,
+    });
     if (s.workspaceId)
       flush(s.workspaceId, {
         version: 1,
@@ -411,18 +464,31 @@ export const useTabsStore = create<State>((set, get) => ({
   findTabByTarget: (kind, targetId) =>
     get().tabs.find((t) => t.kind === kind && t.targetId === targetId),
 
+  closeTabsByTarget: (kind, targetId) => {
+    const before = get();
+    const targetTabs = before.tabs.filter(
+      (tab) => tab.kind === kind && tab.targetId === targetId,
+    );
+    const closedActive = targetTabs.some((tab) => tab.id === before.activeId);
+    for (const tab of targetTabs) {
+      get().closeTab(tab.id);
+    }
+    const after = get();
+    return {
+      closedActive,
+      closedCount: targetTabs.length,
+      nextActive: after.tabs.find((tab) => tab.id === after.activeId) ?? null,
+    };
+  },
+
   dedupeTabsByKind: (kind, keepId) => {
     const s = get();
     if (!s.tabs.some((t) => t.id === keepId && t.kind === kind)) return;
-    const hasDuplicate = s.tabs.some(
-      (t) => t.kind === kind && t.id !== keepId,
-    );
+    const hasDuplicate = s.tabs.some((t) => t.kind === kind && t.id !== keepId);
     if (!hasDuplicate) return;
     const tabs = s.tabs.filter((t) => t.kind !== kind || t.id === keepId);
     const activeId =
-      s.activeId && tabs.some((t) => t.id === s.activeId)
-        ? s.activeId
-        : keepId;
+      s.activeId && tabs.some((t) => t.id === s.activeId) ? s.activeId : keepId;
     const split = sanitizeSplit(tabs, s.split);
     const activePane = split ? paneForActive(activeId, split) : "primary";
     const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, activeId);
@@ -511,9 +577,7 @@ export const useTabsStore = create<State>((set, get) => ({
     // (VSCode / Chrome "Reopen closed tabs" parity). Pinned tabs can't be
     // closed so they're filtered alongside keepId — they never enter
     // the stack.
-    const evicted = s.tabs.filter(
-      (t) => t.id !== keepId && !t.pinned,
-    );
+    const evicted = s.tabs.filter((t) => t.id !== keepId && !t.pinned);
     const closedStack = [...s.closedStack, ...evicted].slice(
       -CLOSED_STACK_LIMIT,
     );
@@ -523,7 +587,14 @@ export const useTabsStore = create<State>((set, get) => ({
       s.recentlyActiveTabIds.filter((id) => next.some((tab) => tab.id === id)),
       keepId,
     );
-    set({ tabs: next, activeId: keepId, activePane, split, closedStack, recentlyActiveTabIds });
+    set({
+      tabs: next,
+      activeId: keepId,
+      activePane,
+      split,
+      closedStack,
+      recentlyActiveTabIds,
+    });
     if (s.workspaceId)
       flush(s.workspaceId, {
         version: 1,
@@ -560,7 +631,14 @@ export const useTabsStore = create<State>((set, get) => ({
       ),
       activeId,
     );
-    set({ tabs: next, activeId, activePane, split, closedStack, recentlyActiveTabIds });
+    set({
+      tabs: next,
+      activeId,
+      activePane,
+      split,
+      closedStack,
+      recentlyActiveTabIds,
+    });
     if (s.workspaceId)
       flush(s.workspaceId, {
         version: 1,
@@ -623,7 +701,9 @@ export const useTabsStore = create<State>((set, get) => ({
     const secondary = existing ?? { ...tab, preview: false };
     const tabs = existing
       ? s.tabs.map((candidate) =>
-          candidate.id === existing.id ? { ...candidate, preview: false } : candidate,
+          candidate.id === existing.id
+            ? { ...candidate, preview: false }
+            : candidate,
         )
       : [...s.tabs, secondary];
     const split: SplitLayout = {
@@ -749,7 +829,8 @@ export const useTabsStore = create<State>((set, get) => ({
     const activeIdx = s.tabs.findIndex((tab) => tab.id === s.activeId);
     if (activeIdx < 0 || s.tabs.length < 2) return;
     const secondary =
-      s.tabs[(activeIdx + 1) % s.tabs.length] ?? s.tabs.find((tab) => tab.id !== s.activeId);
+      s.tabs[(activeIdx + 1) % s.tabs.length] ??
+      s.tabs.find((tab) => tab.id !== s.activeId);
     if (!secondary || secondary.id === s.activeId) return;
     const split: SplitLayout = {
       primaryTabId: s.activeId,

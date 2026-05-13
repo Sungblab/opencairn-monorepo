@@ -11,15 +11,24 @@ import {
   desc,
   eq,
   gt,
+  inArray,
+  ingestJobs,
   isNull,
   lt,
   max,
   notes,
   or,
+  projects,
   sql,
   user as users,
 } from "@opencairn/db";
-import { billingPlanConfigs } from "@opencairn/shared";
+import {
+  billingPlanConfigs,
+  generateProjectObjectActionSchema,
+  generateStudyArtifactRequestSchema,
+  studyArtifactToJsonFileCreateAction,
+  validateStudyArtifact,
+} from "@opencairn/shared";
 import {
   runAgent as defaultRunAgent,
   createStreamingAgentMessage,
@@ -31,10 +40,14 @@ import {
 import { getTemporalClient, taskQueue } from "./temporal-client";
 import { toProjectObjectSummary } from "./project-object-actions";
 import { createAgentAction } from "./agent-actions";
+import { requestDocumentGenerationProjectObject } from "./document-generation-actions";
+import { federatedSearch } from "./literature-search";
+import { generateStudyArtifact } from "../routes/study-artifacts";
 import { recordLlmUsageEvent } from "./llm-usage";
 import { persistAndPublish } from "./notification-events";
 import { chargeManagedCredits, InsufficientCreditsError } from "./billing";
 import { envInt } from "./env";
+import { canRead, canWrite } from "./permissions";
 
 const EXECUTION_LEASE_MS = 60_000;
 const EXECUTION_MONITOR_MS = 1_000;
@@ -341,63 +354,79 @@ export async function executeChatRun(runId: string): Promise<void> {
       { attempt: executionAttempt },
       executionAttempt,
     );
-    for await (const chunk of runAgentImpl({
-      threadId: run.threadId,
-      userId: run.userId,
-      userMessage: { content: body, scope },
-      mode: (run.mode ?? "auto") as ChatMode,
-      signal: abortController.signal,
-      excludeMessageIds: [run.userMessageId, run.agentMessageId],
-    })) {
-      if (abortController.signal.aborted) {
-        const state = await getExecutionState(runId, leaseId);
-        cancelled = state === "cancelled";
-        leaseLost = state !== "active" && state !== "cancelled";
-        break;
-      }
-      if (chunk.type === "done") break;
-      if (chunk.type === "text") {
-        const p = chunk.payload as { delta: string };
-        buffer.push(p.delta);
-      } else if (chunk.type === "status") {
-        meta.status = chunk.payload;
-      } else if (chunk.type === "thought") {
-        meta.thought = chunk.payload;
-      } else if (chunk.type === "citation") {
-        meta.citations = [
-          ...((meta.citations as unknown[]) ?? []),
-          chunk.payload,
-        ];
-      } else if (chunk.type === "save_suggestion") {
-        meta.save_suggestion = chunk.payload;
-      } else if (chunk.type === "agent_action") {
-        await handleAgentActionChunk({
-          run,
-          scope,
-          payload: chunk.payload,
-          meta,
-        });
-      } else if (chunk.type === "agent_file") {
-        await handleAgentFileChunk({
-          run,
-          scope,
-          payload: chunk.payload,
-          meta,
-        });
-      } else if (chunk.type === "usage") {
-        meta.usage = chunk.payload;
-      } else if (chunk.type === "verification") {
-        meta.verification = chunk.payload;
-      } else if (chunk.type === "error") {
-        streamStatus = "failed";
-        meta.error = chunk.payload;
-      }
+    const structuredWorkflow = await tryExecuteStructuredWorkflowIntent({
+      run,
+      scope,
+      meta,
+      executionAttempt,
+    });
+    if (structuredWorkflow.handled) {
+      buffer.push(structuredWorkflow.message);
       await appendChatRunEvent(
         runId,
-        chunk.type,
-        chunk.payload,
+        "text",
+        { delta: structuredWorkflow.message },
         executionAttempt,
       );
+    } else {
+      for await (const chunk of runAgentImpl({
+        threadId: run.threadId,
+        userId: run.userId,
+        userMessage: { content: body, scope },
+        mode: (run.mode ?? "auto") as ChatMode,
+        signal: abortController.signal,
+        excludeMessageIds: [run.userMessageId, run.agentMessageId],
+      })) {
+        if (abortController.signal.aborted) {
+          const state = await getExecutionState(runId, leaseId);
+          cancelled = state === "cancelled";
+          leaseLost = state !== "active" && state !== "cancelled";
+          break;
+        }
+        if (chunk.type === "done") break;
+        if (chunk.type === "text") {
+          const p = chunk.payload as { delta: string };
+          buffer.push(p.delta);
+        } else if (chunk.type === "status") {
+          meta.status = chunk.payload;
+        } else if (chunk.type === "thought") {
+          meta.thought = chunk.payload;
+        } else if (chunk.type === "citation") {
+          meta.citations = [
+            ...((meta.citations as unknown[]) ?? []),
+            chunk.payload,
+          ];
+        } else if (chunk.type === "save_suggestion") {
+          meta.save_suggestion = chunk.payload;
+        } else if (chunk.type === "agent_action") {
+          await handleAgentActionChunk({
+            run,
+            scope,
+            payload: chunk.payload,
+            meta,
+          });
+        } else if (chunk.type === "agent_file") {
+          await handleAgentFileChunk({
+            run,
+            scope,
+            payload: chunk.payload,
+            meta,
+          });
+        } else if (chunk.type === "usage") {
+          meta.usage = chunk.payload;
+        } else if (chunk.type === "verification") {
+          meta.verification = chunk.payload;
+        } else if (chunk.type === "error") {
+          streamStatus = "failed";
+          meta.error = chunk.payload;
+        }
+        await appendChatRunEvent(
+          runId,
+          chunk.type,
+          chunk.payload,
+          executionAttempt,
+        );
+      }
     }
   } catch (err) {
     streamStatus = "failed";
@@ -1039,6 +1068,310 @@ function extractScope(content: unknown): unknown {
     return (content as { scope?: unknown }).scope;
   }
   return undefined;
+}
+
+async function tryExecuteStructuredWorkflowIntent(input: {
+  run: typeof chatRuns.$inferSelect;
+  scope: unknown;
+  meta: Record<string, unknown>;
+  executionAttempt: number;
+}): Promise<{ handled: true; message: string } | { handled: false }> {
+  const workflowIntent = workflowIntentFromScope(input.scope);
+  if (!workflowIntent) return { handled: false };
+  if (workflowIntent.kind === "literature_search") {
+    return executeLiteratureWorkflowIntent(workflowIntent);
+  }
+  if (workflowIntent.kind === "study_artifact") {
+    return executeStudyArtifactWorkflowIntent({
+      run: input.run,
+      scope: input.scope,
+      workflowIntent,
+      meta: input.meta,
+      executionAttempt: input.executionAttempt,
+    });
+  }
+  const payload = recordValue(workflowIntent.payload);
+  if (payload?.action === "ingest_url") {
+    return executeUrlIngestWorkflowIntent({
+      run: input.run,
+      scope: input.scope,
+      payload,
+      executionAttempt: input.executionAttempt,
+    });
+  }
+  if (workflowIntent.kind !== "document_generation") return { handled: false };
+  if (payload?.action !== "generate_project_object") return { handled: false };
+  const projectId = await projectIdFromScope(input.scope);
+  if (!projectId) return { handled: false };
+
+  const request = generateProjectObjectActionSchema.parse({
+    type: "generate_project_object",
+    requestId: randomUUID(),
+    generation: payload.generation,
+  });
+  const result = await requestDocumentGenerationProjectObject(
+    projectId,
+    input.run.userId,
+    request,
+  );
+
+  input.meta.agent_actions = [
+    ...((input.meta.agent_actions as unknown[]) ?? []),
+    result.action,
+  ];
+  input.meta.project_object_generations = [
+    ...((input.meta.project_object_generations as unknown[]) ?? []),
+    result.event,
+  ];
+  await appendChatRunEvent(
+    input.run.id,
+    "agent_action_created",
+    { action: result.action },
+    input.executionAttempt,
+  );
+  await appendChatRunEvent(
+    input.run.id,
+    "project_object_generation_requested",
+    result.event,
+    input.executionAttempt,
+  );
+
+  return {
+    handled: true,
+    message:
+      "문서 생성을 시작했어요. 진행 상태와 결과 파일은 아래 생성 카드와 활동 탭에서 확인할 수 있어요.",
+  };
+}
+
+async function executeUrlIngestWorkflowIntent(input: {
+  run: typeof chatRuns.$inferSelect;
+  scope: unknown;
+  payload: Record<string, unknown>;
+  executionAttempt: number;
+}): Promise<{ handled: true; message: string } | { handled: false }> {
+  const rawUrl = typeof input.payload.url === "string" ? input.payload.url.trim() : "";
+  if (!rawUrl) return { handled: false };
+  const url = new URL(rawUrl);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("ingest_url_invalid_scheme");
+  }
+  const projectId = await projectIdFromScope(input.scope);
+  if (!projectId) return { handled: false };
+  if (!(await canWrite(input.run.userId, { type: "project", id: projectId }))) {
+    throw new Error("forbidden");
+  }
+  const [project] = await db
+    .select({ workspaceId: projects.workspaceId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  if (!project) throw new Error("project_not_found");
+
+  const isYoutube = isYoutubeUrl(rawUrl);
+  const workflowId = `ingest-url-${randomUUID()}`;
+  await db.insert(ingestJobs).values({
+    workflowId,
+    userId: input.run.userId,
+    workspaceId: project.workspaceId,
+    projectId,
+    source: isYoutube ? "youtube" : "web-url",
+  });
+  const client = await getTemporalClient();
+  await client.workflow.start("IngestWorkflow", {
+    taskQueue: taskQueue(),
+    workflowId,
+    args: [
+      {
+        url: rawUrl,
+        object_key: null,
+        file_name: null,
+        mime_type: isYoutube ? "x-opencairn/youtube" : "x-opencairn/web-url",
+        user_id: input.run.userId,
+        project_id: projectId,
+        note_id: null,
+        workspace_id: project.workspaceId,
+        content_enrichment_enabled:
+          (process.env.FEATURE_CONTENT_ENRICHMENT ?? "false").toLowerCase() ===
+          "true",
+      },
+    ],
+  });
+  await appendChatRunEvent(
+    input.run.id,
+    "ingest_started",
+    { workflowId, url: rawUrl, source: isYoutube ? "youtube" : "web-url" },
+    input.executionAttempt,
+  );
+  return {
+    handled: true,
+    message: `${isYoutube ? "YouTube" : "웹"} URL 가져오기를 시작했어요.\n\n${rawUrl}\n\n진행 상태는 현재 작업/활동에서 확인할 수 있어요.`,
+  };
+}
+
+function isYoutubeUrl(raw: string): boolean {
+  try {
+    const hostname = new URL(raw).hostname.toLowerCase();
+    return (
+      hostname === "youtube.com" ||
+      hostname.endsWith(".youtube.com") ||
+      hostname === "youtu.be"
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function executeStudyArtifactWorkflowIntent(input: {
+  run: typeof chatRuns.$inferSelect;
+  scope: unknown;
+  workflowIntent: { payload?: unknown };
+  meta: Record<string, unknown>;
+  executionAttempt: number;
+}): Promise<{ handled: true; message: string } | { handled: false }> {
+  const payload = recordValue(input.workflowIntent.payload);
+  if (payload?.action !== "generate_study_artifact") return { handled: false };
+  const projectId = await projectIdFromScope(input.scope);
+  if (!projectId) return { handled: false };
+  const request = generateStudyArtifactRequestSchema.parse({
+    type: payload.type,
+    sourceNoteIds: payload.sourceNoteIds,
+    title: payload.title,
+    difficulty: payload.difficulty,
+    tags: payload.tags,
+    itemCount: payload.itemCount,
+  });
+  const sourceRows = await db
+    .select({
+      id: notes.id,
+      title: notes.title,
+      contentText: notes.contentText,
+    })
+    .from(notes)
+    .where(
+      and(
+        eq(notes.projectId, projectId),
+        isNull(notes.deletedAt),
+        inArray(notes.id, request.sourceNoteIds),
+      ),
+    )
+    .orderBy(asc(notes.createdAt), asc(notes.id));
+  if (sourceRows.length !== new Set(request.sourceNoteIds).size) {
+    throw new Error("study_artifact_source_not_found");
+  }
+  for (const source of sourceRows) {
+    if (!(await canRead(input.run.userId, { type: "note", id: source.id }))) {
+      throw new Error("study_artifact_source_not_found");
+    }
+  }
+
+  const generated = await generateStudyArtifact(request, sourceRows);
+  const validation = validateStudyArtifact(generated.artifact);
+  if (!validation.success) {
+    throw new Error("study_artifact_invalid");
+  }
+  const { action } = await createAgentAction(
+    projectId,
+    input.run.userId,
+    studyArtifactToJsonFileCreateAction(validation.artifact, {
+      requestId: randomUUID(),
+      approvalMode: actionApprovalModeFromScope(input.scope, "auto_safe"),
+    }),
+  );
+  const summary = fileSummaryFromAction(action);
+  input.meta.agent_actions = [
+    ...((input.meta.agent_actions as unknown[]) ?? []),
+    action,
+  ];
+  if (summary) {
+    input.meta.agent_files = [
+      ...((input.meta.agent_files as unknown[]) ?? []),
+      summary,
+    ];
+    input.meta.project_objects = [
+      ...((input.meta.project_objects as unknown[]) ?? []),
+      toProjectObjectSummary(summary),
+    ];
+  }
+  await appendChatRunEvent(
+    input.run.id,
+    "agent_action_created",
+    { action },
+    input.executionAttempt,
+  );
+  if (summary) {
+    await appendChatRunEvent(
+      input.run.id,
+      "agent_file_created",
+      { type: "agent_file_created", file: summary },
+      input.executionAttempt,
+    );
+  }
+  return {
+    handled: true,
+    message: `${validation.artifact.title} 학습 자료를 생성했어요.`,
+  };
+}
+
+async function executeLiteratureWorkflowIntent(workflowIntent: {
+  payload?: unknown;
+}): Promise<{ handled: true; message: string } | { handled: false }> {
+  const payload = recordValue(workflowIntent.payload);
+  if (
+    payload?.action !== "search_and_recommend_imports" &&
+    payload?.action !== "discuss_literature_strategy"
+  ) {
+    return { handled: false };
+  }
+  const query = typeof payload.query === "string" ? payload.query.trim() : "";
+  if (!query) return { handled: false };
+
+  const { results } = await federatedSearch({
+    query,
+    sources: ["arxiv", "semantic_scholar"],
+    limit: 8,
+  });
+  if (results.length === 0) {
+    return {
+      handled: true,
+      message: `검색어 "${query}"로 찾은 논문 후보가 없어요. 검색어를 더 구체적으로 바꿔볼게요.`,
+    };
+  }
+
+  const lines = results.slice(0, 8).map((paper, index) => {
+    const id = paper.doi ?? paper.id;
+    const authors = paper.authors.slice(0, 3).join(", ");
+    const year = paper.year ? `, ${paper.year}` : "";
+    const cite = paper.citationCount != null ? `, citations ${paper.citationCount}` : "";
+    return `${index + 1}. ${paper.title} (${authors}${year}${cite})\n   id: ${id}${paper.openAccessPdfUrl ? `\n   pdf: ${paper.openAccessPdfUrl}` : ""}`;
+  });
+  return {
+    handled: true,
+    message: [
+      `"${query}" 논문 후보를 찾았어요.`,
+      "",
+      ...lines,
+      "",
+      "가져올 논문 번호나 id를 말해주면 import.literature 액션으로 이어갈게요.",
+    ].join("\n"),
+  };
+}
+
+function workflowIntentFromScope(scope: unknown):
+  | {
+      kind?: unknown;
+      toolId?: unknown;
+      prompt?: unknown;
+      payload?: unknown;
+    }
+  | null {
+  const root = recordValue(scope);
+  return recordValue(root?.workflowIntent);
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 async function handleAgentActionChunk(input: {

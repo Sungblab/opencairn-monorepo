@@ -1,4 +1,12 @@
-import { and, db, eq, isNull, notes, projects } from "@opencairn/db";
+import {
+  agentFiles,
+  and,
+  db,
+  eq,
+  isNull,
+  notes,
+  projects,
+} from "@opencairn/db";
 import type { Citation } from "@opencairn/db";
 import {
   retrieveWithPolicy,
@@ -12,6 +20,7 @@ import {
   verifyGroundedAnswer,
   type AnswerVerificationResult,
 } from "./answer-verifier";
+import { canRead } from "./permissions";
 import { buildChatSourceLedger } from "./chat-source-ledger";
 import { buildRuntimeContext } from "./chat-runtime-context";
 import { selectChatRuntimePolicy, type ChatMode } from "./chat-runtime-policy";
@@ -90,6 +99,10 @@ const SYSTEM_PROMPT = [
   "",
   "Do not include workspaceId, projectId, userId, actorUserId, or pageId in action inputs.",
   "The server injects trusted scope, applies approval policy, and records the action ledger.",
+  "When creating a note from a PDF, current document, lecture material, or uploaded file, create a study note rather than a brief abstract.",
+  "The note body should be detailed and structured: title, source/lecture line, numbered sections, subsections, key definitions, examples, tables where useful, and coverage across the whole source.",
+  "Avoid one-screen summaries for multi-page materials. Prefer enough detail that the note can replace a first reading pass.",
+  "Inside note.create_from_markdown bodyMarkdown, do not include [^N] citation markers or footnote syntax; keep citations in the assistant reply only when needed.",
   "",
   "Only use save-suggestion when the user asks for a reusable suggestion card rather than asking you to create the note.",
   "If used, append exactly one save-suggestion fenced block at the end:",
@@ -104,6 +117,7 @@ export async function* runChat(opts: {
   scope: RetrievalScope;
   ragMode: RagMode;
   chips: RetrievalChip[];
+  rawScope?: unknown;
   history: ChatMsg[];
   userMessage: string;
   signal?: AbortSignal;
@@ -131,7 +145,10 @@ export async function* runChat(opts: {
   // gen.return() to early-close, the finally still runs but the yielded
   // chunks are discarded — standard generator semantics.
   try {
-    yield { type: "status", payload: { phrase: "관련 문서 훑는 중..." } };
+    yield {
+      type: "status",
+      payload: { phrase: "관련 문서와 현재 자료 확인 중..." },
+    };
 
     const retrieval =
       opts.ragMode === "off"
@@ -163,7 +180,7 @@ export async function* runChat(opts: {
       candidates,
       maxTokens:
         retrieval?.policy.contextMaxTokens ??
-        envInt("CHAT_CONTEXT_MAX_TOKENS", 6000),
+        envInt("CHAT_CONTEXT_MAX_TOKENS", 12000),
       maxChunksPerNote: retrieval?.policy.maxChunksPerNote,
       maxChunksPerProject: retrieval?.policy.maxChunksPerProject,
     });
@@ -182,7 +199,7 @@ export async function* runChat(opts: {
       const grounded = provider.groundSearch
         ? await provider.groundSearch(opts.userMessage, {
             signal: opts.signal,
-            maxOutputTokens: envInt("CHAT_MAX_OUTPUT_TOKENS", 2048),
+            maxOutputTokens: envInt("CHAT_MAX_OUTPUT_TOKENS", 8192),
             thinkingLevel: policy.thinkingLevel,
           })
         : null;
@@ -212,19 +229,28 @@ export async function* runChat(opts: {
     // Build the prompt. RAG context block lives in the system message so it
     // doesn't burn through the user-history truncation budget below.
     const ragBlock = evidenceBundleToPrompt(evidenceBundle);
+    const activeDocumentBlock = await buildActiveDocumentContextBlock({
+      workspaceId: opts.workspaceId,
+      userId: opts.userId,
+      scope: opts.scope,
+      rawScope: opts.rawScope,
+    });
     const wikiIndexBlock = await buildChatWikiIndexBlock({
       workspaceId: opts.workspaceId,
       scope: opts.scope,
       chips: opts.chips,
       userId: opts.userId,
     });
+    const workflowIntentBlock = buildWorkflowIntentBlock(opts.rawScope);
     const system: ChatMsg = {
       role: "system",
       content: [
         SYSTEM_PROMPT,
         runtimeContext,
         opts.memoryContext,
+        activeDocumentBlock,
         wikiIndexBlock,
+        workflowIntentBlock,
         ragBlock,
       ]
         .filter(Boolean)
@@ -240,7 +266,7 @@ export async function* runChat(opts: {
 
     yield {
       type: "thought",
-      payload: { summary: "사용자의 질문 분석 중" },
+      payload: { summary: "요청과 근거 범위 확인 중" },
     };
 
     const buffer: string[] = [];
@@ -248,7 +274,7 @@ export async function* runChat(opts: {
     for await (const chunk of provider.streamGenerate({
       messages,
       signal: opts.signal,
-      maxOutputTokens: envInt("CHAT_MAX_OUTPUT_TOKENS", 2048),
+      maxOutputTokens: maxOutputTokensForTurn(opts.userMessage),
       thinkingLevel: policy.thinkingLevel,
     })) {
       if ("delta" in chunk) {
@@ -281,7 +307,10 @@ export async function* runChat(opts: {
     }
     const agentAction = extractAgentActionFence(full);
     if (agentAction) {
-      yield { type: "agent_action", payload: agentAction };
+      yield {
+        type: "agent_action",
+        payload: sanitizeAgentActionFence(agentAction),
+      };
     }
     if (
       requiresExecutableArtifactAction(opts.userMessage) &&
@@ -314,6 +343,189 @@ export async function* runChat(opts: {
   } finally {
     yield { type: "done", payload: {} };
   }
+}
+
+function buildWorkflowIntentBlock(rawScope: unknown): string {
+  if (!rawScope || typeof rawScope !== "object" || Array.isArray(rawScope)) {
+    return "";
+  }
+  const workflowIntent = (rawScope as Record<string, unknown>).workflowIntent;
+  if (
+    !workflowIntent ||
+    typeof workflowIntent !== "object" ||
+    Array.isArray(workflowIntent)
+  ) {
+    return "";
+  }
+  return [
+    "## Requested Agentic Workflow",
+    "The user launched a tool from the agent interface. Treat this JSON as structured intent, not as an already completed action.",
+    "Execute the request through the normal assistant response and typed agent-actions fences when a workspace/project mutation is needed.",
+    "For literature imports, use import.literature when selected paper IDs are available; otherwise search/explain candidates and ask for confirmation.",
+    "For generated study artifacts or documents, create the resulting project file with file.create unless a more specific typed action exists.",
+    "Do not copy projectId, workspaceId, or userId into action inputs; trusted scope is injected by the server.",
+    "```json",
+    JSON.stringify(workflowIntent, null, 2),
+    "```",
+  ].join("\n");
+}
+
+async function buildActiveDocumentContextBlock(opts: {
+  workspaceId: string;
+  userId?: string;
+  scope: RetrievalScope;
+  rawScope?: unknown;
+}): Promise<string> {
+  const noteId = await resolveActiveContextNoteId(opts.rawScope, opts.scope);
+  if (!noteId || !opts.userId) return "";
+  try {
+    const allowed = await canRead(opts.userId, { type: "note", id: noteId });
+    if (!allowed) return "";
+    const [note] = await db
+      .select({
+        id: notes.id,
+        title: notes.title,
+        workspaceId: notes.workspaceId,
+        contentText: notes.contentText,
+        sourceType: notes.sourceType,
+        mimeType: notes.mimeType,
+      })
+      .from(notes)
+      .where(
+        and(
+          eq(notes.id, noteId),
+          eq(notes.workspaceId, opts.workspaceId),
+          isNull(notes.deletedAt),
+        ),
+      )
+      .limit(1);
+    const text = note?.contentText?.trim();
+    if (!note || !text) return "";
+    const maxChars = envInt("CHAT_ACTIVE_DOCUMENT_CONTEXT_CHARS", 120000);
+    const excerpt = excerptAcrossDocument(text, maxChars);
+    return [
+      "## Current Document Context",
+      `title=${note.title}`,
+      `sourceType=${note.sourceType ?? "unknown"} mimeType=${note.mimeType ?? "unknown"}`,
+      "Use this block as the primary source when the user says this document/PDF/current material.",
+      "If creating a note from it, synthesize a useful study note across the document, not a one-screen abstract.",
+      "<current_document>",
+      excerpt,
+      "</current_document>",
+    ].join("\n");
+  } catch {
+    return "";
+  }
+}
+
+async function resolveActiveContextNoteId(
+  rawScope: unknown,
+  scope: RetrievalScope,
+): Promise<string | null> {
+  if (!rawScope || typeof rawScope !== "object" || Array.isArray(rawScope)) {
+    return scope.type === "page" ? scope.noteId : null;
+  }
+  const rawScopeRecord = rawScope as Record<string, unknown>;
+  const noteIdFromAgentFile = async (fileId: string): Promise<string | null> => {
+    const [file] = await db
+      .select({ sourceNoteId: agentFiles.sourceNoteId })
+      .from(agentFiles)
+      .where(and(eq(agentFiles.id, fileId), isNull(agentFiles.deletedAt)))
+      .limit(1);
+    return file?.sourceNoteId ?? null;
+  };
+  const invocationContext = rawScopeRecord.invocationContext;
+  if (
+    invocationContext &&
+    typeof invocationContext === "object" &&
+    !Array.isArray(invocationContext)
+  ) {
+    const context = invocationContext as Record<string, unknown>;
+    if (context.kind === "source" && typeof context.sourceId === "string") {
+      return context.sourceId;
+    }
+    if (context.kind === "note" && typeof context.noteId === "string") {
+      return context.noteId;
+    }
+    if (context.kind === "agent_file" && typeof context.fileId === "string") {
+      const noteId = await noteIdFromAgentFile(context.fileId);
+      if (noteId) return noteId;
+    }
+  }
+  const manifest = rawScopeRecord.manifest;
+  if (manifest && typeof manifest === "object" && !Array.isArray(manifest)) {
+    const activeArtifact = (manifest as Record<string, unknown>).activeArtifact;
+    if (
+      activeArtifact &&
+      typeof activeArtifact === "object" &&
+      !Array.isArray(activeArtifact)
+    ) {
+      const artifact = activeArtifact as Record<string, unknown>;
+      if (artifact.type === "note" && typeof artifact.id === "string") {
+        return artifact.id;
+      }
+      if (artifact.type === "file" && typeof artifact.id === "string") {
+        const noteId = await noteIdFromAgentFile(artifact.id);
+        if (noteId) return noteId;
+      }
+    }
+  }
+  return scope.type === "page" ? scope.noteId : null;
+}
+
+function maxOutputTokensForTurn(userMessage: string): number {
+  const fallback = envInt("CHAT_MAX_OUTPUT_TOKENS", 8192);
+  if (!requiresExecutableArtifactAction(userMessage)) return fallback;
+  return Math.max(fallback, envInt("CHAT_ARTIFACT_MAX_OUTPUT_TOKENS", 20000));
+}
+
+function sanitizeAgentActionFence(payload: AgentActionFence): AgentActionFence {
+  return {
+    actions: payload.actions.map((action) => {
+      if (action.kind !== "note.create_from_markdown") return action;
+      const input = action.input;
+      if (!input || typeof input !== "object" || Array.isArray(input)) {
+        return action;
+      }
+      const bodyMarkdown = (input as { bodyMarkdown?: unknown }).bodyMarkdown;
+      if (typeof bodyMarkdown !== "string") return action;
+      return {
+        ...action,
+        input: {
+          ...input,
+          bodyMarkdown: stripCitationMarkers(bodyMarkdown),
+        },
+      };
+    }),
+  };
+}
+
+function stripCitationMarkers(markdown: string): string {
+  return markdown
+    .replace(/\s*\[\^\d+\](?!:)/g, "")
+    .replace(/^\[\^\d+\]:.*(?:\r?\n)?/gm, "")
+    .trim();
+}
+
+function excerptAcrossDocument(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const sliceSize = Math.max(1, Math.floor(maxChars / 3));
+  const head = text.slice(0, sliceSize);
+  const middleStart = Math.max(0, Math.floor(text.length / 2 - sliceSize / 2));
+  const middle = text.slice(middleStart, middleStart + sliceSize);
+  const tail = text.slice(Math.max(0, text.length - sliceSize));
+  const omitted = Math.max(
+    0,
+    text.length - head.length - middle.length - tail.length,
+  );
+  return [
+    head,
+    `[현재 자료 중간으로 이동: 일부 원문 생략]`,
+    middle,
+    `[현재 자료 마지막으로 이동: 일부 원문 생략]`,
+    tail,
+    `[현재 자료 원문 일부 생략: 약 ${omitted}자]`,
+  ].join("\n\n");
 }
 
 async function buildChatWikiIndexBlock(opts: {

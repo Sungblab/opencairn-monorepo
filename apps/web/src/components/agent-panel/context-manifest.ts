@@ -1,5 +1,6 @@
 import type { Tab, TabKind } from "@/stores/tabs-store";
 import type { ProjectTreeDragPayload } from "@/lib/project-tree-dnd";
+import type { AgentWorkflowSubmission } from "@/stores/agent-workbench-store";
 
 export type SourcePolicy =
   | "auto_project"
@@ -42,6 +43,7 @@ export type AgentContextPayload = {
   chips: AgentContextChip[];
   strict: "strict" | "loose";
   invocationContext?: AgentInvocationContext;
+  workflowIntent?: AgentWorkflowSubmission;
 };
 
 export type AgentInvocationContext =
@@ -192,6 +194,7 @@ export async function buildAgentContextPayload(opts: {
   resolveNoteProjectId?: (noteId: string) => Promise<string | null>;
   fallbackProjectId?: string | null;
   attachedReferences?: ProjectTreeDragPayload[];
+  workflowIntent?: AgentWorkflowSubmission;
 }): Promise<AgentContextPayload> {
   const projectId = await resolveActiveProjectId(opts);
   const activeArtifact = activeArtifactFromTab(opts.activeTab);
@@ -262,7 +265,12 @@ export async function buildAgentContextPayload(opts: {
     dedupedChips.set(`${chip.type}:${chip.id}`, chip);
   }
 
-  return { manifest, chips: [...dedupedChips.values()], strict: "strict" };
+  return {
+    manifest,
+    chips: [...dedupedChips.values()],
+    strict: "strict",
+    ...(opts.workflowIntent ? { workflowIntent: opts.workflowIntent } : {}),
+  };
 }
 
 export function defaultSourcePolicy(activeKind: TabKind | undefined): SourcePolicy {

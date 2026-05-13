@@ -233,8 +233,17 @@ export function AgentEntryPointsView({ projectId }: AgentEntryPointsViewProps) {
       id: string;
       status: "accepted" | "rejected";
     }) => plan8AgentsApi.resolveSuggestion(id, status),
-    onSuccess: (_result, variables) => {
-      toast.success(t(`toast.suggestion.${variables.status}`));
+    onSuccess: (result, variables) => {
+      if (variables.status === "accepted" && result.apply?.applied) {
+        toast.success(t("toast.suggestion.acceptedApplied"));
+      } else if (
+        variables.status === "accepted" &&
+        result.apply?.reason === "manual_relation_choice_required"
+      ) {
+        toast.success(t("toast.suggestion.acceptedManual"));
+      } else {
+        toast.success(t(`toast.suggestion.${variables.status}`));
+      }
       void queryClient.invalidateQueries({ queryKey });
     },
     onError: () => {

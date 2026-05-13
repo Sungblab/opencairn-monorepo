@@ -119,6 +119,8 @@ export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
         <button
           type="button"
           aria-label={labels.item.close}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onClose();

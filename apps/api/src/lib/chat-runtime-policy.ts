@@ -27,7 +27,9 @@ export function selectChatRuntimePolicy(input: {
 
   const thinkingLevel =
     input.mode === "auto"
-      ? intent.freshnessRequired || intent.researchDepth
+      ? intent.freshnessRequired ||
+        intent.researchDepth ||
+        (intent.workspaceGrounded && intent.toolAction)
         ? "high"
         : "medium"
       : explicitThinking[input.mode];

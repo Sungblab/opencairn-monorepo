@@ -169,30 +169,25 @@ export const ingestRoutes = new Hono<AppEnv>()
       if (!workspaceId) {
         return c.json({ error: "Project not found" }, 404);
       }
-      const sourceBundle =
-        clientMime === "application/pdf"
-          ? await createSourceBundleForUpload({
-              workspaceId,
-              projectId,
-              userId: user.id,
-              workflowId,
-              objectKey,
-              fileName: file.name,
-              mimeType: clientMime,
-              bytes: buffer,
-            })
-          : null;
-      if (sourceBundle) {
-        const at = new Date().toISOString();
-        emitTreeEvent({
-          kind: "tree.node_created",
-          projectId,
-          id: sourceBundle.bundleNodeId,
-          parentId: null,
-          label: file.name,
-          at,
-        });
-      }
+      const sourceBundle = await createSourceBundleForUpload({
+        workspaceId,
+        projectId,
+        userId: user.id,
+        workflowId,
+        objectKey,
+        fileName: file.name,
+        mimeType: clientMime,
+        bytes: buffer,
+      });
+      const at = new Date().toISOString();
+      emitTreeEvent({
+        kind: "tree.node_created",
+        projectId,
+        id: sourceBundle.bundleNodeId,
+        parentId: null,
+        label: file.name,
+        at,
+      });
       const client = await getTemporalClient();
 
       // Persist dispatch metadata BEFORE starting the workflow so the

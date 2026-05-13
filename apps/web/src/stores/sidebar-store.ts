@@ -16,8 +16,6 @@ export const DEFAULT_QUICK_CREATE_ORDER = [
 const DEFAULT_COLLAPSED_SECTIONS = [
   "favorites",
   "recent",
-  "publish",
-  "help",
 ] as const;
 export type SidebarQuickCreateActionId =
   (typeof DEFAULT_QUICK_CREATE_ORDER)[number];

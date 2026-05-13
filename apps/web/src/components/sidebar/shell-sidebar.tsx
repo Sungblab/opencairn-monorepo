@@ -6,27 +6,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Bell,
   Bot,
   ChevronDown,
   ChevronLeft,
   CircleDot,
-  ExternalLink,
   FileText,
   GraduationCap,
-  HelpCircle,
   Home,
-  MessageSquare,
   MoreHorizontal,
   Network,
   Newspaper,
   Plus,
   Search,
-  Settings,
-  Share2,
   Star,
-  Trash2,
-  Wrench,
 } from "lucide-react";
 import { ScopedSearch } from "./scoped-search";
 import { ProjectTree } from "./project-tree";
@@ -96,6 +88,7 @@ export function ShellSidebar({
   const tTrash = useTranslations("workspaceSettings.trash");
   const toggleSidebar = usePanelStore((s) => s.toggleSidebar);
   const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
+  const agentPanelOpen = usePanelStore((s) => s.agentPanelOpen);
   const setSidebarWorkspace = useSidebarStore((s) => s.setWorkspace);
   const quickCreateOrder = useSidebarStore((s) => s.quickCreateOrder);
   const recordQuickCreateUse = useSidebarStore((s) => s.recordQuickCreateUse);
@@ -158,10 +151,10 @@ export function ShellSidebar({
           <ChevronLeft aria-hidden className="h-4 w-4" />
         </button>
       </div>
-      <div className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 py-2.5">
+      <div className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 py-2.5 pb-8">
         <ScopedSearch />
         {base && wsSlug ? (
-          <div className="mt-2 grid grid-cols-[minmax(0,1.2fr)_repeat(4,2rem)] items-center gap-1.5">
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_2rem_2rem] items-center gap-1.5">
             <SidebarNavLink
               href={
                 projectId
@@ -176,19 +169,10 @@ export function ShellSidebar({
               Icon={Home}
             />
             <PanelIconButton
-              label={tNav("chat")}
-              Icon={MessageSquare}
+              label={tNav("workbench")}
+              Icon={Bot}
               onClick={() => openAgentPanelTab("chat")}
-            />
-            <PanelIconButton
-              label={tNav("tools")}
-              Icon={Wrench}
-              onClick={() => openAgentPanelTab("tools")}
-            />
-            <PanelIconButton
-              label={tNav("notifications")}
-              Icon={Bell}
-              onClick={() => openAgentPanelTab("notifications")}
+              active={agentPanelOpen}
             />
             <ProjectToolsMenu
               base={base}
@@ -203,7 +187,7 @@ export function ShellSidebar({
           <>
             <SidebarSection id="create" label={tSections("create")} Icon={Plus}>
               <div
-                className="grid grid-cols-2 gap-1 rounded-md border border-border/70 bg-background p-1 shadow-none [&_button]:min-h-8 [&_button]:rounded-md [&_button]:border-transparent [&_button]:bg-transparent [&_button]:px-2 [&_button]:text-xs [&_button]:hover:bg-muted"
+                className="grid grid-cols-2 gap-1 py-0.5 [&_button]:min-h-8 [&_button]:rounded-md [&_button]:border-transparent [&_button]:bg-transparent [&_button]:px-2 [&_button]:text-xs [&_button]:text-foreground [&_button]:hover:bg-muted"
                 data-testid="sidebar-create-actions"
               >
                 {quickCreateOrder
@@ -229,6 +213,15 @@ export function ShellSidebar({
               onOpenActivity={() => openAgentPanelTab("activity")}
             />
 
+            <SidebarSection id="files" label={tSections("files")} Icon={FileText}>
+              <div
+                className="-mx-1 h-96 min-h-64 max-h-[45vh] overflow-hidden border-y border-border/80 py-1"
+                data-testid="sidebar-tree-region"
+              >
+                <ProjectTree projectId={projectId} workspaceSlug={wsSlug} />
+              </div>
+            </SidebarSection>
+
             <SidebarSection
               id="favorites"
               label={tSections("favorites")}
@@ -237,45 +230,12 @@ export function ShellSidebar({
               <SidebarFavorites wsSlug={wsSlug} />
             </SidebarSection>
 
-            <SidebarSection id="files" label={tSections("files")} Icon={FileText}>
-              <div
-                className="h-[52vh] min-h-80 max-h-[680px] overflow-hidden rounded-md border border-border bg-background shadow-none"
-                data-testid="sidebar-tree-region"
-              >
-                <ProjectTree projectId={projectId} workspaceSlug={wsSlug} />
-              </div>
-            </SidebarSection>
-
             <SidebarSection
               id="recent"
               label={tSections("recent")}
               Icon={Newspaper}
             >
               <SidebarRecentNotes wsSlug={wsSlug} />
-            </SidebarSection>
-
-            <SidebarSection
-              id="service_agent"
-              label={tSections("service_agent")}
-              Icon={Bot}
-            >
-              <div className="grid gap-1">
-                <SidebarNavLink
-                  href={urls.workspace.projectAgents(locale, wsSlug, projectId)}
-                  label={tNav("agents")}
-                  Icon={Bot}
-                  tone="agent"
-                />
-                {deepResearchEnabled ? (
-                  <SidebarNavLink
-                    href={`${base}/research`}
-                    label={tNav("research")}
-                    Icon={Search}
-                    tone="agent"
-                  />
-                ) : null}
-                <LiteratureSearchButton wsSlug={wsSlug} />
-              </div>
             </SidebarSection>
 
             <SidebarSection
@@ -296,6 +256,21 @@ export function ShellSidebar({
                   Icon={GraduationCap}
                   tone="utility"
                 />
+                <SidebarNavLink
+                  href={urls.workspace.projectAgents(locale, wsSlug, projectId)}
+                  label={tNav("agents")}
+                  Icon={Bot}
+                  tone="utility"
+                />
+                {deepResearchEnabled ? (
+                  <SidebarNavLink
+                    href={`${base}/research`}
+                    label={tNav("research")}
+                    Icon={Search}
+                    tone="utility"
+                  />
+                ) : null}
+                <LiteratureSearchButton wsSlug={wsSlug} />
               </div>
             </SidebarSection>
           </>
@@ -303,83 +278,10 @@ export function ShellSidebar({
           <SidebarEmptyState />
         )}
 
-        {base && wsSlug ? (
-          <>
-            <SidebarSection id="publish" label={tSections("publish")} Icon={Share2}>
-              <div className="grid gap-1">
-                <SidebarNavLink
-                  href={`${base}/settings/shared-links`}
-                  label={tNav("public_pages")}
-                  Icon={Share2}
-                  tone="utility"
-                />
-                <SidebarNavLink
-                  href={`${base}/settings/shared-links`}
-                  label={tNav("shared_links")}
-                  Icon={Share2}
-                  tone="utility"
-                />
-                {synthesisExportEnabled ? (
-                  <SidebarNavLink
-                    href={`${base}/synthesis-export`}
-                    label={tNav("synthesis_export")}
-                    Icon={ExternalLink}
-                    tone="utility"
-                  />
-                ) : null}
-              </div>
-            </SidebarSection>
-
-            <SidebarSection
-              id="workspace_tools"
-              label={tSections("workspace_tools")}
-              Icon={Wrench}
-            >
-              <div className="grid gap-1">
-                <SidebarNavLink
-                  href={`${base}/atlas`}
-                  label={tNav("atlas")}
-                  Icon={Network}
-                  tone="utility"
-                />
-                <SidebarNavLink
-                  href={`${base}/settings`}
-                  label={tNav("settings")}
-                  Icon={Settings}
-                  tone="utility"
-                />
-                <SidebarNavButton
-                  onClick={() => setTrashOpen(true)}
-                  label={tNav("trash")}
-                  Icon={Trash2}
-                  tone="utility"
-                />
-              </div>
-            </SidebarSection>
-
-            <SidebarSection id="help" label={tSections("help")} Icon={HelpCircle}>
-              <div className="grid gap-1">
-                <SidebarNavLink
-                  href={urls.workspace.help(locale, wsSlug)}
-                  label={tNav("help")}
-                  Icon={HelpCircle}
-                  tone="utility"
-                />
-                <SidebarNavLink
-                  href={urls.workspace.report(locale, wsSlug)}
-                  label={tNav("feedback")}
-                  Icon={MessageSquare}
-                  tone="utility"
-                />
-                <SidebarExternalLink
-                  href="/changelog"
-                  label={tNav("changelog")}
-                  Icon={Newspaper}
-                />
-              </div>
-            </SidebarSection>
-          </>
-        ) : null}
+        <div
+          aria-hidden
+          className="pointer-events-none sticky bottom-[-2rem] -mx-3 mt-2 h-10 bg-gradient-to-t from-background via-background/80 to-transparent"
+        />
       </div>
       <Dialog open={trashOpen} onOpenChange={setTrashOpen}>
         <DialogContent className="sm:max-w-2xl">
@@ -516,15 +418,20 @@ function SidebarSection({
     (s) => s.toggleSectionCollapsed,
   );
   return (
-    <section className="mt-4 border-t border-border/70 pt-3">
+    <section className="mt-4 border-t border-border pt-3 first:mt-3">
       <h2 className="mb-2">
         <button
           type="button"
           aria-expanded={!isCollapsed}
           onClick={() => toggleSectionCollapsed(id)}
-          className="flex w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs font-semibold text-foreground/85 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {Icon ? <Icon aria-hidden className="h-3.5 w-3.5" /> : null}
+          {Icon ? (
+            <Icon
+              aria-hidden
+              className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            />
+          ) : null}
           <span className="min-w-0 flex-1 truncate">{label}</span>
           <ChevronDown
             aria-hidden
@@ -570,73 +477,16 @@ function SidebarNavLink({
   );
 }
 
-function SidebarNavButton({
-  onClick,
-  label,
-  Icon,
-  tone = "primary",
-}: {
-  onClick: () => void;
-  label: string;
-  Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-  tone?: "primary" | "utility";
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-        tone === "utility"
-          ? "border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground"
-          : "border border-border bg-background text-foreground hover:border-foreground"
-      }`}
-    >
-      <Icon
-        aria-hidden
-        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-      />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-    </button>
-  );
-}
-
-function SidebarExternalLink({
-  href,
-  label,
-  Icon,
-}: {
-  href: string;
-  label: string;
-  Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-}) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <Icon
-        aria-hidden
-        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-      />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      <ExternalLink
-        aria-hidden
-        className="h-3 w-3 shrink-0 text-muted-foreground/70"
-      />
-    </a>
-  );
-}
-
 function PanelIconButton({
   label,
   Icon,
   onClick,
+  active = false,
 }: {
   label: string;
   Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   onClick: () => void;
+  active?: boolean;
 }) {
   return (
     <button
@@ -644,7 +494,8 @@ function PanelIconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      data-active={active || undefined}
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:border-foreground data-[active=true]:text-foreground"
     >
       <Icon aria-hidden className="h-3.5 w-3.5" />
     </button>

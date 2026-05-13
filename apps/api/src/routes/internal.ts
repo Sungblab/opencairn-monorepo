@@ -12,6 +12,7 @@ import {
   notes,
   noteChunks,
   projects,
+  projectTreeNodes,
   concepts,
   conceptEdges,
   conceptNotes,
@@ -1332,6 +1333,26 @@ internal.post(
     });
     let treeNodeId: string | null = null;
     if (body.treeParentNodeId) {
+      const [parentNode] = await db
+        .select({ metadata: projectTreeNodes.metadata })
+        .from(projectTreeNodes)
+        .where(eq(projectTreeNodes.id, body.treeParentNodeId))
+        .limit(1);
+      const parentRole =
+        parentNode?.metadata &&
+        typeof parentNode.metadata === "object" &&
+        !Array.isArray(parentNode.metadata) &&
+        "role" in parentNode.metadata &&
+        typeof parentNode.metadata.role === "string"
+          ? parentNode.metadata.role
+          : null;
+      const treeLabel =
+        body.treeLabel?.trim() ||
+        (parentRole === "analysis"
+          ? "generated_note"
+          : parentRole === "parsed"
+            ? "full_extract_note"
+            : body.title);
       const node = await createTreeNode({
         id: noteId,
         workspaceId: proj.workspaceId,
@@ -1340,7 +1361,7 @@ internal.post(
         kind: "note",
         targetTable: "notes",
         targetId: noteId,
-        label: body.treeLabel?.trim() || body.title,
+        label: treeLabel,
         icon: "file-text",
         sourceWorkflowId: body.objectKey ? undefined : null,
         sourceObjectKey: body.objectKey ?? null,
@@ -1433,6 +1454,11 @@ internal.post(
     const bundleNodeId = c.req.param("bundleNodeId");
     if (!isUuid(bundleNodeId)) return c.json({ error: "bad_request" }, 400);
     const body = c.req.valid("json");
+    const artifactMimeType =
+      body.mimeType ??
+      (typeof body.metadata?.mimeType === "string"
+        ? body.metadata.mimeType
+        : undefined);
     let targetTable: "notes" | "agent_files" | null = null;
     let targetId: string | null = null;
     let nodeKind: "note" | "agent_file" | "artifact" = body.kind;
@@ -1462,19 +1488,40 @@ internal.post(
       targetTable = "notes";
       targetId = noteId;
     } else if (body.kind === "agent_file") {
-      const file = await createAgentFile({
-        userId: body.userId,
-        projectId: body.projectId,
-        source: "manual",
-        skipPermissionCheck: true,
-        file: {
-          filename: body.filename ?? body.label,
-          title: body.label,
-          mimeType: body.mimeType ?? "text/markdown",
-          content: body.text ?? "",
-          startIngest: false,
-        },
-      });
+      const objectKey =
+        typeof body.metadata?.objectKey === "string"
+          ? body.metadata.objectKey
+          : null;
+      const mimeType = artifactMimeType ?? "text/markdown";
+      const file = objectKey
+        ? await registerExistingObjectAsAgentFile({
+            userId: body.userId,
+            workspaceId: body.workspaceId,
+            projectId: body.projectId,
+            filename: body.filename ?? body.label,
+            title: body.label,
+            kind: mimeType.startsWith("image/") ? "image" : undefined,
+            mimeType,
+            objectKey,
+            bytes:
+              typeof body.metadata?.bytes === "number"
+                ? body.metadata.bytes
+                : 0,
+            source: "manual",
+          })
+        : await createAgentFile({
+            userId: body.userId,
+            projectId: body.projectId,
+            source: "manual",
+            skipPermissionCheck: true,
+            file: {
+              filename: body.filename ?? body.label,
+              title: body.label,
+              mimeType,
+              content: body.text ?? "",
+              startIngest: false,
+            },
+          });
       targetTable = "agent_files";
       targetId = file.id;
       nodeKind = "agent_file";
@@ -1489,7 +1536,12 @@ internal.post(
       targetTable,
       targetId,
       label: body.label,
-      icon: body.kind === "agent_file" ? "file" : "file-text",
+      icon:
+        body.kind === "agent_file" && artifactMimeType?.startsWith("image/")
+          ? "image"
+          : body.kind === "agent_file"
+            ? "file"
+            : "file-text",
       metadata: { ...(body.metadata ?? {}), role: body.role, bundleNodeId },
     });
 
@@ -1508,6 +1560,7 @@ internal.post(
 const sourceBundleStatusSchema = z.object({
   status: z.enum(["running", "completed", "failed"]),
   reason: z.string().optional(),
+  viewerPdfObjectKey: z.string().min(1).optional(),
 });
 
 internal.post(
@@ -1517,6 +1570,17 @@ internal.post(
     const bundleNodeId = c.req.param("bundleNodeId");
     if (!isUuid(bundleNodeId)) return c.json({ error: "bad_request" }, 400);
     const body = c.req.valid("json");
+    const viewerPdfObjectKey = body.viewerPdfObjectKey ?? null;
+    const [bundleNode] = await db
+      .select({
+        id: projectTreeNodes.id,
+        projectId: projectTreeNodes.projectId,
+        parentId: projectTreeNodes.parentId,
+        label: projectTreeNodes.label,
+      })
+      .from(projectTreeNodes)
+      .where(eq(projectTreeNodes.id, bundleNodeId))
+      .limit(1);
     await db.execute(sql`
       UPDATE project_tree_nodes
          SET metadata = metadata || ${JSON.stringify(body)}::jsonb,
@@ -1526,6 +1590,14 @@ internal.post(
     await db.execute(sql`
       UPDATE agent_files
          SET ingest_status = ${body.status},
+             compiled_object_key = CASE
+               WHEN ${viewerPdfObjectKey}::text IS NULL THEN compiled_object_key
+               ELSE ${viewerPdfObjectKey}
+             END,
+             compiled_mime_type = CASE
+               WHEN ${viewerPdfObjectKey}::text IS NULL THEN compiled_mime_type
+               ELSE 'application/pdf'
+             END,
              updated_at = now()
        WHERE id IN (
          SELECT target_id
@@ -1540,6 +1612,16 @@ internal.post(
             AND metadata ? 'originalFileId'
        )
     `);
+    if (bundleNode) {
+      emitTreeEvent({
+        kind: "tree.node_renamed",
+        projectId: bundleNode.projectId,
+        id: bundleNode.id,
+        parentId: bundleNode.parentId,
+        label: bundleNode.label,
+        at: new Date().toISOString(),
+      });
+    }
     return c.json({ ok: true });
   },
 );
@@ -2731,6 +2813,7 @@ internal.get("/projects/:id/ontology-issues", async (c) => {
     promotionCandidates: rowsOf(promotionRaw),
   });
 });
+
 // POST /internal/notes/:id/refresh-tsv — safety valve: force-regenerate
 // content_tsv for a single note. The trigger keeps the column fresh
 // automatically; this endpoint exists so Librarian can rebuild after a

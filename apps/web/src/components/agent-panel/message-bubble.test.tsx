@@ -23,6 +23,7 @@ vi.mock("next-intl", () => ({
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ wsSlug: "ws-test" }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
 vi.mock("../chat/chat-message-renderer-loader", () => ({
@@ -73,8 +74,7 @@ describe("message bubble status", () => {
     expect(screen.queryByText("관련 문서 훑는 중...")).not.toBeInTheDocument();
   });
 
-  it("keeps completed thinking summaries as a collapsed trace", async () => {
-    const user = userEvent.setup();
+  it("hides generic transient thinking summaries on completed messages", () => {
     render(
       <MessageBubble
         msg={{
@@ -91,10 +91,11 @@ describe("message bubble status", () => {
     );
 
     expect(screen.getByText("완료된 답변입니다.")).toBeInTheDocument();
-    expect(screen.getByText("thought_label")).toBeInTheDocument();
+    expect(screen.queryByText("thought_label")).not.toBeInTheDocument();
     expect(screen.queryByText("사용자의 질문 분석 중")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "thought_label" }));
-    expect(screen.getByText("사용자의 질문 분석 중")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "thought_label" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a status line while a run is still active", () => {
@@ -142,7 +143,9 @@ describe("message bubble citations", () => {
       />,
     );
 
-    expect(screen.getByText('음, "테스트"라고 말씀하셨는데요.')).toBeInTheDocument();
+    expect(
+      screen.getByText('음, "테스트"라고 말씀하셨는데요.'),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/\[\^1\]/)).not.toBeInTheDocument();
     expect(screen.getByText("출처 1")).toBeInTheDocument();
   });
@@ -156,8 +159,7 @@ describe("message bubble save suggestions", () => {
         msg={{
           ...baseAgentMessage,
           content: {
-            body:
-              '노트로 정리했습니다.\n\n```save-suggestion\n{"title":"요약 노트","body_markdown":"# 요약"}\n```\n\n```agent-actions\n{"actions":[{"kind":"note.create","risk":"write","input":{"title":"요약 노트"}}]}\n```\n\n```agent-file\n{"files":[{"filename":"summary.md","content":"# 요약"}]}\n```',
+            body: '노트로 정리했습니다.\n\n```save-suggestion\n{"title":"요약 노트","body_markdown":"# 요약"}\n```\n\n```agent-actions\n{"actions":[{"kind":"note.create","risk":"write","input":{"title":"요약 노트"}}]}\n```\n\n```agent-file\n{"files":[{"filename":"summary.md","content":"# 요약"}]}\n```',
             save_suggestion: {
               title: "요약 노트",
               body_markdown: "# 요약",
@@ -181,6 +183,7 @@ describe("message bubble save suggestions", () => {
 
 describe("message bubble agent actions", () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     useTabsStore.setState(useTabsStore.getInitialState(), true);
     useTabsStore.getState().setWorkspace("ws-test");
   });
@@ -243,6 +246,83 @@ describe("message bubble agent actions", () => {
         preview: false,
       }),
     ]);
+  });
+
+  it("refreshes stale persisted action snapshots before rendering controls", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          action: {
+            id: "00000000-0000-4000-8000-000000000052",
+            requestId: "00000000-0000-4000-8000-000000000053",
+            workspaceId: "00000000-0000-4000-8000-000000000054",
+            projectId,
+            actorUserId: "user-1",
+            sourceRunId: null,
+            kind: "note.create_from_markdown",
+            status: "completed",
+            risk: "write",
+            input: {
+              title: "PDF 요약 노트",
+              folderId: null,
+              bodyMarkdown: "# PDF 요약",
+            },
+            preview: null,
+            result: {
+              ok: true,
+              note: {
+                id: "00000000-0000-4000-8000-000000000055",
+                title: "PDF 요약 노트",
+              },
+            },
+            errorCode: null,
+            createdAt: "2026-05-11T00:00:00.000Z",
+            updatedAt: "2026-05-11T00:00:00.000Z",
+          },
+        }),
+      ),
+    );
+
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          content: {
+            body: "노트 생성 작업을 만들었습니다.",
+            agent_actions: [
+              {
+                id: "00000000-0000-4000-8000-000000000052",
+                requestId: "00000000-0000-4000-8000-000000000053",
+                workspaceId: "00000000-0000-4000-8000-000000000054",
+                projectId,
+                actorUserId: "user-1",
+                sourceRunId: null,
+                kind: "note.create_from_markdown",
+                status: "approval_required",
+                risk: "write",
+                input: {
+                  title: "PDF 요약 노트",
+                  folderId: null,
+                  bodyMarkdown: "# PDF 요약",
+                },
+                preview: null,
+                result: null,
+                errorCode: null,
+                createdAt: "2026-05-11T00:00:00.000Z",
+                updatedAt: "2026-05-11T00:00:00.000Z",
+              },
+            ],
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={vi.fn()}
+        onFeedback={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("noteCreateCompleted")).toBeInTheDocument();
+    expect(screen.queryByText("noteCreateApproval")).not.toBeInTheDocument();
   });
 
   it("renders completed file actions and opens the generated file", async () => {
@@ -616,10 +696,7 @@ describe("document generation cards", () => {
 
     expect(
       screen.getByRole("img", { name: "Generated diagram" }),
-    ).toHaveAttribute(
-      "src",
-      `/api/agent-files/${imageId}/file`,
-    );
+    ).toHaveAttribute("src", `/api/agent-files/${imageId}/file`);
   });
 
   it("shows compact source quality signals without hiding the worker error code", () => {
@@ -677,9 +754,15 @@ describe("document generation cards", () => {
 
     render(<DocumentGenerationCards items={cards} />);
 
-    expect(screen.getByText(/qualitySignal.unsupported_source/)).toBeInTheDocument();
-    expect(screen.getByText(/qualitySignal.metadata_fallback/)).toBeInTheDocument();
-    expect(screen.getByText(/qualitySourceSummary/)).toHaveTextContent("Project report");
+    expect(
+      screen.getByText(/qualitySignal.unsupported_source/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/qualitySignal.metadata_fallback/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/qualitySourceSummary/)).toHaveTextContent(
+      "Project report",
+    );
     expect(screen.getByText(/document_generation_failed/)).toBeInTheDocument();
   });
 });

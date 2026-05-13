@@ -1,7 +1,7 @@
 {
   "header": {
     "title": "에이전트",
-    "subtitle": "AI · 활동 · 알림",
+    "subtitle": "대화 · 도구 · 활동 · 알림",
     "new_thread": "새 대화",
     "new_thread_aria": "새 대화",
     "history": "기록",
@@ -18,7 +18,7 @@
     "delete_failed": "대화를 삭제하지 못했어요."
   },
   "tabs": {
-    "chat": "AI",
+    "chat": "에이전트",
     "tools": "도구",
     "activity": "활동",
     "notifications": "알림"
@@ -67,6 +67,11 @@
     "customInput": "직접 입력",
     "customSubmit": "입력",
     "answered": "선택됨: {label}"
+  },
+  "workflowCard": {
+    "subtitle": "이 작업은 에이전트 채팅 안에서 바로 설정하고 실행합니다.",
+    "close": "워크플로우 닫기",
+    "sendToAgent": "에이전트에게 맡기기"
   },
   "noteUpdateReview": {
     "title": "노트 수정 제안",
@@ -339,12 +344,17 @@
       "activeTabOn": "현재 탭 자동 참조",
       "activeTabOff": "현재 탭 자동 참조 꺼짐",
       "memoryOff": "프로젝트 메모리 제외",
-      "autoApplyOn": "안전 작업 자동 적용 켜짐",
-      "autoApplyOff": "안전 작업 자동 적용"
+      "autoApplyOn": "작업 실행: 자동",
+      "autoApplyOff": "작업 실행: 확인"
     },
     "actionApproval": {
-      "require": "확인 후 실행",
-      "auto": "자동 실행",
+      "require": "확인",
+      "auto_safe": "자동",
+      "require_label": "확인 후 실행",
+      "require_description": "노트 생성이나 변경 전 승인 카드를 보여줍니다.",
+      "auto_safe_label": "안전 작업 자동 실행",
+      "auto_safe_description": "되돌릴 수 있는 낮은 위험 작업은 바로 실행합니다.",
+      "trigger_aria": "작업 실행 방식 선택",
       "require_aria": "작업 실행 전에 확인",
       "auto_aria": "안전 작업 자동 실행"
     },
@@ -360,6 +370,7 @@
         "factcheck": "주장과 근거 검증",
         "extract_citations": "인용 후보 추출",
         "make_note": "노트 초안 만들기",
+        "concept_wiki": "개념 위키 만들기",
         "narrate_note": "오디오 내레이션 초안",
         "generate_report": "보고서 만들기",
         "generate_figure": "피규어 만들기",
@@ -381,6 +392,7 @@
         "factcheck": "현재 주장과 근거를 확인하고 불확실한 부분을 표시해줘.",
         "extract_citations": "현재 자료에서 인용할 만한 핵심 문장과 출처를 추출해줘.",
         "make_note": "현재 자료를 새 노트 초안으로 정리해줘.",
+        "concept_wiki": "현재 자료에서 핵심 개념을 뽑아 개념별 위키 노트 초안으로 만들어줘. 각 노트에는 정의, 핵심 설명, 예시, 관련 개념, 시험 대비 포인트를 포함하고, 새 노트 생성 작업으로 저장해줘.",
         "narrate_note": "현재 노트를 오디오 내레이션으로 만들 수 있게 핵심 흐름과 스크립트 초안을 작성해줘.",
         "generate_report": "현재 프로젝트 자료를 바탕으로 보고서 초안을 만들어줘.",
         "generate_figure": "현재 프로젝트 자료를 바탕으로 설명용 피규어나 구조도를 만들 수 있게 핵심 내용과 생성 방향을 정리해줘.",

@@ -51,13 +51,13 @@ export function ThreadList() {
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full min-w-0">
       <div className="border-b border-border px-3 py-2.5">
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           {t("title")}
         </p>
       </div>
-      <div className="app-scrollbar-thin grid max-h-64 gap-1 overflow-auto p-2">
+      <div className="app-scrollbar-thin grid max-h-[min(62vh,28rem)] min-w-0 gap-1 overflow-y-auto overflow-x-hidden p-2">
         {visibleThreads.map((thread) => {
           const isDeleting = archive.isPending;
           const title = thread.title || t("untitled");
@@ -66,7 +66,7 @@ export function ThreadList() {
           return (
             <div
               key={thread.id}
-              className={`group flex min-h-11 items-center gap-2 rounded px-2.5 py-2 transition-colors ${
+              className={`group flex min-h-11 min-w-0 items-center gap-2 rounded px-2.5 py-2 transition-colors ${
                 active
                   ? "bg-foreground/10 text-popover-foreground"
                   : "text-popover-foreground hover:bg-foreground/10 focus-within:bg-foreground/10"
@@ -81,7 +81,7 @@ export function ThreadList() {
                   {title}
                 </span>
                 {thread.last_message_preview ? (
-                  <span className="mt-0.5 block truncate text-[11px] leading-3 text-muted-foreground">
+                  <span className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
                     {thread.last_message_preview}
                   </span>
                 ) : null}

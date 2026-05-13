@@ -18,7 +18,6 @@ const mockProjectNotes = vi.hoisted(() => ({
 }));
 const preflightMock = vi.hoisted(() => vi.fn());
 const pushMock = vi.hoisted(() => vi.fn());
-const researchCreateRunMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next-intl", () => ({
   useLocale: () => "ko",
@@ -91,15 +90,6 @@ vi.mock("@/lib/api-client", () => ({
   },
 }));
 
-vi.mock("@/lib/api-client-research", () => ({
-  researchApi: { createRun: researchCreateRunMock },
-}));
-
-vi.mock("@/components/literature/literature-search-modal", () => ({
-  LiteratureSearchModal: ({ open }: { open: boolean }) =>
-    open ? <div>literature modal</div> : null,
-}));
-
 vi.mock("./project-meta-row", () => ({
   ProjectMetaRow: ({ name }: { name: string }) => <div>{name}</div>,
 }));
@@ -134,8 +124,6 @@ describe("ProjectView", () => {
     mockProjectNotes.rows = [];
     preflightMock.mockReset();
     pushMock.mockReset();
-    researchCreateRunMock.mockReset();
-    researchCreateRunMock.mockResolvedValue({ runId: "research-run-1" });
     preflightMock.mockResolvedValue({
       preflight: {
         canStart: true,
@@ -213,21 +201,15 @@ describe("ProjectView", () => {
       "/ko/workspace/acme/project/p1/graph?view=mindmap",
     );
     expect(
-      screen.getByRole("link", {
+      screen.getByRole("button", {
         name: /project\.tools\.items\.youtubeImport\.title/,
       }),
-    ).toHaveAttribute(
-      "href",
-      "/ko/workspace/acme/import?projectId=p1&source=youtube",
-    );
+    ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", {
+      screen.getByRole("button", {
         name: /project\.tools\.items\.webImport\.title/,
       }),
-    ).toHaveAttribute(
-      "href",
-      "/ko/workspace/acme/import?projectId=p1&source=web",
-    );
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("link", {
         name: /project\.tools\.items\.connectedSources\.title/,
@@ -241,15 +223,15 @@ describe("ProjectView", () => {
     ).toBeInTheDocument();
     expect(integrationsApi.google).toHaveBeenCalledWith("workspace-1");
     expect(
-      screen.getByRole("link", {
+      screen.getByRole("button", {
         name: /project\.tools\.items\.flashcards\.title/,
       }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/project/p1/learn/flashcards");
+    ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", {
+      screen.getByRole("button", {
         name: /project\.tools\.items\.teachToLearn\.title/,
       }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/project/p1/learn/socratic");
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("link", {
         name: /project\.tools\.items\.agents\.title/,
@@ -280,7 +262,11 @@ describe("ProjectView", () => {
         name: /project\.tools\.items\.literature\.title/,
       }),
     );
-    expect(screen.getByText("literature modal")).toBeInTheDocument();
+    expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+      kind: "literature_search",
+      toolId: "literature",
+    });
     expect(screen.getByText("notes table")).toBeInTheDocument();
   });
 
@@ -338,7 +324,7 @@ describe("ProjectView", () => {
     );
   });
 
-  it("starts project research through the typed research run API", async () => {
+  it("preflights project research before opening an agent workflow", async () => {
     usePanelStore.getState().setAgentPanelOpen(false);
     renderProjectView();
 
@@ -348,40 +334,21 @@ describe("ProjectView", () => {
       }),
     );
 
-    expect(
-      await screen.findByText("project.tools.deepResearch.title"),
-    ).toBeInTheDocument();
-    expect(preflightMock).toHaveBeenCalledWith("p1", {
-      tool: "deep_research",
-      sourceTokenEstimate: 48000,
-    });
-    await userEvent.type(
-      screen.getByLabelText("project.tools.deepResearch.topicLabel"),
-      "Find primary sources about spaced repetition",
-    );
-    await userEvent.click(
-      screen.getByRole("button", {
-        name: "project.tools.deepResearch.start",
-      }),
-    );
-
     await waitFor(() =>
-      expect(researchCreateRunMock).toHaveBeenCalledWith({
-        workspaceId: "workspace-1",
-        projectId: "p1",
-        topic: "Find primary sources about spaced repetition",
-        model: "deep-research-preview-04-2026",
-        billingPath: "byok",
+      expect(preflightMock).toHaveBeenCalledWith("p1", {
+        tool: "deep_research",
+        sourceTokenEstimate: 48000,
       }),
     );
-    expect(pushMock).toHaveBeenCalledWith(
-      "/ko/workspace/acme/research/research-run-1",
-    );
-    expect(usePanelStore.getState().agentPanelOpen).toBe(false);
-    expect(useAgentWorkbenchStore.getState().pendingIntent).toBeNull();
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+      kind: "agent_prompt",
+      toolId: "research",
+    });
   });
 
-  it("preflights project-home study artifact generation before opening the dialog", async () => {
+  it("preflights project-home study artifact generation before opening an agent workflow", async () => {
     renderProjectView();
 
     await userEvent.click(
@@ -390,16 +357,20 @@ describe("ProjectView", () => {
       }),
     );
 
-    expect(
-      await screen.findByText("project.tools.studyArtifact.title"),
-    ).toBeInTheDocument();
-    expect(preflightMock).toHaveBeenCalledWith("p1", {
-      tool: "quiz",
-      sourceTokenEstimate: 16000,
+    await waitFor(() =>
+      expect(preflightMock).toHaveBeenCalledWith("p1", {
+        tool: "quiz",
+        sourceTokenEstimate: 16000,
+      }),
+    );
+    expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+      kind: "study_artifact",
+      toolId: "study_artifact_generator",
     });
   });
 
-  it("opens runs, review, and document generation in the right workbench activity tab", async () => {
+  it("opens runs and review in activity while document generation opens an agent workflow", async () => {
     renderProjectView();
 
     await userEvent.click(
@@ -416,23 +387,27 @@ describe("ProjectView", () => {
       }),
     );
     await waitFor(() => {
-      expect(usePanelStore.getState().agentPanelTab).toBe("activity");
-      expect(
-        useAgentWorkbenchStore.getState().pendingDocumentGenerationPreset,
-      ).toMatchObject({ presetId: "pdf_report_fast" });
+      expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+      expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+        kind: "document_generation",
+        presetId: "pdf_report_fast",
+      });
     });
 
-    usePanelStore.getState().setAgentPanelTab("chat");
+    useAgentWorkbenchStore.getState().closeWorkflow(
+      useAgentWorkbenchStore.getState().pendingWorkflow!.id,
+    );
     await userEvent.click(
       screen.getByRole("button", {
         name: /project\.tools\.items\.sourceFigure\.title/,
       }),
     );
     await waitFor(() => {
-      expect(usePanelStore.getState().agentPanelTab).toBe("activity");
-      expect(
-        useAgentWorkbenchStore.getState().pendingDocumentGenerationPreset,
-      ).toMatchObject({ presetId: "source_figure" });
+      expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+      expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+        kind: "document_generation",
+        presetId: "source_figure",
+      });
     });
 
     usePanelStore.getState().setAgentPanelTab("chat");
@@ -472,9 +447,7 @@ describe("ProjectView", () => {
       ).getByText("project.tools.unavailable.overQuota"),
     ).toBeInTheDocument();
     expect(usePanelStore.getState().agentPanelTab).toBe("chat");
-    expect(
-      useAgentWorkbenchStore.getState().pendingDocumentGenerationPreset,
-    ).toBeNull();
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toBeNull();
   });
 
   it("asks for project-home confirmation before opening approval-required tools", async () => {
@@ -498,7 +471,7 @@ describe("ProjectView", () => {
       await screen.findByText("project.tools.preflight.confirm"),
     ).toBeInTheDocument();
     expect(
-      useAgentWorkbenchStore.getState().pendingDocumentGenerationPreset,
+      useAgentWorkbenchStore.getState().pendingWorkflow,
     ).toBeNull();
 
     await userEvent.click(
@@ -507,9 +480,10 @@ describe("ProjectView", () => {
       }),
     );
 
-    expect(usePanelStore.getState().agentPanelTab).toBe("activity");
-    expect(
-      useAgentWorkbenchStore.getState().pendingDocumentGenerationPreset,
-    ).toMatchObject({ presetId: "pdf_report_fast" });
+    expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+      kind: "document_generation",
+      presetId: "pdf_report_fast",
+    });
   });
 });

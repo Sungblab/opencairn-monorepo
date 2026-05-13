@@ -73,6 +73,9 @@
     "meta": "{project} · deleted {date}",
     "expires": "Auto-deletes after {date}",
     "restore": "Restore",
-    "deleteForever": "Delete forever"
+    "deleteForever": "Delete forever",
+    "emptyAll": "Empty trash",
+    "emptyAllPending": "Emptying…",
+    "emptyAllConfirm": "Permanently delete {count} notes from trash? This cannot be undone."
   }
 }

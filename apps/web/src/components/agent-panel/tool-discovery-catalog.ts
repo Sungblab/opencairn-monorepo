@@ -300,7 +300,7 @@ export const TOOL_DISCOVERY_ITEMS: ToolDiscoveryItem[] = [
     surfaces: ["project_home", "agent_tools"],
     i18nKey: "flashcards",
     icon: "graduation",
-    action: { type: "route", route: "project_learn_flashcards" },
+    action: { type: "study_artifact_generate", artifactType: "flashcard_deck" },
   },
   {
     id: "teach_to_learn",

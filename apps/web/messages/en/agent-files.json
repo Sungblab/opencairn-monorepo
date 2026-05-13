@@ -28,6 +28,9 @@
     },
     "csvTable": "Table view · {rows} rows",
     "column": "Column {index}",
+    "officeConvertingTitle": "Converting to PDF...",
+    "officeConvertingDescription": "This view will switch to the PDF viewer automatically when conversion finishes.",
+    "officePreviewUnavailable": "The converted PDF is not available. Download the original file to inspect it.",
     "download": "Download original",
     "ingest": "Run ingest",
     "compile": "Compile LaTeX",
@@ -35,6 +38,34 @@
     "googleExport": "Export to Google Workspace",
     "googleExportConnectRequired": "Google Drive connection required",
     "googleSettingsTitle": "Google Drive settings",
+    "material": {
+      "sourceNoteTab": "Extracted note",
+      "graphTab": "Project knowledge map",
+      "advanced": "Advanced view",
+      "status": {
+        "not_started": "Not analyzed",
+        "queued": "Analysis queued",
+        "running": "Analyzing",
+        "completed": "Analysis complete",
+        "failed": "Analysis failed"
+      },
+      "statusDetail": {
+        "notStarted": "Run analysis so the agent can use this material more accurately.",
+        "running": "OpenCairn is organizing text, tables, and image signals. The status updates automatically.",
+        "completed": "This material is ready for agent questions and note generation.",
+        "failed": "Analysis failed. Retry analysis or inspect the original file."
+      },
+      "actions": {
+        "note": "Study note",
+        "wiki": "Concept wiki",
+        "quiz": "Quiz",
+        "reanalyze": "Re-analyze",
+        "retry": "Retry",
+        "openExtract": "Open extract note",
+        "openGraph": "Open map",
+        "download": "Download original"
+      }
+    },
     "version": "v{version}",
     "compileStatus": {
       "not_started": "Not compiled",

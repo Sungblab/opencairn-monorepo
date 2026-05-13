@@ -48,37 +48,51 @@ export function SourceUploadButton({
   const t = useTranslations("sidebar");
   const inputId = useId();
   const [open, setOpen] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [localError, setLocalError] = useState(false);
   const [uploadingLocal, setUploadingLocal] = useState(false);
   const uploadInFlightRef = useRef(false);
-  const { upload, isUploading, error } = useIngestUpload();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { uploadMany, isUploading, error } = useIngestUpload();
   const uploading = isUploading || uploadingLocal;
 
-  async function startUpload(selectedFile = file) {
-    if (!selectedFile) return;
+  async function startUpload(selectedFiles = files) {
+    if (selectedFiles.length === 0) return;
     if (uploadInFlightRef.current) return;
     uploadInFlightRef.current = true;
     setUploadingLocal(true);
     setLocalError(false);
     try {
-      const result = await upload(selectedFile, projectId);
-      if (result.originalFileId) {
-        openOriginalFileTab(result.originalFileId, selectedFile.name);
+      const results = await uploadMany(selectedFiles, projectId, {
+        concurrency: 3,
+      });
+      const firstOpened = results.find(
+        (item) => item.ok && item.result?.originalFileId,
+      );
+      if (firstOpened?.result?.originalFileId) {
+        openOriginalFileTab(
+          firstOpened.result.originalFileId,
+          firstOpened.file.name,
+        );
       }
-      setFile(null);
-      setOpen(false);
+      const failed = results.some((item) => !item.ok);
+      setLocalError(failed);
+      if (!failed) {
+        setFiles([]);
+        setOpen(false);
+      }
     } catch {
       setLocalError(true);
     } finally {
       uploadInFlightRef.current = false;
       setUploadingLocal(false);
+      if (inputRef.current) inputRef.current.value = "";
     }
   }
 
-  function pickFile(files: FileList | null) {
+  function pickFiles(nextFiles: FileList | null) {
     setLocalError(false);
-    setFile(files?.[0] ?? null);
+    setFiles(nextFiles ? Array.from(nextFiles) : []);
   }
 
   return (
@@ -118,23 +132,32 @@ export function SourceUploadButton({
               }}
               onDrop={(event) => {
                 event.preventDefault();
-                pickFile(event.dataTransfer.files);
+                pickFiles(event.dataTransfer.files);
               }}
             >
-              <UploadCloud aria-hidden className="h-7 w-7 text-muted-foreground" />
+              <UploadCloud
+                aria-hidden
+                className="h-7 w-7 text-muted-foreground"
+              />
               <span className="font-medium">
-                {file ? t("upload.selected", { name: file.name }) : t("upload.drop")}
+                {files.length === 1
+                  ? t("upload.selected", { name: files[0]!.name })
+                  : files.length > 1
+                    ? t("upload.selected_many", { count: files.length })
+                    : t("upload.drop")}
               </span>
               <span className="max-w-sm text-xs leading-5 text-muted-foreground">
                 {t("upload.hint")}
               </span>
             </label>
             <input
+              ref={inputRef}
               id={inputId}
               type="file"
               className="sr-only"
               accept={ACCEPT_ATTR}
-              onChange={(event) => pickFile(event.target.files)}
+              multiple
+              onChange={(event) => pickFiles(event.target.files)}
             />
             {(localError || error) && (
               <p role="alert" className="text-sm text-destructive">
@@ -143,7 +166,7 @@ export function SourceUploadButton({
             )}
             <button
               type="button"
-              disabled={!file || uploading}
+              disabled={files.length === 0 || uploading}
               onClick={() => void startUpload()}
               className="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >

@@ -31,10 +31,7 @@ import {
   isAgentInteractionCard,
   type InteractionCardSubmit,
 } from "./interaction-card";
-import {
-  AgentActionCards,
-  asAgentActionCards,
-} from "./agent-action-cards";
+import { AgentActionCards, asAgentActionCards } from "./agent-action-cards";
 export {
   AgentFileCards,
   DocumentGenerationCards,
@@ -55,6 +52,10 @@ function isThought(v: unknown): v is { summary: string; tokens?: number } {
 
 function isStatus(v: unknown): v is { phrase?: string } {
   return typeof v === "object" && v !== null;
+}
+
+function isTransientThought(summary: string): boolean {
+  return summary.trim() === "사용자의 질문 분석 중";
 }
 
 export function asSaveSuggestion(v: unknown): { title: string } | null {
@@ -136,6 +137,10 @@ export function MessageBubble({
     msg.run_status === "queued" ||
     msg.run_status === "running";
   const thought = isThought(msg.content.thought) ? msg.content.thought : null;
+  const visibleThought =
+    thought && (isActiveRun || !isTransientThought(thought.summary))
+      ? thought
+      : null;
   const status =
     isActiveRun &&
     isStatus(msg.content.status) &&
@@ -163,8 +168,11 @@ export function MessageBubble({
 
   return (
     <div className="flex flex-col gap-2">
-      {thought ? (
-        <ThoughtBubble summary={thought.summary} tokens={thought.tokens} />
+      {visibleThought ? (
+        <ThoughtBubble
+          summary={visibleThought.summary}
+          tokens={visibleThought.tokens}
+        />
       ) : null}
       {status ? <StatusLine phrase={status} /> : null}
       <ChatMessageRendererLoader

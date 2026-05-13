@@ -63,6 +63,7 @@ interface Props {
   onInteractionCardSubmit?: (input: InteractionCardSubmit) => void;
   onThreadUnavailable?: () => void;
   emptyState?: ReactNode;
+  workflowCard?: ReactNode;
 }
 
 export function Conversation({
@@ -74,6 +75,7 @@ export function Conversation({
   onInteractionCardSubmit,
   onThreadUnavailable,
   emptyState,
+  workflowCard,
 }: Props) {
   const t = useTranslations("agentPanel.bubble");
   const {
@@ -115,7 +117,8 @@ export function Conversation({
     !isPending &&
     messages.length === 0 &&
     !visiblePendingUser &&
-    !live;
+    !live &&
+    !workflowCard;
 
   const updatePinnedState = useCallback(() => {
     const node = scrollAreaRef.current;
@@ -315,6 +318,11 @@ export function Conversation({
               {liveAgentActions.length > 0 ? (
                 <AgentActionCards actions={liveAgentActions} />
               ) : null}
+            </div>
+          ) : null}
+          {workflowCard ? (
+            <div className="rounded-[var(--radius-card)] border border-border/60 bg-background/80 px-2 py-2 shadow-sm">
+              {workflowCard}
             </div>
           ) : null}
           <div ref={endRef} />

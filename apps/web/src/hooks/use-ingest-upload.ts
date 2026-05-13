@@ -1,4 +1,5 @@
 "use client";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { useIngestStore } from "@/stores/ingest-store";
 
@@ -21,73 +22,161 @@ export interface IngestUploadError {
   message: string;
 }
 
+export interface IngestUploadManyResult {
+  file: File;
+  ok: boolean;
+  result?: IngestUploadResult;
+  error?: unknown;
+}
+
+interface IngestUploadOptions {
+  noteId?: string;
+}
+
+interface IngestUploadManyOptions extends IngestUploadOptions {
+  concurrency?: number;
+}
+
 export function useIngestUpload(): {
   upload: (
     file: File,
     projectId: string,
-    opts?: { noteId?: string },
+    opts?: IngestUploadOptions,
   ) => Promise<IngestUploadResult>;
+  uploadMany: (
+    files: Iterable<File> | ArrayLike<File>,
+    projectId: string,
+    opts?: IngestUploadManyOptions,
+  ) => Promise<IngestUploadManyResult[]>;
   isUploading: boolean;
   error: IngestUploadError | null;
 } {
-  const [isUploading, setIsUploading] = useState(false);
+  const [activeUploads, setActiveUploads] = useState(0);
   const [error, setError] = useState<IngestUploadError | null>(null);
+  const qc = useQueryClient();
+
+  const refreshProjectTree = useCallback(
+    async (projectId: string) => {
+      await qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
+      await qc.refetchQueries({
+        queryKey: ["project-tree", projectId],
+        type: "active",
+      });
+    },
+    [qc],
+  );
+
+  const uploadOne = useCallback(
+    async (
+      file: File,
+      projectId: string,
+      opts?: IngestUploadOptions,
+    ): Promise<IngestUploadResult> => {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("projectId", projectId);
+      if (opts?.noteId) fd.append("noteId", opts.noteId);
+
+      // Same-origin fetch → cookies attach automatically. We bypass
+      // apiClient because the response is a 202 (apiClient treats
+      // anything but 204 as JSON) and we want narrow control of the
+      // error shape for the UI. The Hono /api/ingest/upload handler
+      // explicitly returns JSON on 202, so res.json() is safe.
+      const res = await fetch("/api/ingest/upload", {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      });
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        const err: IngestUploadError = {
+          status: res.status,
+          message: body.error ?? `upload_failed_${res.status}`,
+        };
+        setError(err);
+        throw err;
+      }
+
+      const json = (await res.json()) as IngestUploadResult;
+      // Drive the background ingest store; UI feedback is owned by
+      // IngestNotifications in the app shell.
+      useIngestStore
+        .getState()
+        .startRun(
+          json.workflowId,
+          file.type || "application/octet-stream",
+          file.name,
+          { sourceBundleNodeId: json.sourceBundleNodeId },
+        );
+      await refreshProjectTree(projectId);
+      return json;
+    },
+    [refreshProjectTree],
+  );
 
   const upload = useCallback(
     async (
       file: File,
       projectId: string,
-      opts?: { noteId?: string },
+      opts?: IngestUploadOptions,
     ): Promise<IngestUploadResult> => {
-      setIsUploading(true);
+      setActiveUploads((count) => count + 1);
       setError(null);
       try {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("projectId", projectId);
-        if (opts?.noteId) fd.append("noteId", opts.noteId);
-
-        // Same-origin fetch → cookies attach automatically. We bypass
-        // apiClient because the response is a 202 (apiClient treats
-        // anything but 204 as JSON) and we want narrow control of the
-        // error shape for the UI. The Hono /api/ingest/upload handler
-        // explicitly returns JSON on 202, so res.json() is safe.
-        const res = await fetch("/api/ingest/upload", {
-          method: "POST",
-          credentials: "include",
-          body: fd,
-        });
-
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as {
-            error?: string;
-          };
-          const err: IngestUploadError = {
-            status: res.status,
-            message: body.error ?? `upload_failed_${res.status}`,
-          };
-          setError(err);
-          throw err;
-        }
-
-        const json = (await res.json()) as IngestUploadResult;
-        // Drive the background ingest store; UI feedback is owned by
-        // IngestNotifications in the app shell.
-        useIngestStore
-          .getState()
-          .startRun(
-            json.workflowId,
-            file.type || "application/octet-stream",
-            file.name,
-            { sourceBundleNodeId: json.sourceBundleNodeId },
-          );
-        return json;
+        return await uploadOne(file, projectId, opts);
       } finally {
-        setIsUploading(false);
+        setActiveUploads((count) => Math.max(0, count - 1));
       }
     },
-    [],
+    [uploadOne],
   );
 
-  return { upload, isUploading, error };
+  const uploadMany = useCallback(
+    async (
+      files: Iterable<File> | ArrayLike<File>,
+      projectId: string,
+      opts?: IngestUploadManyOptions,
+    ): Promise<IngestUploadManyResult[]> => {
+      const selected = Array.from(files);
+      if (selected.length === 0) return [];
+      const concurrency = Math.max(
+        1,
+        Math.min(opts?.concurrency ?? 3, selected.length),
+      );
+      const results = new Array<IngestUploadManyResult>(selected.length);
+      let cursor = 0;
+
+      setActiveUploads((count) => count + selected.length);
+      setError(null);
+      try {
+        await Promise.all(
+          Array.from({ length: concurrency }, async () => {
+            while (cursor < selected.length) {
+              const index = cursor;
+              cursor += 1;
+              const file = selected[index]!;
+              try {
+                results[index] = {
+                  file,
+                  ok: true,
+                  result: await uploadOne(file, projectId, opts),
+                };
+              } catch (err) {
+                results[index] = { file, ok: false, error: err };
+              }
+            }
+          }),
+        );
+        return results;
+      } finally {
+        setActiveUploads((count) => Math.max(0, count - selected.length));
+      }
+    },
+    [uploadOne],
+  );
+
+  return { upload, uploadMany, isUploading: activeUploads > 0, error };
 }

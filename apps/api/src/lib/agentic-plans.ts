@@ -74,6 +74,7 @@ import { requeueNoteAnalysisJobForNote } from "./note-analysis-jobs";
 import { getChatProvider } from "./llm";
 import { LLMNotConfiguredError, type LLMProvider } from "./llm/provider";
 import { canRead, canWrite } from "./permissions";
+import { envInt } from "./env";
 
 export class AgenticPlanError extends Error {
   constructor(
@@ -1444,7 +1445,7 @@ async function collectModelPlannerText(
         }),
       },
     ],
-    maxOutputTokens: 1_600,
+    maxOutputTokens: envInt("AGENTIC_PLAN_MAX_OUTPUT_TOKENS", 4096),
     temperature: 0.1,
     thinkingLevel: "low",
   })) {

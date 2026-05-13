@@ -17,6 +17,8 @@ interface NoteDTO {
   workspaceId: string;
   updatedAt: string;
   sourceType: string | null;
+  type: string;
+  isAuto: boolean;
 }
 
 interface RoleDTO {
@@ -65,7 +67,10 @@ export default async function NotePage({ params }: PageProps) {
   const { role } = (await roleRes.json()) as RoleDTO;
   const me = (await meRes.json()) as MeDTO;
 
-  const readOnly = role === "viewer" || role === "commenter";
+  const readOnly =
+    role === "viewer" ||
+    role === "commenter" ||
+    (note.type === "source" && note.isAuto);
   const canComment = role !== "viewer";
 
   return (

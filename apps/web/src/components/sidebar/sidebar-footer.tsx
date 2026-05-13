@@ -11,11 +11,14 @@ import {
   Check,
   HelpCircle,
   LogOut,
+  Palette,
   Settings,
   Shield,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { byokKeyQueryKey, getByokKey } from "@/lib/api-client-byok-key";
+import { useTheme } from "@/lib/theme/provider";
+import { THEME_LABELS, type Theme } from "@/lib/theme/themes";
 import { usePanelStore } from "@/stores/panel-store";
 import {
   DropdownMenu,
@@ -60,9 +63,11 @@ export function SidebarFooter() {
   const locale = useLocale();
   const router = useRouter();
   const t = useTranslations("sidebar.footer");
+  const appearanceT = useTranslations("account.appearance");
   const { wsSlug } = useParams<{ wsSlug: string }>();
   const { data: session, isPending } = authClient.useSession();
   const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
+  const { theme, themes, setTheme } = useTheme();
 
   // BYOK status drives the plan label. Long staleTime — the value only
   // changes when the user manually rotates their key in /settings/providers.
@@ -184,6 +189,19 @@ export function SidebarFooter() {
               {t("settings_aria")}
             </DropdownMenuItem>
           ) : null}
+          {currentWorkspaceSlug ? (
+            <DropdownMenuItem
+              render={
+                <Link
+                  href={urls.workspace.settings(locale, currentWorkspaceSlug)}
+                />
+              }
+              className="min-h-9 rounded px-2 py-2"
+            >
+              <Settings aria-hidden className="h-4 w-4" />
+              {t("rename_workspace")}
+            </DropdownMenuItem>
+          ) : null}
           {isSiteAdmin ? (
             <DropdownMenuItem
               render={<Link href={`/${locale}/admin`} />}
@@ -193,9 +211,9 @@ export function SidebarFooter() {
               {t("admin_console")}
             </DropdownMenuItem>
           ) : null}
+          <DropdownMenuSeparator />
           {workspaces.data?.workspaces.length ? (
             <>
-              <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuLabel className="px-2 py-1.5 text-[11px] uppercase tracking-wide">
                   {t("switch_space")}
@@ -226,6 +244,25 @@ export function SidebarFooter() {
               </DropdownMenuGroup>
             </>
           ) : null}
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="px-2 py-1.5 text-[11px] uppercase tracking-wide">
+              {t("theme")}
+            </DropdownMenuLabel>
+            <div className="grid grid-cols-4 gap-1 px-1 pb-1">
+              {themes.map((themeId) => (
+                <ThemeMenuItem
+                  key={themeId}
+                  id={themeId}
+                  active={themeId === theme}
+                  label={THEME_LABELS[themeId]}
+                  description={appearanceT(`themes.${themeId}`)}
+                  activeLabel={t("active_theme")}
+                  onSelect={setTheme}
+                />
+              ))}
+            </div>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             render={
@@ -276,5 +313,75 @@ export function SidebarFooter() {
         <Bell aria-hidden className="h-3.5 w-3.5" />
       </button>
     </div>
+  );
+}
+
+function ThemeMenuItem({
+  id,
+  active,
+  label,
+  description,
+  activeLabel,
+  onSelect,
+}: {
+  id: Theme;
+  active: boolean;
+  label: string;
+  description: string;
+  activeLabel: string;
+  onSelect: (theme: Theme) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={
+        active
+          ? `${label}, ${description}, ${activeLabel}`
+          : `${label}, ${description}`
+      }
+      onClick={() => onSelect(id)}
+      className="relative grid min-h-12 place-items-center rounded px-1 py-1 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground"
+      title={label}
+    >
+      <ThemeSwatch id={id} />
+      {active ? (
+        <Check
+          aria-label={activeLabel}
+          className="absolute right-1 top-1 h-3 w-3 shrink-0 text-foreground"
+        />
+      ) : null}
+      <span className="mt-1 max-w-full truncate text-[10px] leading-none">
+        {label.replace("Cairn ", "")}
+      </span>
+    </button>
+  );
+}
+
+function ThemeSwatch({ id }: { id: Theme }) {
+  const swatches: Record<Theme, string> = {
+    "cairn-light": "bg-white",
+    "cairn-dark": "bg-neutral-950",
+    sepia: "bg-amber-100",
+    "high-contrast": "bg-yellow-300",
+  };
+  const accents: Record<Theme, string> = {
+    "cairn-light": "bg-neutral-900",
+    "cairn-dark": "bg-neutral-100",
+    sepia: "bg-stone-700",
+    "high-contrast": "bg-black",
+  };
+
+  return (
+    <span
+      aria-hidden
+      className={`relative h-5 w-5 shrink-0 overflow-hidden rounded-full border border-border ${swatches[id]}`}
+    >
+      <span
+        className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-tl-full ${accents[id]}`}
+      />
+      {id === "high-contrast" ? (
+        <Palette className="absolute left-0.5 top-0.5 h-3 w-3 text-black" />
+      ) : null}
+    </span>
   );
 }

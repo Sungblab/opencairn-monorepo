@@ -139,16 +139,13 @@ describe("ShellSidebar", () => {
 
     expect(screen.getByText("project hero")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "sidebar.nav.chat" }),
+      screen.getByRole("button", { name: "sidebar.nav.workbench" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "sidebar.nav.dashboard_short" }),
     ).toHaveClass("rounded-md");
     expect(
-      screen.getByRole("button", { name: "sidebar.nav.trash" }),
-    ).toHaveClass("rounded-md");
-    expect(
-      screen.getByRole("button", { name: "sidebar.nav.tools" }),
+      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
     ).toHaveClass("rounded-md");
     expect(screen.queryByText("project list")).not.toBeInTheDocument();
     expect(screen.queryByText("global nav")).not.toBeInTheDocument();
@@ -182,18 +179,14 @@ describe("ShellSidebar", () => {
     expect(screen.getByText("sidebar.nav.learn")).toBeInTheDocument();
     expect(screen.getByText("sidebar.sections.recent")).toBeInTheDocument();
     expect(screen.queryByText("recent notes")).not.toBeInTheDocument();
-    expect(
-      screen.getByText("sidebar.sections.service_agent"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("sidebar.sections.project_tools")).toBeInTheDocument();
     expect(screen.getByText("literature")).toBeInTheDocument();
-    expect(screen.getByText("sidebar.sections.publish")).toBeInTheDocument();
     expect(screen.queryByText("sidebar.nav.public_pages")).not.toBeInTheDocument();
-    expect(screen.getByText("sidebar.sections.help")).toBeInTheDocument();
     expect(screen.queryByText("sidebar.nav.feedback")).not.toBeInTheDocument();
     expect(screen.queryByText("sidebar.nav.changelog")).not.toBeInTheDocument();
     expect(screen.getByText("project tree")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "sidebar.nav.trash" }),
+      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
     ).toBeInTheDocument();
   });
 
@@ -203,6 +196,9 @@ describe("ShellSidebar", () => {
 
     renderSidebar();
 
+    await user.click(
+      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
+    );
     await user.click(screen.getByRole("button", { name: "sidebar.nav.trash" }));
 
     expect(await screen.findByText("trash modal ws-1")).toBeInTheDocument();
@@ -229,6 +225,9 @@ describe("ShellSidebar", () => {
 
     renderSidebar();
 
+    await user.click(
+      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
+    );
     await user.click(screen.getByRole("button", { name: "sidebar.nav.trash" }));
 
     expect(screen.getByTestId("trash-tab-skeleton")).toBeInTheDocument();
@@ -240,14 +239,10 @@ describe("ShellSidebar", () => {
     renderSidebar();
 
     await userEvent.click(
-      screen.getByRole("button", { name: "sidebar.nav.chat" }),
-    );
-    await userEvent.click(
-      screen.getByRole("button", { name: "sidebar.nav.tools" }),
+      screen.getByRole("button", { name: "sidebar.nav.workbench" }),
     );
 
     expect(panelStoreMock.openAgentPanelTab).toHaveBeenNthCalledWith(1, "chat");
-    expect(panelStoreMock.openAgentPanelTab).toHaveBeenNthCalledWith(2, "tools");
   });
 
   it("collapses sidebar sections and restores the state for the workspace", async () => {
@@ -256,21 +251,21 @@ describe("ShellSidebar", () => {
     const first = renderSidebar();
 
     await user.click(
-      screen.getByRole("button", { name: "sidebar.sections.service_agent" }),
+      screen.getByRole("button", { name: "sidebar.sections.project_tools" }),
     );
 
-    expect(screen.queryByText("literature")).not.toBeInTheDocument();
+    expect(screen.queryByText("sidebar.nav.graph")).not.toBeInTheDocument();
 
     first.unmount();
     renderSidebar();
 
-    expect(screen.queryByText("literature")).not.toBeInTheDocument();
+    expect(screen.queryByText("sidebar.nav.graph")).not.toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: "sidebar.sections.service_agent" }),
+      screen.getByRole("button", { name: "sidebar.sections.project_tools" }),
     );
 
-    expect(screen.getByText("literature")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.graph")).toBeInTheDocument();
   });
 
   it("starts with low-priority sections collapsed and gives files more room", () => {
@@ -283,8 +278,8 @@ describe("ShellSidebar", () => {
     expect(screen.queryByText("sidebar.nav.public_pages")).not.toBeInTheDocument();
     expect(screen.queryByText("sidebar.nav.feedback")).not.toBeInTheDocument();
     expect(screen.getByTestId("sidebar-tree-region")).toHaveClass(
-      "min-h-80",
-      "max-h-[680px]",
+      "min-h-64",
+      "max-h-[45vh]",
     );
   });
 

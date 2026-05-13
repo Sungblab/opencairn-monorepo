@@ -401,12 +401,9 @@ describe("AgentFileViewer", () => {
     expect(screen.queryByText("analysis.pdf")).not.toBeInTheDocument();
     expect(screen.queryByText("pdf · v3 · 2.0 KB")).not.toBeInTheDocument();
     expect(screen.queryByText("인제스트 완료")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("원본 다운로드")).toHaveAttribute(
-      "href",
-      `/api/agent-files/${file.id}/file`,
-    );
-    expect(screen.getByLabelText("인제스트 실행")).toBeInTheDocument();
-    expect(screen.getByLabelText("Google Drive 연결 필요")).toBeInTheDocument();
+    expect(screen.queryByLabelText("원본 다운로드")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("인제스트 실행")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Google Drive 연결 필요")).not.toBeInTheDocument();
     expect(pdfViewerMock.props.at(-1)?.config.i18n).toMatchObject({
       defaultLocale: "ko",
       locales: [

@@ -33,40 +33,63 @@ export function ProfileView() {
     onError: () => toast.error(t("saveFailed")),
   });
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <section className="max-w-3xl space-y-5">
+        <div className="h-8 w-36 rounded-[var(--radius-control)] bg-muted" />
+        <div className="h-56 rounded-[var(--radius-card)] border border-border bg-background" />
+      </section>
+    );
+  }
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (name.trim()) save.mutate();
-      }}
-      className="flex max-w-xl flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-background p-4"
-    >
-      <h1 className="text-xl font-semibold">{t("heading")}</h1>
-      <label className="flex flex-col gap-1 text-sm">
-        <span>{t("nameLabel")}</span>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="min-h-9 rounded-[var(--radius-control)] border border-border bg-transparent px-2 py-1"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        <span>{t("emailLabel")}</span>
-        <input
-          value={data.email}
-          readOnly
-          className="min-h-9 rounded-[var(--radius-control)] border border-border bg-muted/30 px-2 py-1 text-muted-foreground"
-        />
-      </label>
-      <p className="text-xs text-muted-foreground">{t("localeNote")}</p>
-      <button
-        type="submit"
-        disabled={save.isPending || !name.trim()}
-        className="app-btn-primary self-start rounded-[var(--radius-control)] px-3 py-1.5 text-sm"
+    <section className="max-w-3xl space-y-5">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-normal">{t("heading")}</h1>
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) save.mutate();
+        }}
+        className="rounded-[var(--radius-card)] border border-border bg-background shadow-sm"
       >
-        {t("save")}
-      </button>
-    </form>
+        <div className="border-b border-border px-4 py-4 sm:px-5">
+          <h2 className="text-sm font-semibold">{t("heading")}</h2>
+        </div>
+        <div className="grid gap-4 px-4 py-5 sm:px-5 md:grid-cols-2">
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-xs font-medium text-muted-foreground">
+              {t("nameLabel")}
+            </span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="min-h-10 rounded-[var(--radius-control)] border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-foreground"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-xs font-medium text-muted-foreground">
+              {t("emailLabel")}
+            </span>
+            <input
+              value={data.email}
+              readOnly
+              className="min-h-10 rounded-[var(--radius-control)] border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
+            />
+          </label>
+        </div>
+        <div className="flex flex-col gap-3 border-t border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <p className="text-xs text-muted-foreground">{t("localeNote")}</p>
+          <button
+            type="submit"
+            disabled={save.isPending || !name.trim()}
+            className="app-btn-primary min-h-10 rounded-[var(--radius-control)] px-4 py-2 text-sm font-medium disabled:opacity-50 sm:self-start"
+          >
+            {t("save")}
+          </button>
+        </div>
+      </form>
+    </section>
   );
 }

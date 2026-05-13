@@ -193,6 +193,7 @@ export async function* runAgent(opts: {
     scope: retrieval.scope,
     ragMode: retrieval.ragMode,
     chips: retrieval.chips,
+    rawScope: opts.userMessage.scope,
     history,
     userMessage: opts.userMessage.content,
     signal: opts.signal,
@@ -256,11 +257,13 @@ async function resolveDurableThreadMemoryContext(opts: {
     .limit(1);
 
   const memoryContext = formatAgentMemoryContext(
-    row ? {
-      sessionMemoryMd: row.sessionMemoryMd,
-      fullSummary: row.fullSummary,
-      scopesUsed,
-    } : null,
+    row
+      ? {
+          sessionMemoryMd: row.sessionMemoryMd,
+          fullSummary: row.fullSummary,
+          scopesUsed,
+        }
+      : null,
   );
   return {
     memoryPolicy,

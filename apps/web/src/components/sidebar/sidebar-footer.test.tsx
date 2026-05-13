@@ -48,11 +48,21 @@ const panelStoreMock = vi.hoisted(() => ({
   openAgentPanelTab: vi.fn(),
 }));
 
+const themeMock = vi.hoisted(() => ({
+  theme: "cairn-light",
+  setTheme: vi.fn(),
+  themes: ["cairn-light", "cairn-dark", "sepia", "high-contrast"] as const,
+}));
+
 let authMeIsSiteAdmin = false;
 
 vi.mock("@/stores/panel-store", () => ({
   usePanelStore: (selector: (s: typeof panelStoreMock) => unknown) =>
     selector(panelStoreMock),
+}));
+
+vi.mock("@/lib/theme/provider", () => ({
+  useTheme: () => themeMock,
 }));
 
 function withQuery(node: React.ReactElement) {
@@ -90,6 +100,8 @@ describe("SidebarFooter", () => {
       } as Response);
     });
     authMeIsSiteAdmin = false;
+    themeMock.theme = "cairn-light";
+    themeMock.setTheme.mockClear();
   });
 
   it("renders the current workspace instead of the user's name", async () => {
@@ -164,6 +176,40 @@ describe("SidebarFooter", () => {
         name: "sidebar.footer.admin_console",
       }),
     ).not.toBeInTheDocument();
+  });
+
+  it("lets users select a theme from the bottom profile menu", async () => {
+    sessionMock.value = {
+      data: { user: { id: "u1", name: "Ada Lovelace", email: "ada@x" } },
+      isPending: false,
+    };
+    const user = userEvent.setup();
+
+    render(withQuery(<SidebarFooter />));
+
+    const profileMenu = screen.getByRole("button", {
+      name: "sidebar.footer.profile_menu_aria",
+    });
+    profileMenu.focus();
+    await user.keyboard("{Enter}");
+
+    expect(screen.getByText("sidebar.footer.theme")).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", {
+        name: /Cairn Light, account\.appearance\.themes\.cairn-light/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("sidebar.footer.active_theme"),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("menuitem", {
+        name: /Cairn Dark, account\.appearance\.themes\.cairn-dark/,
+      }),
+    );
+
+    expect(themeMock.setTheme).toHaveBeenCalledWith("cairn-dark");
   });
 
   it("links site admins to the admin console from the bottom profile menu", async () => {

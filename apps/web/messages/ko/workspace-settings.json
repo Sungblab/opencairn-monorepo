@@ -73,6 +73,9 @@
     "meta": "{project} · 삭제됨 {date}",
     "expires": "{date} 이후 자동 삭제",
     "restore": "복원",
-    "deleteForever": "완전 삭제"
+    "deleteForever": "완전 삭제",
+    "emptyAll": "휴지통 비우기",
+    "emptyAllPending": "비우는 중…",
+    "emptyAllConfirm": "휴지통의 노트 {count}개를 완전히 삭제할까요? 이 작업은 되돌릴 수 없습니다."
   }
 }

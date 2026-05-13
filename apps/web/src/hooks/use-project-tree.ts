@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTabsStore } from "@/stores/tabs-store";
 
 // Mirrors the TreeRow response from GET /api/projects/:id/tree (spec §11.3).
 // `kind` is a stable discriminator so the sidebar component can switch on
@@ -57,6 +58,7 @@ interface TreeSseEvent {
   projectId: string;
   id: string;
   parentId: string | null;
+  targetId?: string | null;
   label?: string;
   at: string;
 }
@@ -89,18 +91,22 @@ export function useProjectTree(opts: { projectId: string }) {
     // that haven't shimmed it. Unit tests for this hook mock fetch only.
     if (typeof EventSource === "undefined") return;
 
-    const src = new EventSource(
-      `/api/stream/projects/${opts.projectId}/tree`,
-      { withCredentials: true },
-    );
+    const src = new EventSource(`/api/stream/projects/${opts.projectId}/tree`, {
+      withCredentials: true,
+    });
 
-    const invalidateParent = (raw: MessageEvent<string>) => {
+    const readTreeEvent = (raw: MessageEvent<string>): TreeSseEvent | null => {
       let evt: TreeSseEvent | null = null;
       try {
         evt = JSON.parse(raw.data) as TreeSseEvent;
       } catch {
-        /* malformed — fall through to full invalidation */
+        return null;
       }
+      return evt;
+    };
+
+    const invalidateParent = (raw: MessageEvent<string>) => {
+      const evt = readTreeEvent(raw);
       if (evt) {
         qc.invalidateQueries({
           queryKey: treeQueryKey(opts.projectId, evt.parentId ?? null),
@@ -108,6 +114,21 @@ export function useProjectTree(opts: { projectId: string }) {
       } else {
         qc.invalidateQueries({ queryKey: ["project-tree", opts.projectId] });
       }
+    };
+
+    const closeDeletedTabsAndInvalidateParent = (raw: MessageEvent<string>) => {
+      const evt = readTreeEvent(raw);
+      if (evt) {
+        const targetId = evt.targetId ?? evt.id;
+        if (evt.kind === "tree.note_deleted") {
+          useTabsStore.getState().closeTabsByTarget("note", targetId);
+        } else if (evt.kind === "tree.agent_file_deleted") {
+          useTabsStore.getState().closeTabsByTarget("agent_file", targetId);
+        } else if (evt.kind === "tree.code_workspace_deleted") {
+          useTabsStore.getState().closeTabsByTarget("code_workspace", targetId);
+        }
+      }
+      invalidateParent(raw);
     };
 
     const invalidateAll = () =>
@@ -142,7 +163,10 @@ export function useProjectTree(opts: { projectId: string }) {
     ];
 
     for (const kind of parentScoped) {
-      src.addEventListener(kind, invalidateParent as EventListener);
+      const listener = kind.endsWith("_deleted")
+        ? closeDeletedTabsAndInvalidateParent
+        : invalidateParent;
+      src.addEventListener(kind, listener as EventListener);
     }
     for (const kind of projectScoped) {
       src.addEventListener(kind, invalidateAll as EventListener);

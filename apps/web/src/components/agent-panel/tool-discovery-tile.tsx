@@ -70,24 +70,51 @@ export function ToolDiscoveryTileContent({
   title,
   description,
   emphasis = false,
+  layout = "tile",
 }: {
   icon: ToolDiscoveryIcon;
   title: string;
   description: string;
   emphasis?: boolean;
+  layout?: "tile" | "row";
 }) {
   const Icon = ICONS[icon];
+  const iconEl = (
+    <Icon
+      aria-hidden
+      className={
+        emphasis
+          ? "h-4 w-4 shrink-0 text-primary-foreground/80"
+          : "h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground"
+      }
+    />
+  );
+
+  if (layout === "row") {
+    return (
+      <>
+        {iconEl}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium leading-5">
+            {title}
+          </span>
+          <span
+            className={
+              emphasis
+                ? "block truncate text-xs leading-5 text-primary-foreground/75"
+                : "block truncate text-xs leading-5 text-muted-foreground"
+            }
+          >
+            {description}
+          </span>
+        </span>
+      </>
+    );
+  }
 
   return (
     <>
-      <Icon
-        aria-hidden
-        className={
-          emphasis
-            ? "h-4 w-4 text-primary-foreground/80"
-            : "h-4 w-4 text-muted-foreground group-hover:text-foreground"
-        }
-      />
+      {iconEl}
       <span className="text-sm font-medium leading-5">{title}</span>
       <span
         className={

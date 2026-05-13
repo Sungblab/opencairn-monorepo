@@ -61,8 +61,6 @@ function deriveData(
   const containers = new Set([
     "folder",
     "note",
-    "source_bundle",
-    "artifact_group",
     "code_workspace",
   ]);
   function mark(n: TreeNode): TreeNode {
@@ -97,7 +95,11 @@ function isSyntheticTreeNode(node: TreeNode) {
   return node.kind === "empty";
 }
 
-async function persistMove(node: TreeNode, parentId: string | null, index: number) {
+async function persistMove(
+  node: TreeNode,
+  parentId: string | null,
+  index: number,
+) {
   const res = await fetch(`/api/tree/nodes/${node.id}/move`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
@@ -130,7 +132,7 @@ async function persistDelete(
   const url =
     kind === "folder"
       ? `/api/folders/${id}`
-    : kind === "note"
+      : kind === "note"
         ? `/api/notes/${resourceId}`
         : kind === "agent_file" ||
             kind === "code_workspace" ||
@@ -138,24 +140,13 @@ async function persistDelete(
             kind === "artifact_group" ||
             kind === "artifact"
           ? `/api/tree/nodes/${id}`
-        : `/api/notes/${id}`;
+          : `/api/notes/${id}`;
   const res = await fetch(url, { method: "DELETE", credentials: "include" });
   if (!res.ok) throw new Error(`${kind} delete ${res.status}`);
 }
 
 export function closeDeletedNoteTabs(noteId: string) {
-  const tabsStore = useTabsStore.getState();
-  const deletedTabs = tabsStore.tabs.filter(
-    (tab) => tab.kind === "note" && tab.targetId === noteId,
-  );
-  const closedActive = deletedTabs.some((tab) => tab.id === tabsStore.activeId);
-  for (const tab of deletedTabs) {
-    useTabsStore.getState().closeTab(tab.id);
-  }
-  const nextStore = useTabsStore.getState();
-  const nextActive =
-    nextStore.tabs.find((tab) => tab.id === nextStore.activeId) ?? null;
-  return { closedActive, closedCount: deletedTabs.length, nextActive };
+  return useTabsStore.getState().closeTabsByTarget("note", noteId);
 }
 
 async function persistCreateFolder(
@@ -202,7 +193,7 @@ export function ProjectTree({
   const tSidebar = useTranslations("sidebar");
   const tToast = useTranslations("sidebar.toasts");
   const tUpload = useTranslations("sidebar.upload");
-  const { upload } = useIngestUpload();
+  const { uploadMany } = useIngestUpload();
   const [treeRefresh, setTreeRefresh] = useState(0);
   const data = useMemo(
     () =>
@@ -214,7 +205,7 @@ export function ProjectTree({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [typeAheadBuf, setTypeAheadBuf] = useState("");
   const [fileDropActive, setFileDropActive] = useState(false);
-  const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
+  const [pendingUploadFiles, setPendingUploadFiles] = useState<File[]>([]);
   const [uploadingDropFile, setUploadingDropFile] = useState(false);
   const [uploadError, setUploadError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -365,11 +356,7 @@ export function ProjectTree({
     (parentId: string | null) => {
       void (async () => {
         try {
-          const note = await persistCreateNote(
-            projectId,
-            parentId,
-            "",
-          );
+          const note = await persistCreateNote(projectId, parentId, "");
           if (parentId && !useSidebarStore.getState().isExpanded(parentId)) {
             useSidebarStore.getState().toggleExpanded(parentId);
           }
@@ -403,7 +390,8 @@ export function ProjectTree({
           const tabs = useTabsStore.getState();
           const existing = tabs.findTabByTarget("note", targetId);
           if (existing) {
-            if (existing.title !== title) tabs.updateTab(existing.id, { title });
+            if (existing.title !== title)
+              tabs.updateTab(existing.id, { title });
             tabs.setActive(existing.id);
           }
           router.push(urls.workspace.note(locale, workspaceSlug, targetId));
@@ -417,19 +405,31 @@ export function ProjectTree({
   );
 
   const startUpload = useCallback(
-    async (file: File | null) => {
-      if (!file) return;
+    async (files: File[]) => {
+      if (files.length === 0) return;
       if (dropUploadInFlightRef.current) return;
       dropUploadInFlightRef.current = true;
       setUploadingDropFile(true);
       setUploadError(false);
       try {
-        const result = await upload(file, projectId);
-        if (result.originalFileId) {
-          openOriginalFileTab(result.originalFileId, file.name);
+        const results = await uploadMany(files, projectId, { concurrency: 3 });
+        const firstOpened = results.find(
+          (item) => item.ok && item.result?.originalFileId,
+        );
+        if (firstOpened?.result?.originalFileId) {
+          openOriginalFileTab(
+            firstOpened.result.originalFileId,
+            firstOpened.file.name,
+          );
         }
         await qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
-        setPendingUploadFile(null);
+        const failed = results.some((item) => !item.ok);
+        setUploadError(failed);
+        if (!failed) {
+          setPendingUploadFiles([]);
+        } else {
+          toast.error(tUpload("error"));
+        }
       } catch (err) {
         console.error("project tree file drop upload failed", err);
         setUploadError(true);
@@ -439,7 +439,7 @@ export function ProjectTree({
         setUploadingDropFile(false);
       }
     },
-    [projectId, qc, tUpload, upload],
+    [projectId, qc, tUpload, uploadMany],
   );
 
   const ctxValue: ProjectTreeCtxValue = useMemo(
@@ -513,7 +513,7 @@ export function ProjectTree({
           fileDropDepthRef.current = 0;
           setFileDropActive(false);
           setUploadError(false);
-          setPendingUploadFile(Array.from(event.dataTransfer.files)[0] ?? null);
+          setPendingUploadFiles(Array.from(event.dataTransfer.files));
         }}
       >
         {fileDropActive ? (
@@ -542,11 +542,11 @@ export function ProjectTree({
         </Tree>
       </div>
       <Dialog
-        open={Boolean(pendingUploadFile)}
+        open={pendingUploadFiles.length > 0}
         onOpenChange={(open) => {
           if (uploadingDropFile) return;
           if (!open) {
-            setPendingUploadFile(null);
+            setPendingUploadFiles([]);
             setUploadError(false);
           }
         }}
@@ -558,11 +558,18 @@ export function ProjectTree({
           </DialogHeader>
           <div className="space-y-3">
             <div className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-[var(--radius-card)] border border-dashed border-border bg-muted/20 px-4 text-center text-sm">
-              <UploadCloud aria-hidden className="h-7 w-7 text-muted-foreground" />
+              <UploadCloud
+                aria-hidden
+                className="h-7 w-7 text-muted-foreground"
+              />
               <span className="font-medium">
-                {pendingUploadFile
-                  ? tUpload("selected", { name: pendingUploadFile.name })
-                  : tUpload("drop")}
+                {pendingUploadFiles.length === 1
+                  ? tUpload("selected", { name: pendingUploadFiles[0]!.name })
+                  : pendingUploadFiles.length > 1
+                    ? tUpload("selected_many", {
+                        count: pendingUploadFiles.length,
+                      })
+                    : tUpload("drop")}
               </span>
               <span className="max-w-sm text-xs leading-5 text-muted-foreground">
                 {tUpload("hint")}
@@ -575,8 +582,8 @@ export function ProjectTree({
             ) : null}
             <button
               type="button"
-              disabled={!pendingUploadFile || uploadingDropFile}
-              onClick={() => void startUpload(pendingUploadFile)}
+              disabled={pendingUploadFiles.length === 0 || uploadingDropFile}
+              onClick={() => void startUpload(pendingUploadFiles)}
               className="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {uploadingDropFile ? tUpload("uploading") : tUpload("start")}

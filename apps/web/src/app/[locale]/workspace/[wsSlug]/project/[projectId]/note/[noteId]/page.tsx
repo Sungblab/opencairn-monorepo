@@ -16,6 +16,8 @@ interface NoteMetaDTO {
   title: string;
   updatedAt: string;
   sourceType: string | null;
+  type: string;
+  isAuto: boolean;
   // Denormalized workspace uuid from the notes row (see notes.workspaceId in
   // packages/db). Plan 2B Task 19 threads this into NoteEditor →
   // CommentsPanel → CommentComposer so the @mention search can scope itself.
@@ -79,7 +81,10 @@ export default async function NotePage({ params }: PageProps) {
   const me = (await meRes.json()) as MeDTO;
 
   // viewer + commenter cannot write content or title. owner/admin/editor can.
-  const readOnly = role === "viewer" || role === "commenter";
+  const readOnly =
+    role === "viewer" ||
+    role === "commenter" ||
+    (note.type === "source" && note.isAuto);
   // Plan 2B Task 18: commenter is readOnly for Yjs but CAN post/resolve/
   // delete comments — decouple the two flags so the CommentsPanel composer
   // appears even when the editor body is locked.
