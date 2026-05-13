@@ -242,15 +242,12 @@ describe("useChatSend", () => {
     await waitFor(() => expect(result.current.live).toBeNull());
   });
 
-  it("aborts in-flight when a new send begins", async () => {
-    // First call returns a stream that pauses indefinitely. We track abort
-    // by listening for the AbortSignal the hook passes in `init.signal`.
+  it("queues one prompt while a stream is active and sends it after the current run finishes", async () => {
+    // First call returns a stream that pauses. A second send should not abort
+    // that stream; it becomes the next prompt and starts after the first done.
     let firstSignal: AbortSignal | undefined;
-    let slowController: ReadableStreamDefaultController<Uint8Array> | null =
-      null;
+    let slowController: ReadableStreamDefaultController<Uint8Array> | null = null;
     const slowBody = new ReadableStream({
-      // Never enqueues — simulates a stream that hasn't produced any frames
-      // yet. The reader will hang on `.read()` until the request is aborted.
       start(controller) {
         slowController = controller;
       },
@@ -264,9 +261,6 @@ describe("useChatSend", () => {
     fetchMock
       .mockImplementationOnce((_url: string, init: RequestInit) => {
         firstSignal = init.signal ?? undefined;
-        init.signal?.addEventListener("abort", () => {
-          slowController?.close();
-        }, { once: true });
         return Promise.resolve({ ok: true, body: slowBody } as Response);
       })
       .mockResolvedValueOnce({ ok: true, body: fastBody } as Partial<Response>);
@@ -275,11 +269,10 @@ describe("useChatSend", () => {
       wrapper: makeWrapper(),
     });
 
-    // Fire the first send but don't await — it would never resolve since
-    // the stream hangs. We just need the fetch to register so the next
-    // send can abort it.
-    void act(async () => {
+    // Fire the first send but don't await while the stream is still open.
+    await act(async () => {
       void result.current.send({ content: "first" });
+      await Promise.resolve();
     });
 
     // Yield to the microtask queue so `controller.current` is set before
@@ -292,9 +285,227 @@ describe("useChatSend", () => {
       await result.current.send({ content: "second" });
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    // The first request's signal should now be aborted by the second send.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(firstSignal?.aborted).toBe(false);
+    expect(result.current.pendingUser?.content.body).toBe("second");
+
+    await act(async () => {
+      slowController?.enqueue(
+        new TextEncoder().encode(
+          'event: done\ndata: {"id":"m1","status":"complete"}\n\n',
+        ),
+      );
+      slowController?.close();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/threads/t1/messages");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toMatchObject({
+      content: "second",
+    });
+    await waitFor(() => expect(result.current.live).toBeNull());
+  });
+
+  it("keeps only the latest queued prompt while a stream is active", async () => {
+    let slowController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const slowBody = new ReadableStream({
+      start(controller) {
+        slowController = controller;
+      },
+      pull() {
+        /* no-op */
+      },
+    });
+    const doneBody = mkSseBody([
+      'event: done\ndata: {"id":"m2","status":"complete"}\n\n',
+    ]);
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, body: slowBody } as Partial<Response>)
+      .mockResolvedValueOnce({ ok: true, body: doneBody } as Partial<Response>);
+
+    const { result } = renderHook(() => useChatSend("t1"), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      void result.current.send({ content: "first" });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await act(async () => {
+      await result.current.send({ content: "second" });
+      await result.current.send({ content: "third" });
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.pendingUser?.content.body).toBe("third");
+
+    await act(async () => {
+      slowController?.enqueue(
+        new TextEncoder().encode(
+          'event: done\ndata: {"id":"m1","status":"complete"}\n\n',
+        ),
+      );
+      slowController?.close();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toMatchObject({
+      content: "third",
+    });
+  });
+
+  it("sends edited queued prompt content after the active stream finishes", async () => {
+    let slowController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const slowBody = new ReadableStream({
+      start(controller) {
+        slowController = controller;
+      },
+      pull() {
+        /* no-op */
+      },
+    });
+    const doneBody = mkSseBody([
+      'event: done\ndata: {"id":"m2","status":"complete"}\n\n',
+    ]);
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, body: slowBody } as Partial<Response>)
+      .mockResolvedValueOnce({ ok: true, body: doneBody } as Partial<Response>);
+
+    const { result } = renderHook(() => useChatSend("t1"), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      void result.current.send({ content: "first" });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await act(async () => {
+      await result.current.send({ content: "second" });
+      result.current.updateQueuedPrompt("edited second");
+    });
+
+    expect(result.current.queuedPrompt?.content).toBe("edited second");
+
+    await act(async () => {
+      slowController?.enqueue(
+        new TextEncoder().encode(
+          'event: done\ndata: {"id":"m1","status":"complete"}\n\n',
+        ),
+      );
+      slowController?.close();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toMatchObject({
+      content: "edited second",
+    });
+  });
+
+  it("can discard a queued prompt before the active stream finishes", async () => {
+    let slowController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const slowBody = new ReadableStream({
+      start(controller) {
+        slowController = controller;
+      },
+      pull() {
+        /* no-op */
+      },
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      body: slowBody,
+    } as Partial<Response>);
+
+    const { result } = renderHook(() => useChatSend("t1"), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      void result.current.send({ content: "first" });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await act(async () => {
+      await result.current.send({ content: "second" });
+      result.current.clearQueuedPrompt();
+    });
+
+    expect(result.current.queuedPrompt).toBeNull();
+
+    await act(async () => {
+      slowController?.enqueue(
+        new TextEncoder().encode(
+          'event: done\ndata: {"id":"m1","status":"complete"}\n\n',
+        ),
+      );
+      slowController?.close();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    await waitFor(() => expect(result.current.live).toBeNull());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("can interrupt the active stream and send the queued prompt immediately", async () => {
+    let firstSignal: AbortSignal | undefined;
+    let slowController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const slowBody = new ReadableStream({
+      start(controller) {
+        slowController = controller;
+      },
+      pull() {
+        /* no-op */
+      },
+    });
+    const doneBody = mkSseBody([
+      'event: done\ndata: {"id":"m2","status":"complete"}\n\n',
+    ]);
+    fetchMock
+      .mockImplementationOnce((_url: string, init: RequestInit) => {
+        firstSignal = init.signal ?? undefined;
+        init.signal?.addEventListener(
+          "abort",
+          () => {
+            slowController?.error(new DOMException("Aborted", "AbortError"));
+          },
+          { once: true },
+        );
+        return Promise.resolve({ ok: true, body: slowBody } as Response);
+      })
+      .mockResolvedValueOnce({ ok: true, body: doneBody } as Partial<Response>);
+
+    const { result } = renderHook(() => useChatSend("t1"), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      void result.current.send({ content: "first" });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await act(async () => {
+      await result.current.send({ content: "second" });
+      result.current.interruptQueuedPrompt();
+    });
+
     expect(firstSignal?.aborted).toBe(true);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toMatchObject({
+      content: "second",
+    });
   });
 
 });

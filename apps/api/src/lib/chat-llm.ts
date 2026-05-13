@@ -6,18 +6,15 @@ import {
   type RetrievalScope,
   type RetrievalChip,
 } from "./chat-retrieval";
-import {
-  evidenceBundleToPrompt,
-  packEvidence,
-} from "./context-packer";
+import { evidenceBundleToPrompt, packEvidence } from "./context-packer";
 import { candidateFromRetrievalHit } from "./retrieval-candidates";
-import { verifyGroundedAnswer, type AnswerVerificationResult } from "./answer-verifier";
+import {
+  verifyGroundedAnswer,
+  type AnswerVerificationResult,
+} from "./answer-verifier";
 import { buildChatSourceLedger } from "./chat-source-ledger";
 import { buildRuntimeContext } from "./chat-runtime-context";
-import {
-  selectChatRuntimePolicy,
-  type ChatMode,
-} from "./chat-runtime-policy";
+import { selectChatRuntimePolicy, type ChatMode } from "./chat-runtime-policy";
 import {
   buildProjectWikiIndex,
   projectWikiIndexToPrompt,
@@ -115,6 +112,7 @@ export async function* runChat(opts: {
   now?: Date;
   locale?: string;
   timezone?: string;
+  memoryContext?: string | null;
 }): AsyncGenerator<ChatChunk> {
   const provider = opts.provider ?? getChatProvider();
   const policy = selectChatRuntimePolicy({
@@ -164,7 +162,8 @@ export async function* runChat(opts: {
     const evidenceBundle = packEvidence({
       candidates,
       maxTokens:
-        retrieval?.policy.contextMaxTokens ?? envInt("CHAT_CONTEXT_MAX_TOKENS", 6000),
+        retrieval?.policy.contextMaxTokens ??
+        envInt("CHAT_CONTEXT_MAX_TOKENS", 6000),
       maxChunksPerNote: retrieval?.policy.maxChunksPerNote,
       maxChunksPerProject: retrieval?.policy.maxChunksPerProject,
     });
@@ -221,7 +220,15 @@ export async function* runChat(opts: {
     });
     const system: ChatMsg = {
       role: "system",
-      content: [SYSTEM_PROMPT, runtimeContext, wikiIndexBlock, ragBlock].filter(Boolean).join("\n\n"),
+      content: [
+        SYSTEM_PROMPT,
+        runtimeContext,
+        opts.memoryContext,
+        wikiIndexBlock,
+        ragBlock,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     };
 
     const history = truncateHistory(opts.history);
@@ -277,10 +284,10 @@ export async function* runChat(opts: {
       yield { type: "agent_action", payload: agentAction };
     }
     if (
-      requiresExecutableArtifactAction(opts.userMessage)
-      && !suggestion
-      && !agentFile
-      && !agentAction
+      requiresExecutableArtifactAction(opts.userMessage) &&
+      !suggestion &&
+      !agentFile &&
+      !agentAction
     ) {
       yield {
         type: "error",
@@ -347,7 +354,10 @@ async function resolveChatWikiIndexProjectId(opts: {
   }
   if (pageChips.length > 1) return null;
 
-  if (opts.scope.type === "project" && opts.scope.workspaceId === opts.workspaceId) {
+  if (
+    opts.scope.type === "project" &&
+    opts.scope.workspaceId === opts.workspaceId
+  ) {
     return projectInChatWorkspace(opts.scope.projectId, opts.workspaceId);
   }
   if (opts.scope.type === "page") {
@@ -363,7 +373,9 @@ async function projectInChatWorkspace(
   const rows = await db
     .select({ id: projects.id })
     .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.workspaceId, workspaceId)))
+    .where(
+      and(eq(projects.id, projectId), eq(projects.workspaceId, workspaceId)),
+    )
     .limit(1);
   return rows[0]?.id ?? null;
 }
@@ -389,9 +401,11 @@ async function projectIdForChatNote(
 function verifyRuntimeAnswer(input: {
   answer: string;
   evidenceBundle: ReturnType<typeof packEvidence>;
-}): (AnswerVerificationResult & {
-  action: AnswerVerificationResult["verdict"];
-}) | null {
+}):
+  | (AnswerVerificationResult & {
+      action: AnswerVerificationResult["verdict"];
+    })
+  | null {
   if (input.evidenceBundle.items.length === 0) return null;
 
   const ledger = buildChatSourceLedger(
@@ -413,7 +427,9 @@ function verifyRuntimeAnswer(input: {
       },
     })),
   );
-  const citedProjectRequirement = minCitedProjectsForBundle(input.evidenceBundle);
+  const citedProjectRequirement = minCitedProjectsForBundle(
+    input.evidenceBundle,
+  );
   const result = verifyGroundedAnswer({
     answer: input.answer,
     ledger,
@@ -470,11 +486,17 @@ function artifactActionRequiredMessage(locale?: string): string {
 function requiresExecutableArtifactAction(userMessage: string): boolean {
   const text = userMessage.toLowerCase();
   const asksForArtifact =
-    /(?:노트|문서|파일|pdf|ppt|pptx|docx|csv|html|코드|캔버스|canvas)/i.test(text)
-    || /\b(?:note|document|file|pdf|pptx?|docx|csv|html|code|canvas)\b/i.test(text);
+    /(?:노트|문서|파일|pdf|ppt|pptx|docx|csv|html|코드|캔버스|canvas)/i.test(
+      text,
+    ) ||
+    /\b(?:note|document|file|pdf|pptx?|docx|csv|html|code|canvas)\b/i.test(
+      text,
+    );
   if (!asksForArtifact) return false;
 
-  return /(?:만들어|생성|저장|추가|정리해서\s*새|새\s*노트|노트로|파일로|다운로드|export|create|save|add|generate|make|download)/i.test(text);
+  return /(?:만들어|생성|저장|추가|정리해서\s*새|새\s*노트|노트로|파일로|다운로드|export|create|save|add|generate|make|download)/i.test(
+    text,
+  );
 }
 
 function groundedSourcesToCitations(

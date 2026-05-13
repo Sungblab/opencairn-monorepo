@@ -6,14 +6,26 @@ import { useLocale, useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FilePlus, GitBranch, ImagePlus, Layers3, LayoutTemplate, Network, UploadCloud } from "lucide-react";
 import {
+  FilePlus,
+  GitBranch,
+  ImagePlus,
+  Layers3,
+  LayoutTemplate,
+  Network,
+  UploadCloud,
+} from "lucide-react";
+import type { StudyArtifactType } from "@opencairn/shared";
+import {
+  integrationsApi,
   plan8AgentsApi,
   projectsApi,
+  studioToolsApi,
   type ProjectNoteRow,
   type ProjectWikiIndex,
   type ProjectWikiIndexHealthIssueKind,
   type ProjectWikiIndexHealthStatus,
+  type StudioToolPreflightResponse,
 } from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
@@ -23,6 +35,7 @@ import {
 } from "@/components/agent-panel/workbench-trigger-button";
 import { SourceUploadButton } from "@/components/sidebar/SourceUploadButton";
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
+import { usePanelStore } from "@/stores/panel-store";
 import {
   getToolDiscoveryGroups,
   type DocumentGenerationPresetId,
@@ -32,8 +45,25 @@ import {
   getToolDiscoveryTileClassName,
   ToolDiscoveryTileContent,
 } from "@/components/agent-panel/tool-discovery-tile";
+import { DeepResearchLaunchDialog } from "@/components/agent-panel/deep-research-launch-dialog";
+import { StudyArtifactGenerateDialog } from "@/components/agent-panel/study-artifact-generate-dialog";
 import { ProjectMetaRow } from "./project-meta-row";
 import { ProjectNotesTable } from "./project-notes-table";
+
+type PreflightState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | {
+      status: "confirm";
+      item: ToolDiscoveryItem;
+      preflight: StudioToolPreflightResponse["preflight"];
+    }
+  | {
+      status: "blocked";
+      item: ToolDiscoveryItem;
+      preflight: StudioToolPreflightResponse["preflight"];
+    }
+  | { status: "error"; item: ToolDiscoveryItem };
 
 export function ProjectView({
   wsSlug,
@@ -50,8 +80,25 @@ export function ProjectView({
   const requestDocumentGenerationPreset = useAgentWorkbenchStore(
     (s) => s.requestDocumentGenerationPreset,
   );
+  const requestCommand = useAgentWorkbenchStore((s) => s.requestCommand);
+  const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
+  const [preflightState, setPreflightState] = useState<PreflightState>({
+    status: "idle",
+  });
   const [literatureOpen, setLiteratureOpen] = useState(false);
+  const [studyArtifactType, setStudyArtifactType] =
+    useState<StudyArtifactType | null>(null);
+  const [deepResearchOpen, setDeepResearchOpen] = useState(false);
+  const [deepResearchBillingPath, setDeepResearchBillingPath] =
+    useState<"managed" | "byok">("byok");
   const toolGroups = useMemo(() => getToolDiscoveryGroups("project_home"), []);
+  const googleIntegrationQuery = useQuery({
+    queryKey: ["project-tools-google-integration", workspaceId],
+    enabled: Boolean(workspaceId),
+    staleTime: 60_000,
+    retry: false,
+    queryFn: () => integrationsApi.google(workspaceId!),
+  });
   const { data: meta } = useQuery({
     queryKey: ["project-meta", projectId],
     queryFn: () => projectsApi.get(projectId),
@@ -69,7 +116,9 @@ export function ProjectView({
     mutationFn: (name: string) => projectsApi.update(projectId, { name }),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["project-meta", projectId] }),
+        queryClient.invalidateQueries({
+          queryKey: ["project-meta", projectId],
+        }),
         queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
         queryClient.invalidateQueries({ queryKey: ["projects"] }),
       ]);
@@ -108,12 +157,41 @@ export function ProjectView({
   const lastActivityIso =
     allNotes && allNotes.length > 0 ? allNotes[0].updated_at : null;
 
-  function projectRouteHref(route: "project_graph" | "project_agents" | "project_learn") {
+  function projectRouteHref(
+    route: Extract<ToolDiscoveryItem["action"], { type: "route" }>["route"],
+  ) {
     if (route === "project_graph") {
       return urls.workspace.projectGraph(locale, wsSlug, projectId);
     }
+    if (route === "project_graph_mindmap") {
+      return `${urls.workspace.projectGraph(locale, wsSlug, projectId)}?view=mindmap`;
+    }
     if (route === "project_agents") {
       return urls.workspace.projectAgents(locale, wsSlug, projectId);
+    }
+    if (route === "project_learn_flashcards") {
+      return urls.workspace.projectLearnFlashcards(locale, wsSlug, projectId);
+    }
+    if (route === "project_learn_socratic") {
+      return urls.workspace.projectLearnSocratic(locale, wsSlug, projectId);
+    }
+    if (route === "workspace_integrations") {
+      return urls.workspace.settingsSection(
+        locale,
+        wsSlug,
+        "workspace",
+        "integrations",
+      );
+    }
+    if (route === "workspace_import_web") {
+      return `${urls.workspace.import(locale, wsSlug)}?projectId=${encodeURIComponent(
+        projectId,
+      )}&source=web`;
+    }
+    if (route === "workspace_import_youtube") {
+      return `${urls.workspace.import(locale, wsSlug)}?projectId=${encodeURIComponent(
+        projectId,
+      )}&source=youtube`;
     }
     return urls.workspace.projectLearn(locale, wsSlug, projectId);
   }
@@ -125,6 +203,83 @@ export function ProjectView({
 
   function openDocumentPreset(presetId: DocumentGenerationPresetId) {
     requestDocumentGenerationPreset(presetId);
+  }
+
+  function executeProjectTool(
+    item: ToolDiscoveryItem,
+    preflight?: StudioToolPreflightResponse["preflight"],
+  ) {
+    if (item.action.type === "workbench_command") {
+      requestCommand(item.action.commandId);
+      openAgentPanelTab("chat");
+      return;
+    }
+    if (item.action.type === "deep_research") {
+      setDeepResearchBillingPath(preflight?.billingPath ?? "byok");
+      setDeepResearchOpen(true);
+      return;
+    }
+    if (item.action.type === "document_generation_preset") {
+      openDocumentPreset(item.action.presetId);
+      openAgentPanelTab("activity");
+      return;
+    }
+    if (item.action.type === "study_artifact_generate") {
+      setStudyArtifactType(item.action.artifactType);
+    }
+  }
+
+  async function runProjectToolWithPreflight(item: ToolDiscoveryItem) {
+    if (!item.preflight) {
+      executeProjectTool(item);
+      return;
+    }
+    setPreflightState({ status: "loading" });
+    try {
+      const { preflight } = await studioToolsApi.preflight(projectId, {
+        tool: item.preflight.tool,
+        sourceTokenEstimate: item.preflight.sourceTokenEstimate,
+      });
+      if (!preflight.canStart) {
+        setPreflightState({ status: "blocked", item, preflight });
+        return;
+      }
+      if (preflight.requiresConfirmation) {
+        setPreflightState({ status: "confirm", item, preflight });
+        return;
+      }
+      setPreflightState({ status: "idle" });
+      executeProjectTool(item, preflight);
+    } catch {
+      setPreflightState({ status: "error", item });
+    }
+  }
+
+  function confirmProjectToolPreflight() {
+    if (preflightState.status !== "confirm") return;
+    const { item, preflight } = preflightState;
+    setPreflightState({ status: "idle" });
+    executeProjectTool(item, preflight);
+  }
+
+  function unavailableLabel(item: ToolDiscoveryItem): string | null {
+    if (
+      preflightState.status === "blocked" &&
+      preflightState.item.id === item.id
+    ) {
+      return t("tools.unavailable.overQuota");
+    }
+    return null;
+  }
+
+  function statusLabel(item: ToolDiscoveryItem): string | null {
+    if (item.id !== "connected_sources" || !workspaceId) return null;
+    if (googleIntegrationQuery.isPending) {
+      return t("tools.integrationStatus.checking");
+    }
+    return googleIntegrationQuery.data?.connected
+      ? t("tools.integrationStatus.connected")
+      : t("tools.integrationStatus.disconnected");
   }
 
   function formatWikiIndexStats(
@@ -155,13 +310,13 @@ export function ProjectView({
     projectPermissions?.role === "editor";
   const canRunLibrarian = canRefreshWikiIndex;
   const shouldOfferLibrarian =
-    Boolean(wikiIndex) &&
-    canRunLibrarian &&
-    hasLibrarianRepairIssue(wikiIndex);
+    Boolean(wikiIndex) && canRunLibrarian && hasLibrarianRepairIssue(wikiIndex);
 
   function renderToolItem(item: ToolDiscoveryItem) {
     const title = t(`tools.items.${item.i18nKey}.title`);
     const description = t(`tools.items.${item.i18nKey}.description`);
+    const unavailable = unavailableLabel(item);
+    const status = statusLabel(item);
 
     switch (item.action.type) {
       case "route":
@@ -173,6 +328,7 @@ export function ProjectView({
             title={title}
             description={description}
             emphasis={item.emphasis}
+            statusLabel={status}
           />
         );
       case "upload":
@@ -195,7 +351,34 @@ export function ProjectView({
             onClick={() => setLiteratureOpen(true)}
           />
         );
+      case "deep_research":
+        return (
+          <ToolButton
+            key={item.id}
+            icon={item.icon}
+            title={title}
+            description={description}
+            emphasis={item.emphasis}
+            unavailableLabel={unavailable}
+            disabled={Boolean(unavailable)}
+            onClick={() => void runProjectToolWithPreflight(item)}
+          />
+        );
       case "workbench_command":
+        if (item.preflight) {
+          return (
+            <ToolButton
+              key={item.id}
+              icon={item.icon}
+              title={title}
+              description={description}
+              emphasis={item.emphasis}
+              unavailableLabel={unavailable}
+              disabled={Boolean(unavailable)}
+              onClick={() => void runProjectToolWithPreflight(item)}
+            />
+          );
+        }
         return (
           <ToolCommandButton
             key={item.id}
@@ -204,6 +387,23 @@ export function ProjectView({
             title={title}
             description={description}
             emphasis={item.emphasis}
+          />
+        );
+      case "study_artifact_generate":
+        return (
+          <ToolButton
+            key={item.id}
+            icon={item.icon}
+            title={title}
+            description={description}
+            emphasis={item.emphasis}
+            unavailableLabel={unavailable}
+            disabled={Boolean(unavailable)}
+            onClick={() =>
+              item.preflight
+                ? void runProjectToolWithPreflight(item)
+                : executeProjectTool(item)
+            }
           />
         );
       case "open_activity":
@@ -219,6 +419,20 @@ export function ProjectView({
         );
       case "document_generation_preset":
         const presetId = item.action.presetId;
+        if (item.preflight) {
+          return (
+            <ToolButton
+              key={item.id}
+              icon={item.icon}
+              title={title}
+              description={description}
+              emphasis={item.emphasis}
+              unavailableLabel={unavailable}
+              disabled={Boolean(unavailable)}
+              onClick={() => void runProjectToolWithPreflight(item)}
+            />
+          );
+        }
         return (
           <ToolPresetButton
             key={item.id}
@@ -253,27 +467,27 @@ export function ProjectView({
         cardsLabel={t("graphDiscovery.actions.cards")}
         mindmapLabel={t("graphDiscovery.actions.mindmap")}
         indexLabel={t("graphDiscovery.index.label")}
-          indexStats={formatWikiIndexStats(wikiIndex, {
-            pages: t("graphDiscovery.index.pages", {
-              count: wikiIndex?.totals.pages ?? 0,
-            }),
-            links: t("graphDiscovery.index.links", {
-              count: wikiIndex?.totals.wikiLinks ?? 0,
-            }),
-            orphans: t("graphDiscovery.index.orphans", {
-              count: wikiIndex?.totals.orphanPages ?? 0,
-            }),
-            latest: wikiIndex?.latestPageUpdatedAt
-              ? t("graphDiscovery.index.latest", {
-                  date: new Intl.DateTimeFormat(locale, {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }).format(new Date(wikiIndex.latestPageUpdatedAt)),
-                })
-              : undefined,
-          })}
+        indexStats={formatWikiIndexStats(wikiIndex, {
+          pages: t("graphDiscovery.index.pages", {
+            count: wikiIndex?.totals.pages ?? 0,
+          }),
+          links: t("graphDiscovery.index.links", {
+            count: wikiIndex?.totals.wikiLinks ?? 0,
+          }),
+          orphans: t("graphDiscovery.index.orphans", {
+            count: wikiIndex?.totals.orphanPages ?? 0,
+          }),
+          latest: wikiIndex?.latestPageUpdatedAt
+            ? t("graphDiscovery.index.latest", {
+                date: new Intl.DateTimeFormat(locale, {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }).format(new Date(wikiIndex.latestPageUpdatedAt)),
+              })
+            : undefined,
+        })}
         healthLabel={t("graphDiscovery.health.label")}
         healthStatus={
           wikiIndex
@@ -330,6 +544,31 @@ export function ProjectView({
             {t("tools.description")}
           </p>
         </div>
+        <ProjectPreflightNotice
+          state={preflightState}
+          loadingLabel={t("tools.preflight.loading")}
+          blockedLabel={
+            preflightState.status === "blocked"
+              ? t("tools.preflight.blocked", {
+                  credits: preflightState.preflight.cost.billableCredits,
+                  available:
+                    preflightState.preflight.balance.availableCredits,
+                })
+              : ""
+          }
+          confirmText={
+            preflightState.status === "confirm"
+              ? t("tools.preflight.confirm", {
+                  credits: preflightState.preflight.cost.billableCredits,
+                })
+              : ""
+          }
+          errorLabel={t("tools.preflight.error")}
+          confirmLabel={t("tools.preflight.confirmStart")}
+          cancelLabel={t("tools.preflight.cancel")}
+          onConfirm={confirmProjectToolPreflight}
+          onCancel={() => setPreflightState({ status: "idle" })}
+        />
         <div className="space-y-4">
           {toolGroups.map((group) => (
             <section key={group.category} className="space-y-2">
@@ -359,6 +598,22 @@ export function ProjectView({
         onOpenChange={setLiteratureOpen}
         workspaceId={workspaceId}
         defaultProjectId={projectId}
+      />
+      <StudyArtifactGenerateDialog
+        open={studyArtifactType !== null}
+        projectId={projectId}
+        defaultType={studyArtifactType ?? "quiz_set"}
+        onOpenChange={(open) => {
+          if (!open) setStudyArtifactType(null);
+        }}
+      />
+      <DeepResearchLaunchDialog
+        open={deepResearchOpen}
+        workspaceId={workspaceId}
+        projectId={projectId}
+        wsSlug={wsSlug}
+        billingPath={deepResearchBillingPath}
+        onOpenChange={setDeepResearchOpen}
       />
     </div>
   );
@@ -461,9 +716,14 @@ function StarterActionContent({
 }) {
   return (
     <>
-      <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <Icon
+        aria-hidden
+        className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+      />
       <span className="min-w-0">
-        <span className="block text-sm font-medium text-foreground">{title}</span>
+        <span className="block text-sm font-medium text-foreground">
+          {title}
+        </span>
         <span className="mt-1 block text-xs leading-5 text-muted-foreground">
           {description}
         </span>
@@ -538,8 +798,7 @@ function GraphDiscoveryPanel({
           </p>
           {indexStats ? (
             <p className="mt-2 text-xs font-medium text-muted-foreground">
-              <span className="text-foreground">{indexLabel}</span>{" "}
-              {indexStats}
+              <span className="text-foreground">{indexLabel}</span> {indexStats}
             </p>
           ) : null}
           {healthStatus ? (
@@ -574,7 +833,9 @@ function GraphDiscoveryPanel({
                   onClick={onRunLibrarian}
                   className="ml-1 rounded-[var(--radius-control)] border border-current/25 bg-background/70 px-1.5 py-0.5 text-[11px] font-medium text-current hover:bg-background disabled:opacity-60"
                 >
-                  {runLibrarianPending ? runningLibrarianLabel : runLibrarianLabel}
+                  {runLibrarianPending
+                    ? runningLibrarianLabel
+                    : runLibrarianLabel}
                 </button>
               ) : null}
             </div>
@@ -582,8 +843,16 @@ function GraphDiscoveryPanel({
         </div>
         <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <GraphDiscoveryLink href={mapHref} label={mapLabel} Icon={Network} />
-          <GraphDiscoveryLink href={cardsHref} label={cardsLabel} Icon={Layers3} />
-          <GraphDiscoveryLink href={mindmapHref} label={mindmapLabel} Icon={GitBranch} />
+          <GraphDiscoveryLink
+            href={cardsHref}
+            label={cardsLabel}
+            Icon={Layers3}
+          />
+          <GraphDiscoveryLink
+            href={mindmapHref}
+            label={mindmapLabel}
+            Icon={GitBranch}
+          />
         </div>
       </div>
     </section>
@@ -597,9 +866,7 @@ const LIBRARIAN_REPAIR_ISSUES = new Set<ProjectWikiIndexHealthIssueKind>([
   "orphan_pages",
 ]);
 
-function hasLibrarianRepairIssue(
-  index: ProjectWikiIndex | undefined,
-): boolean {
+function hasLibrarianRepairIssue(index: ProjectWikiIndex | undefined): boolean {
   return Boolean(
     index?.health.issues.some((issue) =>
       LIBRARIAN_REPAIR_ISSUES.has(issue.kind),
@@ -650,24 +917,28 @@ function ToolLink({
   title,
   description,
   emphasis = false,
+  statusLabel,
 }: {
   href: string;
   icon: ToolDiscoveryItem["icon"];
   title: string;
   description: string;
   emphasis?: boolean;
+  statusLabel?: string | null;
 }) {
   return (
-    <Link
-      href={href}
-      className={getToolDiscoveryTileClassName({ emphasis })}
-    >
+    <Link href={href} className={getToolDiscoveryTileClassName({ emphasis })}>
       <ToolDiscoveryTileContent
         icon={icon}
         title={title}
         description={description}
         emphasis={emphasis}
       />
+      {statusLabel ? (
+        <span className="mt-auto rounded-[var(--radius-control)] border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+          {statusLabel}
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -753,28 +1024,108 @@ function ToolPresetButton({
   );
 }
 
+function ProjectPreflightNotice({
+  state,
+  loadingLabel,
+  blockedLabel,
+  confirmText,
+  errorLabel,
+  confirmLabel,
+  cancelLabel,
+  onConfirm,
+  onCancel,
+}: {
+  state: PreflightState;
+  loadingLabel: string;
+  blockedLabel: string;
+  confirmText: string;
+  errorLabel: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  onConfirm(): void;
+  onCancel(): void;
+}) {
+  if (state.status === "idle") return null;
+  if (state.status === "loading") {
+    return (
+      <p className="rounded-[var(--radius-control)] border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        {loadingLabel}
+      </p>
+    );
+  }
+  const message =
+    state.status === "confirm"
+      ? confirmText
+      : state.status === "blocked"
+        ? blockedLabel
+        : errorLabel;
+  return (
+    <div className="rounded-[var(--radius-control)] border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+      <p>{message}</p>
+      {state.status === "confirm" ? (
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-[var(--radius-control)] bg-foreground px-2 py-1 font-medium text-background"
+          >
+            {confirmLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-[var(--radius-control)] border border-border px-2 py-1 font-medium text-foreground"
+          >
+            {cancelLabel}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="mt-2 rounded-[var(--radius-control)] border border-border px-2 py-1 font-medium text-foreground"
+        >
+          {cancelLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ToolButton({
   icon,
   title,
   description,
+  emphasis = false,
+  unavailableLabel,
+  disabled = false,
   onClick,
 }: {
   icon: ToolDiscoveryItem["icon"];
   title: string;
   description: string;
+  emphasis?: boolean;
+  unavailableLabel?: string | null;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
-      className={getToolDiscoveryTileClassName({})}
+      className={getToolDiscoveryTileClassName({ emphasis })}
     >
       <ToolDiscoveryTileContent
         icon={icon}
         title={title}
         description={description}
       />
+      {unavailableLabel ? (
+        <span className="mt-auto rounded-[var(--radius-control)] bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+          {unavailableLabel}
+        </span>
+      ) : null}
     </button>
   );
 }

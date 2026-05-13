@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  afterAll,
+  vi,
+} from "vitest";
 
 vi.mock("../src/lib/s3.js", () => ({
   uploadObject: vi.fn().mockResolvedValue(undefined),
@@ -11,8 +19,12 @@ import {
   chatMessages,
   chatRuns,
   chatRunEvents,
+  conversations,
+  notifications,
   llmUsageEvents,
+  creditLedgerEntries,
   eq,
+  and,
   asc,
 } from "@opencairn/db";
 import { __setRunAgentForTest } from "../src/routes/threads.js";
@@ -23,7 +35,14 @@ import {
   executeChatRun,
   generateThreadTitleFromMessage,
 } from "../src/lib/chat-runs.js";
-import { seedWorkspace, seedMultiRoleWorkspace, type SeedResult, type SeedMultiRoleResult } from "./helpers/seed.js";
+import { getWorkflowConsoleRun } from "../src/lib/workflow-console.js";
+import { grantCredits } from "../src/lib/billing.js";
+import {
+  seedWorkspace,
+  seedMultiRoleWorkspace,
+  type SeedResult,
+  type SeedMultiRoleResult,
+} from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
 const app = createApp();
@@ -62,7 +81,10 @@ function parseSseEvents(text: string): ParsedEvent[] {
     });
 }
 
-async function createThread(workspaceId: string, userId: string): Promise<string> {
+async function createThread(
+  workspaceId: string,
+  userId: string,
+): Promise<string> {
   const res = await authedFetch("/api/threads", {
     method: "POST",
     userId,
@@ -281,11 +303,14 @@ describe("Threads messages — happy path", () => {
       ]),
     );
 
-    const replay = await authedFetch(`/api/chat-runs/${run!.id}/events?after=0`, {
-      method: "GET",
-      userId: ctx.userId,
-      headers: { accept: "text/event-stream" },
-    });
+    const replay = await authedFetch(
+      `/api/chat-runs/${run!.id}/events?after=0`,
+      {
+        method: "GET",
+        userId: ctx.userId,
+        headers: { accept: "text/event-stream" },
+      },
+    );
     expect(replay.status).toBe(200);
     const replayText = await replay.text();
     expect(replayText).toContain("event: user_persisted");
@@ -307,7 +332,10 @@ describe("Threads messages — happy path", () => {
     const res = await authedFetch(`/api/threads/${threadId}/messages`, {
       method: "POST",
       userId: ctx.userId,
-      body: JSON.stringify({ content: "do not cancel on refresh", mode: "auto" }),
+      body: JSON.stringify({
+        content: "do not cancel on refresh",
+        mode: "auto",
+      }),
     });
     expect(res.status).toBe(200);
     await res.text();
@@ -364,15 +392,35 @@ describe("Threads messages — happy path", () => {
 
   it("records LLM usage events when a durable chat run emits token usage", async () => {
     const threadId = await createThread(ctx.workspaceId, ctx.userId);
+    await grantCredits({
+      userId: ctx.userId,
+      workspaceId: ctx.workspaceId,
+      credits: 10_000,
+      kind: "manual_grant",
+      idempotencyKey: `${ctx.userId}:chat-usage-grant`,
+    });
     const { runId } = await createDurableChatRun({
       threadId,
       workspaceId: ctx.workspaceId,
       userId: ctx.userId,
       content: "measure usage",
       mode: "auto",
+      scope: {
+        manifest: { projectId: ctx.projectId },
+      },
     });
 
     async function* usageAgent(): AsyncGenerator<AgentChunk> {
+      yield {
+        type: "status",
+        payload: {
+          kind: "runtime_context",
+          executionClass: "durable_run",
+          chatMode: "auto",
+          ragMode: "strict",
+          memoryPolicy: "auto",
+        },
+      };
       yield { type: "text", payload: { delta: "metered" } };
       yield {
         type: "usage",
@@ -405,7 +453,91 @@ describe("Threads messages — happy path", () => {
     expect(Number(event!.costUsd)).toBe(3.5);
     expect(Number(event!.costKrw)).toBe(5775);
 
+    const [ledger] = await db
+      .select()
+      .from(creditLedgerEntries)
+      .where(
+        and(
+          eq(creditLedgerEntries.sourceType, "chat_run"),
+          eq(creditLedgerEntries.sourceId, runId),
+        ),
+      );
+    expect(ledger).toMatchObject({
+      userId: ctx.userId,
+      workspaceId: ctx.workspaceId,
+      kind: "usage",
+      billingPath: "managed",
+      operation: "chat.stream",
+      provider: "gemini",
+      model: "gemini-3-flash-preview",
+      tokensIn: 1_000_000,
+      tokensOut: 1_000_000,
+      requestId: runId,
+      idempotencyKey: `chat_run:${runId}:usage`,
+    });
+    expect(ledger!.deltaCredits).toBeLessThan(0);
+
+    const consoleRun = await getWorkflowConsoleRun(
+      ctx.projectId,
+      ctx.userId,
+      `chat:${runId}`,
+    );
+    expect(consoleRun.cost).toMatchObject({
+      provider: "gemini",
+      model: "gemini-3-flash-preview",
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+      cachedTokens: 0,
+      krw: 5775,
+    });
+    expect(consoleRun.outputs).toContainEqual(
+      expect.objectContaining({
+        outputType: "log",
+        label: "Runtime policy",
+        metadata: expect.objectContaining({
+          executionClass: "durable_run",
+          chatMode: "auto",
+          ragMode: "strict",
+          memoryPolicy: "auto",
+        }),
+      }),
+    );
+
     await db.delete(llmUsageEvents).where(eq(llmUsageEvents.sourceId, runId));
+  });
+
+  it("creates a durable completion notification for successful chat runs", async () => {
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+    const { runId } = await createDurableChatRun({
+      threadId,
+      workspaceId: ctx.workspaceId,
+      userId: ctx.userId,
+      content: "notify me",
+      mode: "auto",
+      scope: {
+        manifest: { projectId: ctx.projectId },
+      },
+    });
+
+    await executeChatRun(runId);
+
+    const [notification] = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, ctx.userId),
+          eq(notifications.kind, "system"),
+        ),
+      );
+    expect(notification?.payload).toMatchObject({
+      summary: "Agent run completed",
+      level: "info",
+      refType: "chat_run",
+      refId: runId,
+      threadId,
+      projectId: ctx.projectId,
+    });
   });
 
   it("stops execution after mid-run cancellation and does not overwrite cancelled status", async () => {
@@ -428,7 +560,10 @@ describe("Threads messages — happy path", () => {
 
     await executeChatRun(runId);
 
-    const [run] = await db.select().from(chatRuns).where(eq(chatRuns.id, runId));
+    const [run] = await db
+      .select()
+      .from(chatRuns)
+      .where(eq(chatRuns.id, runId));
     expect(run!.status).toBe("cancelled");
 
     const replay = await authedFetch(`/api/chat-runs/${runId}/events?after=0`, {
@@ -559,6 +694,138 @@ describe("Threads messages — happy path", () => {
       objectType: "agent_file",
     });
     expect(file!.chatMessageId).toBe(rows[1]!.id);
+  });
+
+  it("feeds completed file artifacts back into durable project memory", async () => {
+    __setRunAgentForTest(fakeAgentFileStream);
+    await db.insert(conversations).values({
+      workspaceId: ctx.workspaceId,
+      ownerUserId: ctx.userId,
+      scopeType: "project",
+      scopeId: ctx.projectId,
+      attachedChips: [],
+      ragMode: "strict",
+      memoryFlags: {
+        l3_global: true,
+        l3_workspace: true,
+        l4: true,
+        l2: false,
+      },
+      sessionMemoryMd: "- Existing project preference",
+      fullSummary: "Existing compact summary.",
+    });
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        content: "make a brief",
+        mode: "auto",
+        scope: {
+          projectId: ctx.projectId,
+          manifest: { actionApprovalMode: "auto_safe" },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+    await res.text();
+
+    const [memory] = await db
+      .select({
+        sessionMemoryMd: conversations.sessionMemoryMd,
+        fullSummary: conversations.fullSummary,
+      })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.workspaceId, ctx.workspaceId),
+          eq(conversations.ownerUserId, ctx.userId),
+          eq(conversations.scopeType, "project"),
+          eq(conversations.scopeId, ctx.projectId),
+        ),
+      );
+
+    expect(memory?.sessionMemoryMd).toContain("- Existing project preference");
+    expect(memory?.sessionMemoryMd).toContain("created file Agent Brief");
+    expect(memory?.sessionMemoryMd).toContain("agent-brief.md");
+    expect(memory?.fullSummary).toBe("Existing compact summary.");
+  });
+
+  it("compacts long durable chat threads into project memory", async () => {
+    const previousThreshold = process.env.CHAT_COMPACTION_MESSAGE_THRESHOLD;
+    process.env.CHAT_COMPACTION_MESSAGE_THRESHOLD = "2";
+    try {
+      const threadId = await createThread(ctx.workspaceId, ctx.userId);
+      await db.insert(conversations).values({
+        workspaceId: ctx.workspaceId,
+        ownerUserId: ctx.userId,
+        title: "Project memory",
+        scopeType: "project",
+        scopeId: ctx.projectId,
+        attachedChips: [],
+        ragMode: "strict",
+      });
+      await db.insert(chatMessages).values([
+        {
+          threadId,
+          role: "user",
+          status: "complete",
+          content: { body: "old question about operating systems" },
+        },
+        {
+          threadId,
+          role: "agent",
+          status: "complete",
+          content: { body: "old answer about process scheduling" },
+        },
+      ]);
+
+      const { runId } = await createDurableChatRun({
+        threadId,
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        content: "new question about virtual memory",
+        mode: "auto",
+        scope: {
+          manifest: { projectId: ctx.projectId, memoryPolicy: "auto" },
+        },
+      });
+
+      async function* compactedAgent(): AsyncGenerator<AgentChunk> {
+        yield {
+          type: "text",
+          payload: { delta: "new answer about page tables" },
+        };
+        yield { type: "done", payload: {} };
+      }
+      __setRunAgentForTest(compactedAgent);
+
+      await executeChatRun(runId);
+
+      const [memory] = await db
+        .select({
+          fullSummary: conversations.fullSummary,
+        })
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.workspaceId, ctx.workspaceId),
+            eq(conversations.ownerUserId, ctx.userId),
+            eq(conversations.scopeType, "project"),
+            eq(conversations.scopeId, ctx.projectId),
+          ),
+        );
+      expect(memory?.fullSummary).toContain("Thread compact summary");
+      expect(memory?.fullSummary).toContain("old question about operating systems");
+      expect(memory?.fullSummary).toContain("new answer about page tables");
+    } finally {
+      if (previousThreshold === undefined) {
+        delete process.env.CHAT_COMPACTION_MESSAGE_THRESHOLD;
+      } else {
+        process.env.CHAT_COMPACTION_MESSAGE_THRESHOLD = previousThreshold;
+      }
+    }
   });
 
   it("keeps generated note actions approval-required unless auto-safe is enabled", async () => {

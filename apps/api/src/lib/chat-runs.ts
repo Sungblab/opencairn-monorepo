@@ -6,7 +6,9 @@ import {
   chatRunEvents,
   chatRuns,
   chatThreads,
+  conversations,
   db,
+  desc,
   eq,
   gt,
   isNull,
@@ -15,11 +17,14 @@ import {
   notes,
   or,
   sql,
+  user as users,
 } from "@opencairn/db";
+import { billingPlanConfigs } from "@opencairn/shared";
 import {
   runAgent as defaultRunAgent,
   createStreamingAgentMessage,
   finalizeAgentMessage,
+  resolveAgentMemoryPolicy,
   type AgentChunk,
   type ChatMode,
 } from "./agent-pipeline";
@@ -27,6 +32,9 @@ import { getTemporalClient, taskQueue } from "./temporal-client";
 import { toProjectObjectSummary } from "./project-object-actions";
 import { createAgentAction } from "./agent-actions";
 import { recordLlmUsageEvent } from "./llm-usage";
+import { persistAndPublish } from "./notification-events";
+import { chargeManagedCredits, InsufficientCreditsError } from "./billing";
+import { envInt } from "./env";
 
 const EXECUTION_LEASE_MS = 60_000;
 const EXECUTION_MONITOR_MS = 1_000;
@@ -60,7 +68,9 @@ export function generateThreadTitleFromMessage(content: string): string {
 
 export function setRunAgentForTest(impl: RunAgentFn | null): void {
   if (process.env.NODE_ENV !== "test" && process.env.VITEST !== "true") {
-    throw new Error("setRunAgentForTest may only be called in test environments");
+    throw new Error(
+      "setRunAgentForTest may only be called in test environments",
+    );
   }
   runAgentImpl = impl ?? defaultRunAgent;
   startWorkflowImpl = impl ? executeChatRun : startTemporalChatWorkflow;
@@ -253,7 +263,10 @@ export async function cancelChatRun(runId: string, userId: string) {
   return updated ?? run;
 }
 
-export function streamChatRunEvents(runId: string, after: number): ReadableStream<Uint8Array> {
+export function streamChatRunEvents(
+  runId: string,
+  after: number,
+): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   return new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -300,7 +313,8 @@ export function streamChatRunEvents(runId: string, after: number): ReadableStrea
 
 export async function executeChatRun(runId: string): Promise<void> {
   const lease = await acquireChatRunExecutionLease(runId);
-  if (lease.status === "missing") throw new Error(`chat run not found: ${runId}`);
+  if (lease.status === "missing")
+    throw new Error(`chat run not found: ${runId}`);
   if (lease.status !== "acquired") return;
   const { run, executionAttempt, leaseId } = lease;
 
@@ -414,6 +428,12 @@ export async function executeChatRun(runId: string): Promise<void> {
         },
         "failed",
       );
+      await persistChatRunTaskMemory({
+        run,
+        scope,
+        meta,
+        terminalStatus: "cancelled",
+      });
       await releaseChatRunExecutionLease(runId, leaseId);
       return;
     }
@@ -446,10 +466,26 @@ export async function executeChatRun(runId: string): Promise<void> {
       await releaseChatRunExecutionLease(runId, leaseId);
       return;
     }
+    await persistChatRunTaskMemory({
+      run,
+      scope,
+      meta,
+      terminalStatus,
+    });
+    await compactChatRunThreadMemory({
+      run,
+      scope,
+      terminalStatus,
+    });
     await recordChatRunLlmUsage({
       run,
       meta,
       status: streamStatus,
+    });
+    await publishChatRunCompletionNotification({
+      run,
+      runId,
+      terminalStatus,
     });
     await appendChatRunEvent(
       runId,
@@ -460,6 +496,271 @@ export async function executeChatRun(runId: string): Promise<void> {
       },
       executionAttempt,
     );
+  }
+}
+
+async function persistChatRunTaskMemory(input: {
+  run: typeof chatRuns.$inferSelect;
+  scope: unknown;
+  meta: Record<string, unknown>;
+  terminalStatus: "complete" | "failed" | "cancelled";
+}) {
+  if (resolveAgentMemoryPolicy(input.scope) === "off") return;
+  const line = chatRunMemoryLine({
+    runId: input.run.id,
+    meta: input.meta,
+    terminalStatus: input.terminalStatus,
+  });
+  if (!line) return;
+
+  const projectId = await projectIdFromScope(input.scope);
+  const scopeType = projectId ? "project" : "workspace";
+  const scopeId = projectId ?? input.run.workspaceId;
+  const [conversation] = await db
+    .select({
+      id: conversations.id,
+      sessionMemoryMd: conversations.sessionMemoryMd,
+    })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.workspaceId, input.run.workspaceId),
+        eq(conversations.ownerUserId, input.run.userId),
+        eq(conversations.scopeType, scopeType),
+        eq(conversations.scopeId, scopeId),
+      ),
+    )
+    .orderBy(desc(conversations.updatedAt), desc(conversations.id))
+    .limit(1);
+
+  if (conversation) {
+    if (conversation.sessionMemoryMd?.includes(`Chat run ${input.run.id}:`)) {
+      return;
+    }
+    await db
+      .update(conversations)
+      .set({
+        sessionMemoryMd: appendMemoryLine(conversation.sessionMemoryMd, line),
+        updatedAt: sql`now()`,
+      })
+      .where(eq(conversations.id, conversation.id));
+    return;
+  }
+
+  await db.insert(conversations).values({
+    workspaceId: input.run.workspaceId,
+    ownerUserId: input.run.userId,
+    title: "Agent Panel memory",
+    scopeType,
+    scopeId,
+    attachedChips: [],
+    ragMode: "strict",
+    sessionMemoryMd: line,
+  });
+}
+
+function chatRunMemoryLine(input: {
+  runId: string;
+  meta: Record<string, unknown>;
+  terminalStatus: "complete" | "failed" | "cancelled";
+}): string | null {
+  const facts: string[] = [];
+  for (const file of recordArray(input.meta.agent_files)) {
+    const title = stringField(file, "title") ?? stringField(file, "filename");
+    const filename = stringField(file, "filename");
+    if (title && filename) {
+      facts.push(`created file ${title} (${filename})`);
+    } else if (title) {
+      facts.push(`created file ${title}`);
+    }
+  }
+  for (const action of recordArray(input.meta.agent_actions)) {
+    const kind = stringField(action, "kind");
+    const status = stringField(action, "status");
+    if (kind && status) facts.push(`created ${kind} action with ${status} status`);
+  }
+  if (input.terminalStatus === "failed") {
+    facts.push("run failed and can be reviewed from Activity");
+  } else if (input.terminalStatus === "cancelled") {
+    facts.push("run was cancelled before completion");
+  }
+  if (facts.length === 0) return null;
+  return `- Chat run ${input.runId}: ${facts.join("; ")}.`;
+}
+
+function appendMemoryLine(existing: string | null, line: string): string {
+  const lines = [...(existing?.split("\n") ?? []), line]
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(-80);
+  const text = lines.join("\n");
+  return text.length <= 4000 ? text : text.slice(text.length - 4000);
+}
+
+async function compactChatRunThreadMemory(input: {
+  run: typeof chatRuns.$inferSelect;
+  scope: unknown;
+  terminalStatus: "complete" | "failed";
+}) {
+  if (input.terminalStatus !== "complete") return;
+  if (resolveAgentMemoryPolicy(input.scope) === "off") return;
+
+  const threshold = envInt("CHAT_COMPACTION_MESSAGE_THRESHOLD", 24);
+  if (threshold <= 0) return;
+  const maxRows = envInt("CHAT_COMPACTION_MAX_MESSAGES", 40);
+  const fetchLimit = Math.max(threshold + 1, Math.max(1, maxRows));
+
+  const bodyPresent = sql`length(${chatMessages.content}->>'body') > 0`;
+  const rows = await db
+    .select({
+      role: chatMessages.role,
+      content: chatMessages.content,
+      createdAt: chatMessages.createdAt,
+      id: chatMessages.id,
+    })
+    .from(chatMessages)
+    .where(
+      and(
+        eq(chatMessages.threadId, input.run.threadId),
+        eq(chatMessages.status, "complete"),
+        bodyPresent,
+      ),
+    )
+    .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id))
+    .limit(fetchLimit);
+
+  if (rows.length <= threshold) return;
+  rows.reverse();
+
+  const projectId = await projectIdFromScope(input.scope);
+  const scopeType = projectId ? "project" : "workspace";
+  const scopeId = projectId ?? input.run.workspaceId;
+  const summary = buildThreadCompactSummary(rows);
+  const [conversation] = await db
+    .select({
+      id: conversations.id,
+      fullSummary: conversations.fullSummary,
+    })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.workspaceId, input.run.workspaceId),
+        eq(conversations.ownerUserId, input.run.userId),
+        eq(conversations.scopeType, scopeType),
+        eq(conversations.scopeId, scopeId),
+      ),
+    )
+    .orderBy(desc(conversations.updatedAt), desc(conversations.id))
+    .limit(1);
+
+  const fullSummary = mergeCompactSummary(conversation?.fullSummary ?? null, summary);
+  if (conversation) {
+    await db
+      .update(conversations)
+      .set({
+        fullSummary,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(conversations.id, conversation.id));
+    return;
+  }
+
+  await db.insert(conversations).values({
+    workspaceId: input.run.workspaceId,
+    ownerUserId: input.run.userId,
+    title: "Agent Panel memory",
+    scopeType,
+    scopeId,
+    attachedChips: [],
+    ragMode: "strict",
+    fullSummary,
+  });
+}
+
+function buildThreadCompactSummary(
+  rows: Array<{ role: string; content: unknown }>,
+): string {
+  const maxRows = envInt("CHAT_COMPACTION_MAX_MESSAGES", 40);
+  const selected = rows.slice(-Math.max(1, maxRows));
+  const lines = selected
+    .map((row) => {
+      const label = row.role === "user" ? "User" : "Assistant";
+      const body = compactText(jsonBody(row.content), 260);
+      return body ? `- ${label}: ${body}` : null;
+    })
+    .filter((line): line is string => Boolean(line));
+  return ["Thread compact summary:", ...lines].join("\n");
+}
+
+function mergeCompactSummary(existing: string | null, next: string): string {
+  const prefix = existing
+    ?.split("\n")
+    .filter((line) => !line.startsWith("Thread compact summary:"))
+    .join("\n")
+    .trim();
+  const merged = [prefix, next].filter(Boolean).join("\n\n");
+  return compactText(merged, 6000);
+}
+
+function jsonBody(content: unknown): string {
+  if (
+    content !== null &&
+    typeof content === "object" &&
+    !Array.isArray(content) &&
+    "body" in content
+  ) {
+    const body = (content as { body: unknown }).body;
+    return typeof body === "string" ? body : "";
+  }
+  return "";
+}
+
+function compactText(text: string, maxLength: number): string {
+  const compact = text.replace(/\s+/g, " ").trim();
+  return compact.length <= maxLength
+    ? compact
+    : compact.slice(compact.length - maxLength);
+}
+
+function recordArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === "object" && !Array.isArray(item),
+  );
+}
+
+function stringField(value: Record<string, unknown>, key: string): string | null {
+  const field = value[key];
+  return typeof field === "string" && field.length > 0 ? field : null;
+}
+
+async function publishChatRunCompletionNotification({
+  run,
+  runId,
+  terminalStatus,
+}: {
+  run: typeof chatRuns.$inferSelect;
+  runId: string;
+  terminalStatus: "complete" | "failed";
+}) {
+  if (terminalStatus !== "complete") return;
+  try {
+    const projectId = await projectIdFromScope(run.scope);
+    await persistAndPublish({
+      userId: run.userId,
+      kind: "system",
+      payload: {
+        summary: "Agent run completed",
+        level: "info",
+        refType: "chat_run",
+        refId: runId,
+        threadId: run.threadId,
+        projectId,
+      },
+    });
+  } catch (err) {
+    console.warn("chat_run_completion_notification_failed", err);
   }
 }
 
@@ -499,10 +800,61 @@ async function recordChatRunLlmUsage(input: {
       tokensOut: usage.tokensOut,
       sourceType: "chat_run",
       sourceId: input.run.id,
-      metadata: { status: input.status, agentMessageId: input.run.agentMessageId },
+      metadata: {
+        status: input.status,
+        agentMessageId: input.run.agentMessageId,
+      },
+    });
+    await chargeChatRunManagedCredits({
+      run: input.run,
+      usage,
+      status: input.status,
     });
   } catch (err) {
     console.warn("llm_usage_event_failed", err);
+  }
+}
+
+async function chargeChatRunManagedCredits(input: {
+  run: typeof chatRuns.$inferSelect;
+  usage: { tokensIn: number; tokensOut: number; model: string };
+  status: "complete" | "failed";
+}) {
+  const [row] = await db
+    .select({ plan: users.plan })
+    .from(users)
+    .where(eq(users.id, input.run.userId))
+    .limit(1);
+  const plan = row?.plan ?? "free";
+  if (!billingPlanConfigs[plan].managedLlm) return;
+
+  try {
+    await chargeManagedCredits({
+      userId: input.run.userId,
+      workspaceId: input.run.workspaceId,
+      provider: "gemini",
+      model: input.usage.model,
+      operation: "chat.stream",
+      tokensIn: input.usage.tokensIn,
+      tokensOut: input.usage.tokensOut,
+      sourceType: "chat_run",
+      sourceId: input.run.id,
+      requestId: input.run.id,
+      idempotencyKey: `chat_run:${input.run.id}:usage`,
+      metadata: {
+        status: input.status,
+        agentMessageId: input.run.agentMessageId,
+      },
+    });
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      console.warn("chat_run_credit_charge_insufficient", {
+        runId: input.run.id,
+        requiredCredits: err.requiredCredits,
+      });
+      return;
+    }
+    console.warn("chat_run_credit_charge_failed", err);
   }
 }
 
@@ -515,7 +867,9 @@ type ChatRunLease =
     }
   | { status: "leased" | "missing" | "terminal" };
 
-async function acquireChatRunExecutionLease(runId: string): Promise<ChatRunLease> {
+async function acquireChatRunExecutionLease(
+  runId: string,
+): Promise<ChatRunLease> {
   const leaseId = randomUUID();
   const now = new Date();
   const leaseExpiresAt = new Date(now.getTime() + EXECUTION_LEASE_MS);
@@ -575,7 +929,12 @@ async function getChatRunById(runId: string) {
   return run ?? null;
 }
 
-type ExecutionState = "active" | "cancelled" | "terminal" | "lease_lost" | "missing";
+type ExecutionState =
+  | "active"
+  | "cancelled"
+  | "terminal"
+  | "lease_lost"
+  | "missing";
 
 async function getExecutionState(
   runId: string,
@@ -617,17 +976,21 @@ function startExecutionMonitor(
   };
   const timer = setInterval(() => {
     if (inFlight) return;
-    inFlight = tick().catch(() => {
+    inFlight = tick()
+      .catch(() => {
+        abortController.abort();
+      })
+      .finally(() => {
+        inFlight = null;
+      });
+  }, EXECUTION_MONITOR_MS);
+  inFlight = tick()
+    .catch(() => {
       abortController.abort();
-    }).finally(() => {
+    })
+    .finally(() => {
       inFlight = null;
     });
-  }, EXECUTION_MONITOR_MS);
-  inFlight = tick().catch(() => {
-    abortController.abort();
-  }).finally(() => {
-    inFlight = null;
-  });
 
   return {
     async stop() {
@@ -763,16 +1126,14 @@ async function handleAgentFileChunk(input: {
     if (!summary) continue;
     const object = toProjectObjectSummary(summary);
     created.push(summary);
-    await appendChatRunEvent(
-      input.run.id,
-      "project_object_created",
-      { type: "project_object_created", object },
-    );
-    await appendChatRunEvent(
-      input.run.id,
-      "agent_file_created",
-      { type: "agent_file_created", file: summary },
-    );
+    await appendChatRunEvent(input.run.id, "project_object_created", {
+      type: "project_object_created",
+      object,
+    });
+    await appendChatRunEvent(input.run.id, "agent_file_created", {
+      type: "agent_file_created",
+      file: summary,
+    });
   }
   input.meta.agent_actions = [
     ...((input.meta.agent_actions as unknown[]) ?? []),
@@ -788,9 +1149,12 @@ async function handleAgentFileChunk(input: {
   ];
 }
 
-function fileSummaryFromAction(action: Awaited<ReturnType<typeof createAgentAction>>["action"]) {
+function fileSummaryFromAction(
+  action: Awaited<ReturnType<typeof createAgentAction>>["action"],
+) {
   const result = action.result;
-  if (!result || typeof result !== "object" || Array.isArray(result)) return null;
+  if (!result || typeof result !== "object" || Array.isArray(result))
+    return null;
   const file = (result as { file?: unknown }).file;
   if (!file || typeof file !== "object" || Array.isArray(file)) return null;
   return file as Parameters<typeof toProjectObjectSummary>[0];
@@ -816,6 +1180,11 @@ async function projectIdFromScope(scope: unknown): Promise<string | null> {
   if (!scope || typeof scope !== "object" || Array.isArray(scope)) return null;
   const obj = scope as Record<string, unknown>;
   if (typeof obj.projectId === "string") return obj.projectId;
+  const manifest = obj.manifest;
+  if (manifest && typeof manifest === "object" && !Array.isArray(manifest)) {
+    const manifestProjectId = (manifest as Record<string, unknown>).projectId;
+    if (typeof manifestProjectId === "string") return manifestProjectId;
+  }
   if (typeof obj.id === "string" && obj.type === "project") return obj.id;
   const noteId =
     typeof obj.noteId === "string"
@@ -852,7 +1221,12 @@ async function projectIdFromScope(scope: unknown): Promise<string | null> {
       const [note] = await db
         .select({ projectId: notes.projectId })
         .from(notes)
-        .where(and(eq(notes.id, (chip as Record<string, string>).id), isNull(notes.deletedAt)))
+        .where(
+          and(
+            eq(notes.id, (chip as Record<string, string>).id),
+            isNull(notes.deletedAt),
+          ),
+        )
         .limit(1);
       if (note?.projectId) return note.projectId;
     }

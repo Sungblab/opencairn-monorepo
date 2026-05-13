@@ -121,6 +121,44 @@ import { renderNoteEditor } from "./NoteEditor.test-rig";
 describe("NoteEditor.onFirstEdit", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/projects/p1/studio-tools/preflight" && init?.method === "POST") {
+          return new Response(
+            JSON.stringify({
+              preflight: {
+                projectId: "p1",
+                provider: "gemini",
+                model: "gemini-3-flash-preview",
+                billingPath: "managed",
+                chargeRequired: true,
+                executionClass: "realtime",
+                sourceTokenEstimate: 8000,
+                cachedTokenEstimate: 0,
+                outputTokenCap: 8000,
+                billableTokenEstimate: 16000,
+                estimatedCostKrw: 1,
+                estimatedCredits: 1,
+                currentBalance: 100,
+                canStart: true,
+                blockedReason: null,
+                confirmationRequired: false,
+              },
+            }),
+            {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            },
+          );
+        }
+        return new Response(JSON.stringify({ error: "not_found" }), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
     useAgentWorkbenchStore.setState(useAgentWorkbenchStore.getInitialState(), true);
     usePanelStore.setState(usePanelStore.getInitialState(), true);
     useTabsStore.setState(useTabsStore.getInitialState(), true);

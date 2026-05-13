@@ -23,6 +23,12 @@
     "activity": "활동",
     "notifications": "알림"
   },
+  "queuedPrompt": {
+    "label": "다음에 보낼 메시지",
+    "edit_aria": "대기 중인 메시지 수정",
+    "delete_aria": "대기 중인 메시지 삭제",
+    "interrupt_aria": "현재 응답을 중단하고 대기 중인 메시지 보내기"
+  },
   "bubble": {
     "user_label": "나",
     "agent_label": "에이전트",
@@ -448,7 +454,29 @@
     "noProject": "현재 프로젝트를 찾을 수 없습니다.",
     "importFile": "파일 가져오기",
     "importing": "가져오는 중",
-    "openActivity": "작업 상태 보기"
+    "openActivity": "작업 상태 보기",
+    "searchPlaceholder": "도구 검색",
+    "favorite": "즐겨찾기 추가",
+    "unfavorite": "즐겨찾기 해제",
+    "favoriteActive": "즐겨찾기",
+    "recentActive": "최근 사용",
+    "noMatches": "일치하는 도구가 없습니다.",
+    "unavailable": {
+      "missingProject": "프로젝트를 선택해야 합니다.",
+      "missingWorkspace": "워크스페이스 경로가 필요합니다.",
+      "overQuota": "credits가 부족합니다.",
+      "sourceProcessing": "자료 처리 중입니다.",
+      "unsupported": "이 자료에서는 지원하지 않습니다.",
+      "missingIntegration": "연결 설정이 필요합니다."
+    },
+    "preflight": {
+      "loading": "실행 가능 여부를 확인하는 중입니다.",
+      "confirm": "이 작업은 약 {credits} credits가 필요합니다.",
+      "blocked": "credits가 부족합니다. 필요 {credits}, 보유 {available}.",
+      "error": "실행 가능 여부를 확인하지 못했습니다.",
+      "confirmStart": "시작",
+      "cancel": "닫기"
+    }
   },
   "actionShelf": {
     "title": "바로 실행"

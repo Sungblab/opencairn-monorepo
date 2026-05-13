@@ -37,17 +37,17 @@
         "title": "Study",
         "description": "Review material and check understanding."
       },
-      "organize": {
-        "title": "Organize",
-        "description": "Inspect project structure and connections."
+      "content": {
+        "title": "Content",
+        "description": "Create summaries, reports, decks, tables, and usable outputs."
       },
-      "delegate": {
-        "title": "Delegate",
-        "description": "Open agent work and active run status."
+      "analysis": {
+        "title": "Analysis",
+        "description": "Open durable research and relationship-map surfaces."
       },
-      "review": {
-        "title": "Review",
-        "description": "Check proposed changes and approval items."
+      "utility": {
+        "title": "Utility",
+        "description": "Inspect runs, agent work, approvals, and structured outputs."
       }
     },
     "items": {
@@ -58,6 +58,18 @@
       "literature": {
         "title": "Find papers",
         "description": "Search papers and save selected sources."
+      },
+      "webImport": {
+        "title": "Import web URL",
+        "description": "Process a web page URL as project source material."
+      },
+      "youtubeImport": {
+        "title": "YouTube import",
+        "description": "Process a video URL as project source material."
+      },
+      "connectedSources": {
+        "title": "Connected sources",
+        "description": "Open external connection status and import settings such as Google Drive."
       },
       "research": {
         "title": "Research deeply",
@@ -83,6 +95,10 @@
         "title": "Create slide deck",
         "description": "Turn project material into a presentation draft."
       },
+      "slides": {
+        "title": "Create slides",
+        "description": "Start the PPTX document-generation workflow."
+      },
       "xlsxTable": {
         "title": "Create table",
         "description": "Generate a spreadsheet for comparison and organization."
@@ -95,9 +111,25 @@
         "title": "Study",
         "description": "Review with flashcards and understanding checks."
       },
+      "flashcards": {
+        "title": "Flashcards",
+        "description": "Open the existing study cards and review flow."
+      },
+      "teachToLearn": {
+        "title": "Teach to Learn",
+        "description": "Explain a concept and use the Socratic flow to check understanding."
+      },
+      "studyArtifactGenerator": {
+        "title": "Create study file",
+        "description": "Pick notes and create a quiz, flashcards, or exam-prep JSON file."
+      },
       "graph": {
         "title": "View relationship map",
         "description": "Explore concept connections and evidence from ingested material."
+      },
+      "mindMap": {
+        "title": "Mind Map",
+        "description": "Open the focused mindmap view from the project graph."
       },
       "agents": {
         "title": "Delegate to agent",
@@ -110,7 +142,81 @@
       "reviewInbox": {
         "title": "Review approvals",
         "description": "Check proposed changes and approval items."
+      },
+      "dataTable": {
+        "title": "Data table",
+        "description": "Organize material into a structured comparison table."
+      },
+      "jsonExport": {
+        "title": "Export JSON",
+        "description": "Prepare structured output that can become a JSON artifact."
       }
+    },
+    "preflight": {
+      "loading": "Checking whether this can start.",
+      "confirm": "This action needs about {credits} credits.",
+      "blocked": "Not enough credits. Required {credits}, available {available}.",
+      "error": "Could not check whether this can start.",
+      "confirmStart": "Start",
+      "cancel": "Close"
+    },
+    "unavailable": {
+      "overQuota": "Not enough credits."
+    },
+    "integrationStatus": {
+      "checking": "Checking connection",
+      "connected": "Google Drive connected",
+      "disconnected": "Connect Google Drive"
+    },
+    "studyArtifact": {
+      "title": "Create study file",
+      "description": "Create a validated JSON study file from selected notes.",
+      "typeLabel": "Format",
+      "difficultyLabel": "Difficulty",
+      "optionalTitleLabel": "Title",
+      "titlePlaceholder": "Leave blank to use an automatic title",
+      "itemCountLabel": "Items",
+      "sourceLabel": "Source notes",
+      "loadingNotes": "Loading notes.",
+      "notesError": "Could not load notes.",
+      "noNotes": "No notes are available.",
+      "submitError": "Could not create the study file.",
+      "retryableError": "The model output did not validate. Check the run record, then try again.",
+      "generate": "Generate",
+      "generating": "Generating",
+      "cancel": "Close",
+      "types": {
+        "quiz_set": "Quiz",
+        "mock_exam": "Mock exam",
+        "flashcard_deck": "Flashcards",
+        "fill_blank_set": "Fill blanks",
+        "exam_prep_pack": "Exam prep pack",
+        "compare_table": "Compare table",
+        "glossary": "Glossary",
+        "cheat_sheet": "Cheat sheet",
+        "interactive_html": "Interactive HTML",
+        "data_table": "Data table"
+      },
+      "difficulties": {
+        "mixed": "Mixed",
+        "easy": "Easy",
+        "medium": "Medium",
+        "hard": "Hard"
+      }
+    },
+    "deepResearch": {
+      "title": "Start Deep Research",
+      "description": "Create a long-running research run scoped to this project.",
+      "topicLabel": "Research topic",
+      "topicPlaceholder": "Enter the question or scope to investigate",
+      "billing": {
+        "byok": "Runs through your API key path.",
+        "managed": "Runs through the managed credits path."
+      },
+      "error": "Could not start the research run.",
+      "start": "Start",
+      "starting": "Starting",
+      "cancel": "Close"
     },
     "research": {
       "title": "Deep Research",

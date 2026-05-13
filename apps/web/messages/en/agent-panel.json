@@ -23,6 +23,12 @@
     "activity": "Activity",
     "notifications": "Notifications"
   },
+  "queuedPrompt": {
+    "label": "Queued message",
+    "edit_aria": "Edit queued message",
+    "delete_aria": "Delete queued message",
+    "interrupt_aria": "Interrupt current response and send queued message"
+  },
   "bubble": {
     "user_label": "Me",
     "agent_label": "Agent",
@@ -448,7 +454,29 @@
     "noProject": "No current project found.",
     "importFile": "Import file",
     "importing": "Importing",
-    "openActivity": "View work status"
+    "openActivity": "View work status",
+    "searchPlaceholder": "Search tools",
+    "favorite": "Add favorite",
+    "unfavorite": "Remove favorite",
+    "favoriteActive": "Favorite",
+    "recentActive": "Recent",
+    "noMatches": "No matching tools.",
+    "unavailable": {
+      "missingProject": "Select a project first.",
+      "missingWorkspace": "Workspace route is required.",
+      "overQuota": "Not enough credits.",
+      "sourceProcessing": "Source is still processing.",
+      "unsupported": "Not supported for this source.",
+      "missingIntegration": "Connection settings are required."
+    },
+    "preflight": {
+      "loading": "Checking whether this can start.",
+      "confirm": "This action needs about {credits} credits.",
+      "blocked": "Not enough credits. Required {credits}, available {available}.",
+      "error": "Could not check whether this can start.",
+      "confirmStart": "Start",
+      "cancel": "Close"
+    }
   },
   "actionShelf": {
     "title": "Quick actions"

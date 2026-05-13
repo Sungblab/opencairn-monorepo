@@ -43,7 +43,42 @@ describe("runChat project wiki index context", () => {
 
     expect(capturedMessages[0]?.role).toBe("system");
     expect(capturedMessages[0]?.content).toContain("## Project Wiki Index");
-    expect(capturedMessages[0]?.content).toContain(`Project: ${seed.projectId}`);
+    expect(capturedMessages[0]?.content).toContain(
+      `Project: ${seed.projectId}`,
+    );
     expect(capturedMessages[0]?.content).toContain("Orphan pages:");
+  });
+
+  it("injects durable memory context when the caller provides it", async () => {
+    seed = await seedWorkspace({ role: "owner" });
+    let capturedMessages: ChatMsg[] = [];
+    const provider: LLMProvider = {
+      async embed() {
+        return [0.1, 0.2, 0.3];
+      },
+      async *streamGenerate({ messages }) {
+        capturedMessages = messages;
+        yield { delta: "확인했습니다." };
+      },
+    };
+
+    for await (const _chunk of runChat({
+      workspaceId: seed.workspaceId,
+      userId: seed.userId,
+      scope: { type: "workspace", workspaceId: seed.workspaceId },
+      ragMode: "off",
+      chips: [],
+      history: [],
+      userMessage: "이어서 진행해줘",
+      provider,
+      memoryContext:
+        "## Durable Task Memory\n\n### Session Memory\n- prior decision",
+    })) {
+      // Drain the generator so the provider receives the full system prompt.
+    }
+
+    expect(capturedMessages[0]?.role).toBe("system");
+    expect(capturedMessages[0]?.content).toContain("## Durable Task Memory");
+    expect(capturedMessages[0]?.content).toContain("- prior decision");
   });
 });

@@ -1,7 +1,12 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import type { AgentCommandId } from "./agent-commands";
+import {
+  studioToolsApi,
+  type StudioToolProfileId,
+} from "@/lib/api-client";
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
 
@@ -9,28 +14,100 @@ type BaseProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type"> & {
   children: ReactNode;
 };
 
+type StudioPreflightConfig = {
+  projectId: string | null;
+  profile: StudioToolProfileId;
+  sourceTokenEstimate?: number;
+  cachedTokenEstimate?: number;
+};
+
 export function WorkbenchCommandButton({
   commandId,
+  preflight,
   onClick,
   children,
   ...props
-}: BaseProps & { commandId: AgentCommandId }) {
+}: BaseProps & { commandId: AgentCommandId; preflight?: StudioPreflightConfig }) {
+  const t = useTranslations("project.tools.preflight");
   const requestCommand = useAgentWorkbenchStore((s) => s.requestCommand);
   const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
+  const [pendingConfirmation, setPendingConfirmation] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const launch = () => {
+    requestCommand(commandId);
+    openAgentPanelTab("chat");
+  };
+
+  const runPreflightThenLaunch = async () => {
+    if (!preflight?.projectId) {
+      launch();
+      return;
+    }
+    setBusy(true);
+    setNotice(t("loading"));
+    try {
+      const { preflight: result } = await studioToolsApi.preflight(
+        preflight.projectId,
+        {
+          tool: preflight.profile,
+          sourceTokenEstimate: preflight.sourceTokenEstimate ?? 0,
+          cachedTokenEstimate: preflight.cachedTokenEstimate,
+        },
+      );
+      if (!result.canStart) {
+        setPendingConfirmation(false);
+        setNotice(
+          t("blocked", {
+            credits: result.cost.billableCredits,
+            available: result.balance.availableCredits,
+          }),
+        );
+        return;
+      }
+      if (result.requiresConfirmation) {
+        setPendingConfirmation(true);
+        setNotice(t("confirm", { credits: result.cost.billableCredits }));
+        return;
+      }
+      setPendingConfirmation(false);
+      setNotice(null);
+      launch();
+    } catch {
+      setPendingConfirmation(false);
+      setNotice(t("error"));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <button
-      {...props}
-      type="button"
-      onClick={(event) => {
-        onClick?.(event);
-        if (event.defaultPrevented) return;
-        requestCommand(commandId);
-        openAgentPanelTab("chat");
-      }}
-    >
-      {children}
-    </button>
+    <span className="inline-flex flex-col items-start gap-1">
+      <button
+        {...props}
+        type="button"
+        disabled={props.disabled || busy}
+        onClick={(event) => {
+          onClick?.(event);
+          if (event.defaultPrevented) return;
+          if (pendingConfirmation) {
+            setPendingConfirmation(false);
+            setNotice(null);
+            launch();
+            return;
+          }
+          void runPreflightThenLaunch();
+        }}
+      >
+        {pendingConfirmation ? t("confirmStart") : children}
+      </button>
+      {notice ? (
+        <span className="text-[11px] leading-4 text-muted-foreground">
+          {notice}
+        </span>
+      ) : null}
+    </span>
   );
 }
 

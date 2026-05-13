@@ -299,11 +299,13 @@ function WorkflowConsoleRunDetail({ run }: { run: WorkflowConsoleRun }) {
           ))}
       </div>
     ) : null;
+  const costDetail = <WorkflowConsoleCostDetail run={run} />;
 
   if (run.error?.message) {
     return (
       <div className="min-w-0">
         <span className="text-destructive">{run.error.message}</span>
+        {costDetail}
         {previewRecoverySummary}
         {recoveryDetail}
         {actionButtons}
@@ -314,6 +316,7 @@ function WorkflowConsoleRunDetail({ run }: { run: WorkflowConsoleRun }) {
     return (
       <div className="min-w-0">
         <span className="break-all font-mono text-[11px]">{run.runId}</span>
+        {costDetail}
         {previewRecoverySummary}
         {recoveryDetail}
         {actionButtons}
@@ -322,6 +325,7 @@ function WorkflowConsoleRunDetail({ run }: { run: WorkflowConsoleRun }) {
   }
   return (
     <div className="grid gap-1">
+      {costDetail}
       {run.outputs.map((output) => (
         <div key={output.id} className="min-w-0">
           {output.url ? (
@@ -341,6 +345,17 @@ function WorkflowConsoleRunDetail({ run }: { run: WorkflowConsoleRun }) {
       ))}
       {recoveryDetail}
       {actionButtons}
+    </div>
+  );
+}
+
+function WorkflowConsoleCostDetail({ run }: { run: WorkflowConsoleRun }) {
+  const t = useTranslations("agents");
+  const summary = workflowConsoleCostSummary(run, t);
+  if (!summary) return null;
+  return (
+    <div className="truncate text-[11px] text-muted-foreground">
+      {summary}
     </div>
   );
 }
@@ -573,6 +588,7 @@ function WorkflowConsoleLogOutputDetail({
 }: {
   output: WorkflowConsoleRun["outputs"][number];
 }) {
+  const t = useTranslations("agents");
   const metadata = output.metadata ?? {};
   const packageManager =
     typeof metadata.packageManager === "string" ? metadata.packageManager : null;
@@ -583,6 +599,11 @@ function WorkflowConsoleLogOutputDetail({
     packageManager,
     packages,
     exitCode,
+    runtimeContextSummary(metadata, t),
+    memoryContextSummary(metadata, t),
+    partialOutputSummary(metadata, t),
+    metadata.retryable === true ? t("workflowConsole.log.retryable") : null,
+    typeof metadata.preview === "string" ? metadata.preview : null,
   ].filter((value): value is string => Boolean(value));
   if (rows.length === 0) return null;
   return (
@@ -594,6 +615,88 @@ function WorkflowConsoleLogOutputDetail({
       ))}
     </div>
   );
+}
+
+function runtimeContextSummary(
+  metadata: Record<string, unknown>,
+  t: ReturnType<typeof useTranslations>,
+): string | null {
+  const executionClass =
+    typeof metadata.executionClass === "string" ? metadata.executionClass : null;
+  const chatMode =
+    typeof metadata.chatMode === "string" ? metadata.chatMode : null;
+  const ragMode = typeof metadata.ragMode === "string" ? metadata.ragMode : null;
+  if (!executionClass && !chatMode && !ragMode) return null;
+  return t("workflowConsole.log.runtime", {
+    executionClass: executionClass ?? "-",
+    chatMode: chatMode ?? "-",
+    ragMode: ragMode ?? "-",
+  });
+}
+
+function memoryContextSummary(
+  metadata: Record<string, unknown>,
+  t: ReturnType<typeof useTranslations>,
+): string | null {
+  const policy =
+    typeof metadata.memoryPolicy === "string" ? metadata.memoryPolicy : null;
+  const included =
+    typeof metadata.memoryIncluded === "boolean"
+      ? metadata.memoryIncluded
+      : null;
+  const scopes = Array.isArray(metadata.scopesUsed)
+    ? metadata.scopesUsed.filter((scope): scope is string => typeof scope === "string")
+    : [];
+  if (!policy && included === null && scopes.length === 0) return null;
+  return t("workflowConsole.log.memory", {
+    policy: policy ?? "-",
+    included: included
+      ? t("workflowConsole.log.memoryIncluded")
+      : t("workflowConsole.log.memorySkipped"),
+    scopes: scopes.length > 0 ? scopes.join(", ") : t("workflowConsole.log.noScopes"),
+  });
+}
+
+function partialOutputSummary(
+  metadata: Record<string, unknown>,
+  t: ReturnType<typeof useTranslations>,
+): string | null {
+  const chars = typeof metadata.chars === "number" ? metadata.chars : null;
+  if (chars === null) return null;
+  const attempt =
+    typeof metadata.attempt === "number"
+      ? String(metadata.attempt)
+      : t("workflowConsole.log.attemptUnknown");
+  return t("workflowConsole.log.partial", { chars, attempt });
+}
+
+function workflowConsoleCostSummary(
+  run: WorkflowConsoleRun,
+  t: ReturnType<typeof useTranslations>,
+): string | null {
+  const cost = run.cost;
+  if (!cost) return null;
+  const rows = [
+    cost.provider,
+    cost.model,
+    typeof cost.inputTokens === "number"
+      ? t("workflowConsole.cost.input", { value: formatNumber(cost.inputTokens) })
+      : null,
+    typeof cost.outputTokens === "number"
+      ? t("workflowConsole.cost.output", { value: formatNumber(cost.outputTokens) })
+      : null,
+    typeof cost.cachedTokens === "number"
+      ? t("workflowConsole.cost.cached", { value: formatNumber(cost.cachedTokens) })
+      : null,
+    typeof cost.krw === "number"
+      ? t("workflowConsole.cost.krw", { value: formatNumber(cost.krw) })
+      : null,
+  ].filter((value): value is string => Boolean(value));
+  return rows.length > 0 ? rows.join(" · ") : null;
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat().format(value);
 }
 
 function installedPackageSummary(value: unknown): string | null {

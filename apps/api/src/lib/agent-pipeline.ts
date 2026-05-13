@@ -11,7 +11,17 @@
 // The agent panel still defaults to ragMode='strict' + workspace scope
 // because Phase 4 has no per-thread chip/ragMode column yet.
 
-import { db, chatMessages, chatThreads, and, desc, eq, notInArray, sql } from "@opencairn/db";
+import {
+  db,
+  chatMessages,
+  chatThreads,
+  conversations,
+  and,
+  desc,
+  eq,
+  notInArray,
+  sql,
+} from "@opencairn/db";
 import { runChat, type ChatChunk } from "./chat-llm";
 import { stripAgentDirectiveFences } from "@opencairn/shared";
 import type { ChatMode } from "./chat-runtime-policy";
@@ -43,6 +53,21 @@ export type { ChatMode };
 type RawAgentScope = {
   strict?: unknown;
   chips?: unknown;
+  manifest?: unknown;
+};
+
+type AgentMemoryPolicy = "auto" | "off";
+
+type AgentMemoryContextInput = {
+  sessionMemoryMd?: string | null;
+  fullSummary?: string | null;
+  scopesUsed?: string[];
+};
+
+type AgentMemoryContextResolution = {
+  memoryPolicy: AgentMemoryPolicy;
+  memoryContext: string | null;
+  scopesUsed: string[];
 };
 
 export function resolveAgentRetrievalOptions(opts: {
@@ -56,13 +81,42 @@ export function resolveAgentRetrievalOptions(opts: {
 } {
   const raw = isRecord(opts.rawScope) ? (opts.rawScope as RawAgentScope) : {};
   const chips = Array.isArray(raw.chips)
-    ? raw.chips.flatMap((chip) => normalizeRetrievalChip(chip, opts.workspaceId))
+    ? raw.chips.flatMap((chip) =>
+        normalizeRetrievalChip(chip, opts.workspaceId),
+      )
     : [];
   return {
     scope: { type: "workspace", workspaceId: opts.workspaceId },
     chips,
     ragMode: opts.ragMode ?? (raw.strict === "loose" ? "expand" : "strict"),
   };
+}
+
+export function resolveAgentMemoryPolicy(
+  rawScope?: unknown,
+): AgentMemoryPolicy {
+  if (!isRecord(rawScope)) return "auto";
+  const manifest = isRecord(rawScope.manifest) ? rawScope.manifest : null;
+  return manifest?.memoryPolicy === "off" ? "off" : "auto";
+}
+
+export function formatAgentMemoryContext(
+  memory: AgentMemoryContextInput | null,
+): string | null {
+  const sessionMemoryMd = memory?.sessionMemoryMd?.trim();
+  const fullSummary = memory?.fullSummary?.trim();
+  if (!sessionMemoryMd && !fullSummary) return null;
+  const parts = ["## Durable Task Memory"];
+  if (memory?.scopesUsed && memory.scopesUsed.length > 0) {
+    parts.push(`Scopes used: ${memory.scopesUsed.join(", ")}`);
+  }
+  if (sessionMemoryMd) {
+    parts.push(`### Session Memory\n${sessionMemoryMd}`);
+  }
+  if (fullSummary) {
+    parts.push(`### Compact Summary\n${fullSummary}`);
+  }
+  return parts.join("\n\n");
 }
 
 export async function* runAgent(opts: {
@@ -86,7 +140,10 @@ export async function* runAgent(opts: {
   ragMode?: RagMode;
 }): AsyncGenerator<AgentChunk> {
   const [thread] = await db
-    .select({ workspaceId: chatThreads.workspaceId })
+    .select({
+      workspaceId: chatThreads.workspaceId,
+      projectId: chatThreads.projectId,
+    })
     .from(chatThreads)
     .where(eq(chatThreads.id, opts.threadId));
   if (!thread) {
@@ -94,12 +151,41 @@ export async function* runAgent(opts: {
   }
   const workspaceId = thread.workspaceId;
 
-  const history = await loadHistory(opts.threadId, opts.excludeMessageIds ?? []);
+  const history = await loadHistory(
+    opts.threadId,
+    opts.excludeMessageIds ?? [],
+  );
   const retrieval = resolveAgentRetrievalOptions({
     workspaceId,
     rawScope: opts.userMessage.scope,
     ragMode: opts.ragMode,
   });
+  const memory = await resolveDurableThreadMemoryContext({
+    workspaceId,
+    userId: opts.userId,
+    threadProjectId: thread.projectId,
+    rawScope: opts.userMessage.scope,
+  });
+
+  yield {
+    type: "status",
+    payload: {
+      kind: "memory_context",
+      memoryPolicy: memory.memoryPolicy,
+      memoryIncluded: Boolean(memory.memoryContext),
+      scopesUsed: memory.scopesUsed,
+    },
+  };
+  yield {
+    type: "status",
+    payload: {
+      kind: "runtime_context",
+      executionClass: "durable_run",
+      chatMode: opts.mode,
+      ragMode: retrieval.ragMode,
+      memoryPolicy: memory.memoryPolicy,
+    },
+  };
 
   for await (const chunk of runChat({
     workspaceId,
@@ -112,6 +198,7 @@ export async function* runAgent(opts: {
     signal: opts.signal,
     provider: opts.provider,
     mode: opts.mode,
+    memoryContext: memory.memoryContext,
   })) {
     yield mapChunk(chunk);
   }
@@ -133,6 +220,61 @@ function normalizeRetrievalChip(
     return [{ type: "workspace", id: raw.id }];
   }
   return [];
+}
+
+async function resolveDurableThreadMemoryContext(opts: {
+  workspaceId: string;
+  userId?: string;
+  threadProjectId: string | null;
+  rawScope?: unknown;
+}): Promise<AgentMemoryContextResolution> {
+  const memoryPolicy = resolveAgentMemoryPolicy(opts.rawScope);
+  if (memoryPolicy === "off" || !opts.userId) {
+    return { memoryPolicy, memoryContext: null, scopesUsed: [] };
+  }
+
+  const manifestProjectId = readManifestProjectId(opts.rawScope);
+  const projectId = manifestProjectId ?? opts.threadProjectId;
+  const scopeType = projectId ? "project" : "workspace";
+  const scopeId = projectId ?? opts.workspaceId;
+  const scopesUsed = [`conversation:${scopeType}:${scopeId}`];
+  const [row] = await db
+    .select({
+      sessionMemoryMd: conversations.sessionMemoryMd,
+      fullSummary: conversations.fullSummary,
+    })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.workspaceId, opts.workspaceId),
+        eq(conversations.ownerUserId, opts.userId),
+        eq(conversations.scopeType, scopeType),
+        eq(conversations.scopeId, scopeId),
+      ),
+    )
+    .orderBy(desc(conversations.updatedAt), desc(conversations.id))
+    .limit(1);
+
+  const memoryContext = formatAgentMemoryContext(
+    row ? {
+      sessionMemoryMd: row.sessionMemoryMd,
+      fullSummary: row.fullSummary,
+      scopesUsed,
+    } : null,
+  );
+  return {
+    memoryPolicy,
+    memoryContext,
+    scopesUsed: memoryContext ? scopesUsed : [],
+  };
+}
+
+function readManifestProjectId(rawScope: unknown): string | null {
+  if (!isRecord(rawScope) || !isRecord(rawScope.manifest)) return null;
+  const projectId = rawScope.manifest.projectId;
+  return typeof projectId === "string" && projectId.length > 0
+    ? projectId
+    : null;
 }
 
 // Loads the most recent N completed chat_messages and shapes them into the
@@ -162,18 +304,19 @@ async function loadHistory(
   if (limit === 0) return [];
 
   const bodyPresent = sql`length(${chatMessages.content}->>'body') > 0`;
-  const filter = excludeIds.length > 0
-    ? and(
-        eq(chatMessages.threadId, threadId),
-        eq(chatMessages.status, "complete"),
-        bodyPresent,
-        notInArray(chatMessages.id, excludeIds),
-      )
-    : and(
-        eq(chatMessages.threadId, threadId),
-        eq(chatMessages.status, "complete"),
-        bodyPresent,
-      );
+  const filter =
+    excludeIds.length > 0
+      ? and(
+          eq(chatMessages.threadId, threadId),
+          eq(chatMessages.status, "complete"),
+          bodyPresent,
+          notInArray(chatMessages.id, excludeIds),
+        )
+      : and(
+          eq(chatMessages.threadId, threadId),
+          eq(chatMessages.status, "complete"),
+          bodyPresent,
+        );
 
   // Pull the newest N then reverse to chronological so the LLM reads the
   // turns in the order they happened. Sorting in SQL is safer than sorting
@@ -215,7 +358,6 @@ function extractBody(content: unknown): string {
   }
   return "";
 }
-
 
 function mapChunk(c: ChatChunk): AgentChunk {
   return { type: c.type, payload: c.payload };

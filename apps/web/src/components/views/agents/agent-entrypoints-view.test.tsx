@@ -183,6 +183,17 @@ const workflowRuns = [
     outputs: [
       {
         outputType: "log" as const,
+        id: "chat-runtime",
+        label: "Runtime policy",
+        metadata: {
+          executionClass: "durable_run",
+          chatMode: "auto",
+          ragMode: "strict",
+          memoryPolicy: "auto",
+        },
+      },
+      {
+        outputType: "log" as const,
         id: "install-log",
         label: "Dependency install",
         metadata: {
@@ -257,6 +268,58 @@ const workflowRuns = [
     createdAt: "2026-05-04T00:22:00.000Z",
     updatedAt: "2026-05-04T00:22:00.000Z",
     completedAt: null,
+  },
+  {
+    runId: "chat:00000000-0000-4000-8000-000000000080",
+    runType: "chat" as const,
+    agentRole: "research" as const,
+    workGroupId: "chat:00000000-0000-4000-8000-000000000080",
+    sourceId: "00000000-0000-4000-8000-000000000080",
+    sourceStatus: "failed",
+    workspaceId: "workspace-1",
+    projectId: "project-1",
+    threadId: "thread-1",
+    messageId: "message-1",
+    actorUserId: "user-1",
+    title: "Chat run",
+    status: "failed" as const,
+    risk: "low" as const,
+    cost: {
+      inputTokens: 123,
+      outputTokens: 45,
+      cachedTokens: 6,
+      provider: "gemini",
+      model: "gemini-3-flash-preview",
+      krw: 5775,
+    },
+    outputs: [
+      {
+        outputType: "log" as const,
+        id: "chat-memory",
+        label: "Memory context",
+        metadata: {
+          memoryPolicy: "auto",
+          memoryIncluded: true,
+          scopesUsed: ["conversation:project:project-1"],
+        },
+      },
+      {
+        outputType: "log" as const,
+        id: "chat-partial",
+        label: "Partial output",
+        metadata: {
+          chars: 17,
+          attempt: 2,
+          retryable: true,
+          preview: "부분 답변",
+        },
+      },
+    ],
+    approvals: [],
+    error: { code: "provider_timeout", retryable: true },
+    createdAt: "2026-05-04T00:23:00.000Z",
+    updatedAt: "2026-05-04T00:24:00.000Z",
+    completedAt: "2026-05-04T00:24:00.000Z",
   },
   {
     runId: "import:00000000-0000-4000-8000-000000000060",
@@ -459,6 +522,18 @@ describe("AgentEntryPointsView", () => {
     expect(screen.getByText("pnpm")).toBeInTheDocument();
     expect(screen.getByText("zod@3.25.0, @vitejs/plugin-react")).toBeInTheDocument();
     expect(screen.getByText("0")).toBeInTheDocument();
+    expect(
+      screen.getByText("런타임 durable_run · 모드 auto · RAG strict"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("메모리 auto · 포함 · conversation:project:project-1"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("부분 출력 17자 · 시도 2")).toBeInTheDocument();
+    expect(screen.getByText("재시도 가능")).toBeInTheDocument();
+    expect(screen.getByText("부분 답변")).toBeInTheDocument();
+    expect(
+      screen.getByText("gemini · gemini-3-flash-preview · 입력 123 · 출력 45 · 캐시 6 · ₩5,775"),
+    ).toBeInTheDocument();
   });
 
   it("shows agentic plan recovery affordances in Workflow Console detail", async () => {

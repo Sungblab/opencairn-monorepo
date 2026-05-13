@@ -122,7 +122,9 @@ export function NoteContextRail({
               onScrolledToTarget={onScrolledToTarget}
             />
           ) : null}
-          {active === "ai" ? <NoteRailAiWork readOnly={readOnly} /> : null}
+          {active === "ai" ? (
+            <NoteRailAiWork readOnly={readOnly} projectId={projectId} />
+          ) : null}
           {active === "activity" ? (
             <NoteRailActivity projectId={projectId} />
           ) : null}
@@ -163,7 +165,13 @@ function RailButton({
   );
 }
 
-function NoteRailAiWork({ readOnly }: { readOnly: boolean }) {
+function NoteRailAiWork({
+  readOnly,
+  projectId,
+}: {
+  readOnly: boolean;
+  projectId: string;
+}) {
   const t = useTranslations("editor.noteRail");
 
   return (
@@ -175,6 +183,11 @@ function NoteRailAiWork({ readOnly }: { readOnly: boolean }) {
         <div className="grid gap-2">
           <WorkbenchCommandButton
             commandId="make_note"
+            preflight={{
+              projectId,
+              profile: "document",
+              sourceTokenEstimate: 8000,
+            }}
             data-testid="note-rail-make-note-button"
             className="app-hover inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] border border-border px-2.5 text-sm"
           >
@@ -183,6 +196,11 @@ function NoteRailAiWork({ readOnly }: { readOnly: boolean }) {
           </WorkbenchCommandButton>
           <WorkbenchCommandButton
             commandId="extract_citations"
+            preflight={{
+              projectId,
+              profile: "summary",
+              sourceTokenEstimate: 8000,
+            }}
             data-testid="note-rail-citations-button"
             className="app-hover inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] border border-border px-2.5 text-sm"
           >

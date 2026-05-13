@@ -4,6 +4,7 @@
 
 import type { UserPlan } from "@opencairn/shared";
 import type {
+  AgentFileSummary,
   AgentAction,
   AgentActionKind,
   AgentActionStatus,
@@ -19,8 +20,10 @@ import type {
   ProjectObjectAction,
   RecoverAgenticPlanStepRequest,
   SessionRecording,
+  GenerateStudyArtifactRequest,
   StudySession,
   StudySessionTranscriptResponse,
+  StudyArtifact,
   StartAgenticPlanRequest,
   TransitionAgentActionStatusRequest,
   WorkflowConsoleRun,
@@ -62,6 +65,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public body?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -101,7 +105,7 @@ export async function apiClient<T>(
 
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(res.status, body.error ?? `API error ${res.status}`);
+    throw new ApiError(res.status, body.error ?? `API error ${res.status}`, body);
   }
 
   // 204 No Content (e.g. DELETE /comments/:id) has no body. Calling
@@ -490,6 +494,61 @@ export type GenerateProjectObjectResponse = {
   idempotent: boolean;
   workflowId?: string;
 };
+export type StudioToolProfileId =
+  | "explain"
+  | "summary"
+  | "quiz"
+  | "flashcards"
+  | "mock_exam"
+  | "fill_blank"
+  | "exam_prep"
+  | "compare"
+  | "glossary"
+  | "cheat_sheet"
+  | "slides"
+  | "document"
+  | "interactive_html"
+  | "data_table"
+  | "deep_research";
+
+export type StudioToolPreflightResponse = {
+  preflight: {
+    tool: StudioToolProfileId;
+    billingPath: "managed" | "byok";
+    chargeRequired: boolean;
+    requiresConfirmation: boolean;
+    provider: string;
+    model: string;
+    projectId: string;
+    sourceTokenEstimate: number;
+    cachedTokenEstimate: number;
+    profile: {
+      executionClass: "realtime" | "agent_action" | "durable_run";
+      sourceTokenCap: number;
+      tokensIn: number;
+      tokensOut: number;
+      featureMultiplier: number;
+      requiresConfirmation: boolean;
+    };
+    cost: {
+      tokensIn: number;
+      tokensOut: number;
+      cachedTokens: number;
+      searchQueries: number;
+      pricingTier: string;
+      costUsd: number;
+      costKrw: number;
+      billableCredits: number;
+    };
+    balance: {
+      availableCredits: number;
+      plan: UserPlan;
+    };
+    canStart: boolean;
+    blockedReason: "credits_insufficient" | null;
+  };
+};
+
 type ExportProjectObjectAction = Extract<
   ProjectObjectAction,
   { type: "export_project_object" }
@@ -511,6 +570,42 @@ export const documentGenerationApi = {
   exportProjectObject: (projectId: string, body: ExportProjectObjectAction) =>
     apiClient<GenerateProjectObjectResponse>(
       `/projects/${projectId}/project-object-actions/export`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
+};
+
+export const studioToolsApi = {
+  preflight: (
+    projectId: string,
+    body: {
+      tool: StudioToolProfileId;
+      sourceTokenEstimate: number;
+      cachedTokenEstimate?: number;
+      provider?: string;
+      model?: string;
+    },
+  ) =>
+    apiClient<StudioToolPreflightResponse>(
+      `/projects/${projectId}/studio-tools/preflight`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
+};
+
+export type GenerateStudyArtifactResponse = {
+  artifact: StudyArtifact;
+  file: AgentFileSummary;
+};
+
+export const studyArtifactsApi = {
+  generate: (projectId: string, body: GenerateStudyArtifactRequest) =>
+    apiClient<GenerateStudyArtifactResponse>(
+      `/projects/${projectId}/study-artifacts/generate`,
       {
         method: "POST",
         body: JSON.stringify(body),
