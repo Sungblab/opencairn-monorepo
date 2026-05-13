@@ -99,7 +99,11 @@ import {
 } from "../lib/agent-files";
 import { createTreeNode } from "../lib/project-tree-service";
 import { markdownToPlateValue } from "../lib/plate-doc";
-import { yjsStateToPlateValue } from "../lib/yjs-plate-transform";
+import {
+  plateValueToYjsState,
+  yjsStateToPlateValue,
+} from "../lib/yjs-plate-transform";
+import type { PlateValue } from "../lib/yjs-to-plate";
 import {
   cleanupExpiredCodeProjectPreviews,
   completeCodeProjectInstallActionFromWorker,
@@ -1713,7 +1717,7 @@ internal.get("/notes/:id/draft-state", async (c) => {
     .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
   if (!row) return c.json({ error: "Not found" }, 404);
 
-  const [doc] = await db
+  let [doc] = await db
     .select({
       state: yjsDocuments.state,
       stateVector: yjsDocuments.stateVector,
@@ -1727,6 +1731,34 @@ internal.get("/notes/:id/draft-state", async (c) => {
     : Array.isArray(row.content)
       ? row.content
       : markdownToPlateValue(row.contentText ?? "");
+  if (!doc) {
+    const yjs = plateValueToYjsState(content as PlateValue);
+    const [inserted] = await db
+      .insert(yjsDocuments)
+      .values({
+        name: `page:${id}`,
+        state: yjs.state,
+        stateVector: yjs.stateVector,
+        sizeBytes: yjs.state.byteLength,
+      })
+      .onConflictDoNothing({ target: yjsDocuments.name })
+      .returning({
+        state: yjsDocuments.state,
+        stateVector: yjsDocuments.stateVector,
+      });
+    if (inserted) {
+      doc = inserted;
+    } else {
+      [doc] = await db
+        .select({
+          state: yjsDocuments.state,
+          stateVector: yjsDocuments.stateVector,
+        })
+        .from(yjsDocuments)
+        .where(eq(yjsDocuments.name, `page:${id}`))
+        .limit(1);
+    }
+  }
 
   return c.json({
     ...row,

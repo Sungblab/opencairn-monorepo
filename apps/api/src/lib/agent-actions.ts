@@ -72,7 +72,6 @@ import type {
   InteractionChoiceRespondRequest,
 } from "@opencairn/shared";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import * as Y from "yjs";
 import {
   createCodeWorkspaceDraft,
   createDrizzleCodeWorkspaceRepository,
@@ -102,6 +101,7 @@ import {
   updateAgentFile,
 } from "./agent-files";
 import {
+  plateValueToYjsState,
   transformYjsStateWithPlateValue,
   yjsStateToPlateValue,
 } from "./yjs-plate-transform";
@@ -118,27 +118,12 @@ export class AgentActionError extends Error {
 
 const MAX_CODE_REPAIR_ATTEMPTS = 3;
 
-function createYjsStateFromPlateValue(content: PlateValue): {
-  state: Uint8Array;
-  stateVector: Uint8Array;
-} {
-  const empty = new Y.Doc();
-  const transformed = transformYjsStateWithPlateValue({
-    currentState: Y.encodeStateAsUpdate(empty),
-    draft: content,
-  });
-  return {
-    state: transformed.state,
-    stateVector: transformed.stateVector,
-  };
-}
-
 async function seedYjsDocumentForNote(
   tx: Tx,
   noteId: string,
   content: PlateValue,
 ): Promise<void> {
-  const yjs = createYjsStateFromPlateValue(content);
+  const yjs = plateValueToYjsState(content);
   await tx
     .insert(yjsDocuments)
     .values({

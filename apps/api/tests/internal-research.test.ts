@@ -14,7 +14,10 @@ import {
   yjsDocuments,
 } from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
-import { transformYjsStateWithPlateValue } from "../src/lib/yjs-plate-transform.js";
+import {
+  transformYjsStateWithPlateValue,
+  yjsStateToPlateValue,
+} from "../src/lib/yjs-plate-transform.js";
 
 const SECRET = "test-internal-secret-abc";
 process.env.INTERNAL_API_SECRET = SECRET;
@@ -316,6 +319,42 @@ describe("GET /api/internal/notes/:id/draft-state", () => {
     expect(body.hasYjsDocument).toBe(true);
     expect(body.content).toEqual(draft);
     expect(body.yjsStateVectorBase64).toBe(Buffer.from(transformed.stateVector).toString("base64"));
+  });
+
+  it("backfills a missing Yjs document from stored Plate content", async () => {
+    const draft = [
+      { type: "p", children: [{ text: "Legacy wiki page." }] },
+    ];
+    await db.delete(yjsDocuments).where(eq(yjsDocuments.name, `page:${ctx.noteId}`));
+    await db
+      .update(notes)
+      .set({
+        content: draft,
+        contentText: "Legacy wiki page.",
+      })
+      .where(eq(notes.id, ctx.noteId));
+
+    const res = await internalFetch(
+      `/api/internal/notes/${ctx.noteId}/draft-state`,
+      { method: "GET" },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      hasYjsDocument: boolean;
+      content: unknown[];
+      yjsStateVectorBase64: string | null;
+    };
+    expect(body.hasYjsDocument).toBe(true);
+    expect(body.content).toEqual(draft);
+    expect(body.yjsStateVectorBase64).toEqual(expect.any(String));
+
+    const [stored] = await db
+      .select({ state: yjsDocuments.state })
+      .from(yjsDocuments)
+      .where(eq(yjsDocuments.name, `page:${ctx.noteId}`));
+    expect(stored).toBeDefined();
+    expect(yjsStateToPlateValue(stored!.state)).toEqual(draft);
   });
 });
 

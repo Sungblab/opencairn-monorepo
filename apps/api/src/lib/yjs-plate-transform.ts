@@ -149,3 +149,15 @@ export function transformYjsStateWithPlateValue(input: {
     plateValue: yDocToPlateValue(doc),
   };
 }
+
+export function plateValueToYjsState(draft: PlateValue): {
+  state: Uint8Array;
+  stateVector: Uint8Array;
+  plateValue: PlateValue;
+} {
+  const doc = new Y.Doc();
+  return transformYjsStateWithPlateValue({
+    currentState: Y.encodeStateAsUpdate(doc),
+    draft,
+  });
+}
