@@ -1,7 +1,15 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
-import { db, eq, notes, researchRuns, wikiLinks, wikiLogs } from "@opencairn/db";
+import {
+  db,
+  eq,
+  noteAnalysisJobs,
+  notes,
+  researchRuns,
+  wikiLinks,
+  wikiLogs,
+} from "@opencairn/db";
 import {
   seedMultiRoleWorkspace,
   seedWorkspace,
@@ -456,5 +464,107 @@ describe("GET /api/projects/:id/wiki-index", () => {
         reason: "missing",
       },
     ]);
+  });
+
+  it("summarizes wiki health issues for broken links and analysis backlog", async () => {
+    seed = await seedWorkspace({ role: "owner" });
+    const sourceId = await insertNote({
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      title: "Source with missing title link",
+      type: "wiki",
+    });
+    await db
+      .update(notes)
+      .set({
+        content: [
+          {
+            type: "p",
+            children: [
+              {
+                type: "wikilink",
+                noteId: null,
+                label: "Missing Concept",
+                children: [{ text: "Missing Concept" }],
+              },
+            ],
+          },
+        ],
+      })
+      .where(eq(notes.id, sourceId));
+    const failedNoteId = await insertNote({
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      title: "Failed analysis note",
+      type: "wiki",
+    });
+    const queuedNoteId = await insertNote({
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      title: "Queued analysis note",
+      type: "wiki",
+    });
+    await db.insert(noteAnalysisJobs).values([
+      {
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        noteId: failedNoteId,
+        contentHash: "failed-analysis-hash",
+        status: "failed",
+        errorCode: "analysis_failed",
+        errorMessage: "embedding provider failed",
+      },
+      {
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        noteId: queuedNoteId,
+        contentHash: "queued-analysis-hash",
+        status: "queued",
+      },
+    ]);
+
+    const res = await authedGet(
+      `/api/projects/${seed.projectId}/wiki-index`,
+      seed.userId,
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      health: {
+        status: "blocked" | "needs_attention" | "updating" | "healthy";
+        issues: Array<{
+          kind:
+            | "analysis_failed"
+            | "analysis_queued"
+            | "unresolved_missing";
+          severity: "blocking" | "warning" | "info";
+          count: number;
+          sampleTitles: string[];
+        }>;
+      };
+    };
+    expect(body.health.status).toBe("blocked");
+    expect(body.health.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "analysis_failed",
+          severity: "blocking",
+          count: 1,
+          sampleTitles: ["Failed analysis note"],
+        }),
+        expect.objectContaining({
+          kind: "analysis_queued",
+          severity: "info",
+          count: 1,
+          sampleTitles: ["Queued analysis note"],
+        }),
+        expect.objectContaining({
+          kind: "unresolved_missing",
+          severity: "warning",
+          count: 1,
+          sampleTitles: ["Source with missing title link"],
+        }),
+      ]),
+    );
   });
 });

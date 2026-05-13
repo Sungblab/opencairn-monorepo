@@ -159,6 +159,23 @@
       "orphans": "{count} isolated",
       "latest": "Updated {date}"
     },
+    "health": {
+      "label": "Index status",
+      "status": {
+        "healthy": "Healthy",
+        "updating": "Updating",
+        "needs_attention": "Needs attention",
+        "blocked": "Needs recovery"
+      },
+      "issues": {
+        "analysis_failed": "{count} analysis failed",
+        "analysis_running": "{count} analyzing",
+        "analysis_queued": "{count} queued",
+        "unresolved_missing": "{count} broken links",
+        "unresolved_ambiguous": "{count} duplicate links",
+        "orphan_pages": "{count} isolated pages"
+      }
+    },
     "actions": {
       "map": "Open relationship map",
       "cards": "Review as cards",

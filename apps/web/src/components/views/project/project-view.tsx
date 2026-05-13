@@ -11,6 +11,7 @@ import {
   projectsApi,
   type ProjectNoteRow,
   type ProjectWikiIndex,
+  type ProjectWikiIndexHealthStatus,
 } from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
@@ -110,6 +111,18 @@ export function ProjectView({
     if (!index) return null;
     return [labels.pages, labels.links, labels.orphans, labels.latest]
       .filter(Boolean)
+      .join(" · ");
+  }
+
+  function formatWikiHealthIssueSummary(index: ProjectWikiIndex | undefined) {
+    if (!index || index.health.issues.length === 0) return null;
+    return index.health.issues
+      .slice(0, 2)
+      .map((issue) =>
+        t(`graphDiscovery.health.issues.${issue.kind}`, {
+          count: issue.count,
+        }),
+      )
       .join(" · ");
   }
 
@@ -228,6 +241,14 @@ export function ProjectView({
                 })
               : undefined,
           })}
+        healthLabel={t("graphDiscovery.health.label")}
+        healthStatus={
+          wikiIndex
+            ? t(`graphDiscovery.health.status.${wikiIndex.health.status}`)
+            : null
+        }
+        healthIssueSummary={formatWikiHealthIssueSummary(wikiIndex)}
+        healthTone={wikiIndex?.health.status ?? null}
         mapHref={projectGraphHref()}
         cardsHref={projectGraphHref("cards")}
         mindmapHref={projectGraphHref("mindmap")}
@@ -417,6 +438,10 @@ function GraphDiscoveryPanel({
   mindmapLabel,
   indexLabel,
   indexStats,
+  healthLabel,
+  healthStatus,
+  healthIssueSummary,
+  healthTone,
   mapHref,
   cardsHref,
   mindmapHref,
@@ -428,6 +453,10 @@ function GraphDiscoveryPanel({
   mindmapLabel: string;
   indexLabel: string;
   indexStats: string | null;
+  healthLabel: string;
+  healthStatus: string | null;
+  healthIssueSummary: string | null;
+  healthTone: ProjectWikiIndexHealthStatus | null;
   mapHref: string;
   cardsHref: string;
   mindmapHref: string;
@@ -446,6 +475,23 @@ function GraphDiscoveryPanel({
               {indexStats}
             </p>
           ) : null}
+          {healthStatus ? (
+            <p
+              data-testid="project-wiki-health"
+              className={`mt-2 inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-1 rounded-[var(--radius-control)] border px-2 py-1 text-xs font-medium ${getWikiHealthClassName(
+                healthTone,
+              )}`}
+            >
+              <span>
+                {healthLabel} {healthStatus}
+              </span>
+              {healthIssueSummary ? (
+                <span className="min-w-0 truncate text-current/80">
+                  · {healthIssueSummary}
+                </span>
+              ) : null}
+            </p>
+          ) : null}
         </div>
         <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <GraphDiscoveryLink href={mapHref} label={mapLabel} Icon={Network} />
@@ -455,6 +501,23 @@ function GraphDiscoveryPanel({
       </div>
     </section>
   );
+}
+
+function getWikiHealthClassName(
+  status: ProjectWikiIndexHealthStatus | null,
+): string {
+  switch (status) {
+    case "blocked":
+      return "border-destructive/30 bg-destructive/5 text-destructive";
+    case "needs_attention":
+      return "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200";
+    case "updating":
+      return "border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-700/60 dark:bg-sky-950/30 dark:text-sky-200";
+    case "healthy":
+      return "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700/60 dark:bg-emerald-950/30 dark:text-emerald-200";
+    default:
+      return "border-border bg-background text-muted-foreground";
+  }
 }
 
 function GraphDiscoveryLink({

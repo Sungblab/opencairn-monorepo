@@ -6,6 +6,7 @@ import {
   extractWikiLinkReferences,
   inArray,
   isNull,
+  noteAnalysisJobs,
   notes,
   wikiLinks,
   wikiLogs,
@@ -48,6 +49,32 @@ export type ProjectWikiIndexUnresolvedLink = {
   reason: "missing" | "ambiguous";
 };
 
+export type ProjectWikiIndexHealthStatus =
+  | "healthy"
+  | "updating"
+  | "needs_attention"
+  | "blocked";
+
+export type ProjectWikiIndexHealthIssueKind =
+  | "analysis_failed"
+  | "analysis_running"
+  | "analysis_queued"
+  | "unresolved_missing"
+  | "unresolved_ambiguous"
+  | "orphan_pages";
+
+export type ProjectWikiIndexHealthIssue = {
+  kind: ProjectWikiIndexHealthIssueKind;
+  severity: "info" | "warning" | "blocking";
+  count: number;
+  sampleTitles: string[];
+};
+
+export type ProjectWikiIndexHealth = {
+  status: ProjectWikiIndexHealthStatus;
+  issues: ProjectWikiIndexHealthIssue[];
+};
+
 export type ProjectWikiIndex = {
   projectId: string;
   generatedAt: string;
@@ -57,6 +84,7 @@ export type ProjectWikiIndex = {
     wikiLinks: number;
     orphanPages: number;
   };
+  health: ProjectWikiIndexHealth;
   links: ProjectWikiIndexLink[];
   unresolvedLinks: ProjectWikiIndexUnresolvedLink[];
   recentLogs: ProjectWikiIndexLog[];
@@ -193,7 +221,24 @@ export async function buildProjectWikiIndex(opts: {
   const latestPageUpdatedAt = visibleNotes[0]?.updatedAt.toISOString() ?? null;
   const orphanPages = pages.filter(
     (page) => page.inboundLinks === 0 && page.outboundLinks === 0,
-  ).length;
+  );
+
+  const analysisRows = visibleNotes.length
+    ? await db
+        .select({
+          noteId: noteAnalysisJobs.noteId,
+          status: noteAnalysisJobs.status,
+        })
+        .from(noteAnalysisJobs)
+        .where(inArray(noteAnalysisJobs.noteId, [...noteIds]))
+    : [];
+
+  const health = buildProjectWikiHealth({
+    analysisRows,
+    orphanPages,
+    unresolvedLinks,
+    titleById,
+  });
 
   return {
     projectId: opts.projectId,
@@ -202,8 +247,9 @@ export async function buildProjectWikiIndex(opts: {
     totals: {
       pages: visibleNotes.length,
       wikiLinks: wikiLinkTotal,
-      orphanPages,
+      orphanPages: orphanPages.length,
     },
+    health,
     links: links.sort((a, b) =>
       a.sourceTitle.localeCompare(b.sourceTitle) ||
       a.targetTitle.localeCompare(b.targetTitle),
@@ -228,6 +274,10 @@ function emptyProjectWikiIndex(projectId: string): ProjectWikiIndex {
       wikiLinks: 0,
       orphanPages: 0,
     },
+    health: {
+      status: "healthy",
+      issues: [],
+    },
     links: [],
     unresolvedLinks: [],
     recentLogs: [],
@@ -247,7 +297,17 @@ export function projectWikiIndexToPrompt(
     `Pages: ${index.totals.pages}`,
     `Wiki links: ${index.totals.wikiLinks}`,
     `Orphan pages: ${index.totals.orphanPages}`,
+    `Wiki health: ${index.health.status}`,
   ];
+  if (index.health.issues.length > 0) {
+    lines.push("", "Health issues:");
+    for (const issue of index.health.issues) {
+      const sample = issue.sampleTitles.length
+        ? ` - ${issue.sampleTitles.join(", ")}`
+        : "";
+      lines.push(`- ${issue.kind}: ${issue.count}${sample}`);
+    }
+  }
   if (index.pages.length > 0) {
     lines.push("", "Top linked pages:");
     const pages = [...index.pages].sort(
@@ -304,4 +364,88 @@ export function projectWikiIndexToPrompt(
     }
   }
   return lines.join("\n");
+}
+
+function buildProjectWikiHealth(opts: {
+  analysisRows: Array<{ noteId: string; status: "queued" | "running" | "completed" | "failed" }>;
+  orphanPages: ProjectWikiIndexPage[];
+  unresolvedLinks: ProjectWikiIndexUnresolvedLink[];
+  titleById: Map<string, string>;
+}): ProjectWikiIndexHealth {
+  const issues: ProjectWikiIndexHealthIssue[] = [];
+  const analysisByStatus = new Map<"queued" | "running" | "completed" | "failed", string[]>();
+  for (const row of opts.analysisRows) {
+    const titles = analysisByStatus.get(row.status) ?? [];
+    titles.push(opts.titleById.get(row.noteId) ?? row.noteId);
+    analysisByStatus.set(row.status, titles);
+  }
+
+  addHealthIssue(issues, {
+    kind: "analysis_failed",
+    severity: "blocking",
+    titles: analysisByStatus.get("failed") ?? [],
+  });
+
+  addHealthIssue(issues, {
+    kind: "unresolved_missing",
+    severity: "warning",
+    titles: opts.unresolvedLinks
+      .filter((link) => link.reason === "missing")
+      .map((link) => link.sourceTitle),
+  });
+  addHealthIssue(issues, {
+    kind: "unresolved_ambiguous",
+    severity: "warning",
+    titles: opts.unresolvedLinks
+      .filter((link) => link.reason === "ambiguous")
+      .map((link) => link.sourceTitle),
+  });
+  addHealthIssue(issues, {
+    kind: "orphan_pages",
+    severity: "warning",
+    titles: opts.orphanPages.map((page) => page.title),
+  });
+
+  addHealthIssue(issues, {
+    kind: "analysis_running",
+    severity: "info",
+    titles: analysisByStatus.get("running") ?? [],
+  });
+  addHealthIssue(issues, {
+    kind: "analysis_queued",
+    severity: "info",
+    titles: analysisByStatus.get("queued") ?? [],
+  });
+
+  const status: ProjectWikiIndexHealthStatus = issues.some(
+    (issue) => issue.severity === "blocking",
+  )
+    ? "blocked"
+    : issues.some((issue) => issue.severity === "warning")
+      ? "needs_attention"
+      : issues.some((issue) => issue.severity === "info")
+        ? "updating"
+        : "healthy";
+
+  return { status, issues };
+}
+
+function addHealthIssue(
+  issues: ProjectWikiIndexHealthIssue[],
+  opts: {
+    kind: ProjectWikiIndexHealthIssueKind;
+    severity: ProjectWikiIndexHealthIssue["severity"];
+    titles: string[];
+  },
+): void {
+  if (opts.titles.length === 0) return;
+  const uniqueTitles = [...new Set(opts.titles)].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  issues.push({
+    kind: opts.kind,
+    severity: opts.severity,
+    count: opts.titles.length,
+    sampleTitles: uniqueTitles.slice(0, 3),
+  });
 }

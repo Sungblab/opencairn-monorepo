@@ -33,6 +33,23 @@ vi.mock("@/lib/api-client", () => ({
       generatedAt: "2026-05-13T00:01:00.000Z",
       latestPageUpdatedAt: "2026-05-13T00:00:00.000Z",
       totals: { pages: 3, wikiLinks: 2, orphanPages: 1 },
+      health: {
+        status: "blocked",
+        issues: [
+          {
+            kind: "analysis_failed",
+            severity: "blocking",
+            count: 1,
+            sampleTitles: ["Failed analysis note"],
+          },
+          {
+            kind: "unresolved_missing",
+            severity: "warning",
+            count: 2,
+            sampleTitles: ["Broken source"],
+          },
+        ],
+      },
       pages: [],
     })),
     update: vi.fn(async (_id: string, body: { name?: string }) => ({
@@ -177,6 +194,14 @@ describe("ProjectView", () => {
     expect(
       await screen.findByText("project.graphDiscovery.index.label"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("project-wiki-health"),
+    ).toHaveTextContent(
+      "project.graphDiscovery.health.label project.graphDiscovery.health.status.blocked",
+    );
+    expect(screen.getByTestId("project-wiki-health")).toHaveTextContent(
+      "project.graphDiscovery.health.issues.analysis_failed",
+    );
     expect(
       screen.getByText(
         "project.graphDiscovery.index.pages · project.graphDiscovery.index.links · project.graphDiscovery.index.orphans · project.graphDiscovery.index.latest",

@@ -11,6 +11,17 @@ describe("projectWikiIndexToPrompt", () => {
       generatedAt: "2026-05-13T00:01:00.000Z",
       latestPageUpdatedAt: "2026-05-13T00:00:00.000Z",
       totals: { pages: 3, wikiLinks: 4, orphanPages: 1 },
+      health: {
+        status: "blocked",
+        issues: [
+          {
+            kind: "analysis_failed",
+            severity: "blocking",
+            count: 1,
+            sampleTitles: ["Compiler"],
+          },
+        ],
+      },
       links: [
         {
           sourceNoteId: "n2",
@@ -71,6 +82,10 @@ describe("projectWikiIndexToPrompt", () => {
     expect(projectWikiIndexToPrompt(index)).toContain("Pages: 3");
     expect(projectWikiIndexToPrompt(index)).toContain("Wiki links: 4");
     expect(projectWikiIndexToPrompt(index)).toContain("Orphan pages: 1");
+    expect(projectWikiIndexToPrompt(index)).toContain("Wiki health: blocked");
+    expect(projectWikiIndexToPrompt(index)).toContain(
+      "Health issues:\n- analysis_failed: 1 - Compiler",
+    );
     expect(projectWikiIndexToPrompt(index)).toContain(
       "Orphan page candidates:\n- Orphan (note)",
     );
@@ -94,6 +109,7 @@ describe("projectWikiIndexToPrompt", () => {
       generatedAt: "2026-05-13T00:01:00.000Z",
       latestPageUpdatedAt: "2026-05-13T00:00:00.000Z",
       totals: { pages: 30, wikiLinks: 30, orphanPages: 0 },
+      health: { status: "healthy", issues: [] },
       links: Array.from({ length: 30 }, (_, i) => ({
         sourceNoteId: `s${i}`,
         sourceTitle: `Source ${i}`,

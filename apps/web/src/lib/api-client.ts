@@ -732,6 +732,32 @@ export interface ProjectWikiIndexLog {
   createdAt: string;
 }
 
+export type ProjectWikiIndexHealthStatus =
+  | "healthy"
+  | "updating"
+  | "needs_attention"
+  | "blocked";
+
+export type ProjectWikiIndexHealthIssueKind =
+  | "analysis_failed"
+  | "analysis_running"
+  | "analysis_queued"
+  | "unresolved_missing"
+  | "unresolved_ambiguous"
+  | "orphan_pages";
+
+export interface ProjectWikiIndexHealthIssue {
+  kind: ProjectWikiIndexHealthIssueKind;
+  severity: "info" | "warning" | "blocking";
+  count: number;
+  sampleTitles: string[];
+}
+
+export interface ProjectWikiIndexHealth {
+  status: ProjectWikiIndexHealthStatus;
+  issues: ProjectWikiIndexHealthIssue[];
+}
+
 export interface ProjectWikiIndex {
   projectId: string;
   generatedAt: string;
@@ -741,6 +767,7 @@ export interface ProjectWikiIndex {
     wikiLinks: number;
     orphanPages: number;
   };
+  health: ProjectWikiIndexHealth;
   links: ProjectWikiIndexLink[];
   unresolvedLinks: ProjectWikiIndexUnresolvedLink[];
   recentLogs: ProjectWikiIndexLog[];

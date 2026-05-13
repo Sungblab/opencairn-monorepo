@@ -159,6 +159,23 @@
       "orphans": "고립 {count}개",
       "latest": "최근 갱신 {date}"
     },
+    "health": {
+      "label": "인덱스 상태",
+      "status": {
+        "healthy": "정상",
+        "updating": "갱신 중",
+        "needs_attention": "확인 필요",
+        "blocked": "복구 필요"
+      },
+      "issues": {
+        "analysis_failed": "분석 실패 {count}개",
+        "analysis_running": "분석 중 {count}개",
+        "analysis_queued": "분석 대기 {count}개",
+        "unresolved_missing": "깨진 링크 {count}개",
+        "unresolved_ambiguous": "중복 링크 {count}개",
+        "orphan_pages": "고립 페이지 {count}개"
+      }
+    },
     "actions": {
       "map": "관계 지도로 보기",
       "cards": "카드로 복습",
