@@ -15,18 +15,15 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-from llm.base import EmbedInput, LLMProvider, ProviderConfig
+from llm.base import LLMProvider, ProviderConfig
 
 from runtime.tools import ToolContext
-
 from worker.agents.compiler.agent import (
     MERGE_SIMILARITY_THRESHOLD,
     CompilerAgent,
     _parse_extraction,
     _pick_merge_target,
 )
-
 
 # ---------------------------------------------------------------------------
 # Pure helpers
@@ -146,6 +143,15 @@ def _make_api(*, existing: list[dict[str, Any]] | None = None) -> MagicMock:
     api.upsert_concept = AsyncMock(return_value=("concept-abc", True))
     api.link_concept_note = AsyncMock(return_value=None)
     api.log_wiki = AsyncMock(return_value="log-1")
+    api.get_project_wiki_index = AsyncMock(
+        return_value={"pages": [{"title": "Batch Normalization"}]}
+    )
+    api.create_agent_action = AsyncMock(
+        return_value={
+            "action": {"id": "action-1", "status": "approval_required"},
+            "idempotent": False,
+        }
+    )
     return api
 
 
@@ -192,6 +198,7 @@ async def test_compiler_runs_happy_path() -> None:
     api.upsert_concept.assert_awaited_once()
     api.link_concept_note.assert_awaited_once()
     api.log_wiki.assert_awaited_once()
+    api.create_agent_action.assert_not_awaited()
 
     end = events[-1]
     assert end.output["note_id"] == "note-1"
@@ -200,6 +207,106 @@ async def test_compiler_runs_happy_path() -> None:
     assert end.output["merged_count"] == 0
     assert end.output["linked_count"] == 1
     assert end.output["concept_ids"] == ["concept-abc"]
+    assert end.output["wiki_page_actions_created"] == 0
+
+
+@pytest.mark.asyncio
+async def test_compiler_proposes_wiki_pages_for_new_concepts() -> None:
+    extraction = json.dumps(
+        {
+            "concepts": [
+                {
+                    "name": "Batch Normalization",
+                    "description": "Per-layer normalisation technique.",
+                }
+            ]
+        }
+    )
+    provider = _make_provider(extraction)
+    api = _make_api()
+    api.get_project_wiki_index = AsyncMock(return_value={"pages": []})
+    agent = CompilerAgent(provider=provider, api=api)
+
+    events = []
+    async for ev in agent.run(
+        {
+            "note_id": "note-1",
+            "project_id": "proj-1",
+            "workspace_id": "ws-1",
+            "user_id": "user-1",
+        },
+        _make_ctx(),
+    ):
+        events.append(ev)
+
+    api.create_agent_action.assert_awaited_once()
+    action_kwargs = api.create_agent_action.await_args.kwargs
+    assert action_kwargs["project_id"] == "proj-1"
+    assert action_kwargs["user_id"] == "user-1"
+    assert action_kwargs["request"]["kind"] == "note.create_from_markdown"
+    assert action_kwargs["request"]["risk"] == "write"
+    assert action_kwargs["request"]["approvalMode"] == "require"
+    assert action_kwargs["request"]["input"]["title"] == "Batch Normalization"
+    assert (
+        "Per-layer normalisation technique."
+        in action_kwargs["request"]["input"]["bodyMarkdown"]
+    )
+    assert "Deep Learning Basics" in action_kwargs["request"]["input"]["bodyMarkdown"]
+
+    end = events[-1]
+    assert end.output["wiki_page_actions_created"] == 1
+    customs = [
+        e
+        for e in events
+        if e.type == "custom"
+        and e.label == "compiler.wiki_page_actions_created"
+    ]
+    assert customs
+    assert customs[0].payload == {"count": 1}
+
+
+@pytest.mark.asyncio
+async def test_compiler_does_not_count_idempotent_wiki_page_actions() -> None:
+    extraction = json.dumps(
+        {
+            "concepts": [
+                {"name": "Batch Normalization", "description": "Already proposed."}
+            ]
+        }
+    )
+    provider = _make_provider(extraction)
+    api = _make_api()
+    api.get_project_wiki_index = AsyncMock(return_value={"pages": []})
+    api.create_agent_action = AsyncMock(
+        return_value={
+            "action": {"id": "action-1", "status": "approval_required"},
+            "idempotent": True,
+        }
+    )
+    agent = CompilerAgent(provider=provider, api=api)
+
+    events = []
+    async for ev in agent.run(
+        {
+            "note_id": "note-1",
+            "project_id": "proj-1",
+            "workspace_id": "ws-1",
+            "user_id": "user-1",
+        },
+        _make_ctx(),
+    ):
+        events.append(ev)
+
+    api.create_agent_action.assert_awaited_once()
+    end = events[-1]
+    assert end.output["wiki_page_actions_created"] == 0
+    customs = [
+        e
+        for e in events
+        if e.type == "custom"
+        and e.label == "compiler.wiki_page_actions_created"
+    ]
+    assert customs == []
 
 
 @pytest.mark.asyncio

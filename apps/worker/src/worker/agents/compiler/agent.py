@@ -22,9 +22,8 @@ import logging
 import re
 import time
 import uuid
-from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from llm import ENV_BATCH_ENABLED_COMPILER, LLMProvider, embed_many
 from llm.base import EmbedInput
@@ -41,12 +40,14 @@ from runtime.events import (
     ToolUse,
 )
 from runtime.tools import ToolContext, hash_input
-
 from worker.agents.compiler.prompts import (
     EXTRACTION_SYSTEM,
     build_extraction_user_prompt,
 )
 from worker.lib.api_client import AgentApiClient
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,8 @@ logger = logging.getLogger(__name__)
 # — identical phrasings tend to score > 0.95, synonyms 0.85-0.92. Tune in
 # Librarian feedback; see Plan 5 Task M0.
 MERGE_SIMILARITY_THRESHOLD = 0.88
+MAX_COMPILER_WIKI_PAGE_ACTIONS = 5
+WIKI_PAGE_REQUEST_NAMESPACE = uuid.UUID("dd8d8cc6-7f4b-42d0-8f2c-c8d3fe89da8f")
 
 
 @dataclass(frozen=True)
@@ -82,6 +85,7 @@ class CompilerOutput:
     merged_count: int
     linked_count: int
     concept_ids: list[str]
+    wiki_page_actions_created: int = 0
 
 
 class CompilerAgent(Agent):
@@ -175,6 +179,7 @@ class CompilerAgent(Agent):
                         merged_count=0,
                         linked_count=0,
                         concept_ids=[],
+                        wiki_page_actions_created=0,
                     ).__dict__,
                     duration_ms=int((time.time() - t0) * 1000),
                 )
@@ -208,7 +213,8 @@ class CompilerAgent(Agent):
             merged = 0
             linked = 0
             concept_ids: list[str] = []
-            for candidate, embedding in zip(extracted, embed_vectors):
+            created_concepts: list[dict[str, str]] = []
+            for candidate, embedding in zip(extracted, embed_vectors, strict=False):
                 result = await self._process_concept(
                     candidate=candidate,
                     embedding=embedding,
@@ -223,10 +229,34 @@ class CompilerAgent(Agent):
                 concept_ids.append(result.concept_id)
                 if result.was_created:
                     created += 1
+                    created_concepts.append(
+                        {
+                            "name": candidate["name"].strip(),
+                            "description": candidate.get("description", "").strip(),
+                        }
+                    )
                 else:
                     merged += 1
                 if result.was_linked:
                     linked += 1
+
+            wiki_page_actions_created = await self._create_wiki_page_actions(
+                input=validated,
+                ctx=ctx,
+                source_title=title,
+                concepts=created_concepts,
+            )
+            if wiki_page_actions_created > 0:
+                yield CustomEvent(
+                    run_id=ctx.run_id,
+                    workspace_id=ctx.workspace_id,
+                    agent_name=self.name,
+                    seq=seq.next(),
+                    ts=time.time(),
+                    type="custom",
+                    label="compiler.wiki_page_actions_created",
+                    payload={"count": wiki_page_actions_created},
+                )
 
             out = CompilerOutput(
                 note_id=validated.note_id,
@@ -235,6 +265,7 @@ class CompilerAgent(Agent):
                 merged_count=merged,
                 linked_count=linked,
                 concept_ids=concept_ids,
+                wiki_page_actions_created=wiki_page_actions_created,
             )
             yield AgentEnd(
                 run_id=ctx.run_id,
@@ -364,7 +395,12 @@ class CompilerAgent(Agent):
         name = candidate["name"].strip()
         description = candidate.get("description", "").strip()
         if not name:
-            return _ConceptProcessed(concept_id=None, was_created=False, was_linked=False, events=_aiter([]))
+            return _ConceptProcessed(
+                concept_id=None,
+                was_created=False,
+                was_linked=False,
+                events=_aiter([]),
+            )
 
         # Embedding is pre-computed upstream (Plan 3b — either via batch
         # or the sync fallback). A None value means the embed failed for
@@ -372,7 +408,12 @@ class CompilerAgent(Agent):
         # embedding failure" semantics so Librarian can retry later.
         if embedding is None:
             logger.warning("Embedding missing for concept %s; skipping", name)
-            return _ConceptProcessed(concept_id=None, was_created=False, was_linked=False, events=_aiter([]))
+            return _ConceptProcessed(
+                concept_id=None,
+                was_created=False,
+                was_linked=False,
+                events=_aiter([]),
+            )
 
         # Search for existing concepts (name ILIKE first to catch exact
         # name matches that scored slightly below the vector threshold).
@@ -512,7 +553,10 @@ class CompilerAgent(Agent):
         reason = (
             f"Compiler extracted concept '{name}' from note"
             if created
-            else f"Compiler linked note to existing concept '{merge_target['name'] if merge_target else name}'"
+            else (
+                "Compiler linked note to existing concept "
+                f"'{merge_target['name'] if merge_target else name}'"
+            )
         )
         await self.api.log_wiki(
             note_id=input.note_id,
@@ -527,6 +571,89 @@ class CompilerAgent(Agent):
             was_linked=True,
             events=_aiter(events),
         )
+
+    async def _create_wiki_page_actions(
+        self,
+        *,
+        input: CompilerInput,
+        ctx: ToolContext,
+        source_title: str,
+        concepts: list[dict[str, str]],
+    ) -> int:
+        if not concepts:
+            return 0
+        try:
+            index = await self.api.get_project_wiki_index(input.project_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Compiler: failed to fetch wiki index for page proposals: %s",
+                exc,
+            )
+            return 0
+
+        existing_titles = {
+            str(page.get("title") or "").strip().casefold()
+            for page in index.get("pages", [])
+            if isinstance(page, dict)
+        }
+        created = 0
+        seen_titles = set(existing_titles)
+        for concept in concepts:
+            name = concept.get("name", "").strip()
+            if not name:
+                continue
+            normalized = name.casefold()
+            if normalized in seen_titles:
+                continue
+            seen_titles.add(normalized)
+            if len(seen_titles) - len(existing_titles) > MAX_COMPILER_WIKI_PAGE_ACTIONS:
+                break
+
+            description = concept.get("description", "").strip()
+            request_id = str(
+                uuid.uuid5(
+                    WIKI_PAGE_REQUEST_NAMESPACE,
+                    f"{input.project_id}:{input.note_id}:{name}",
+                )
+            )
+            body_markdown = _build_wiki_page_stub(
+                title=name,
+                description=description,
+                source_title=source_title,
+            )
+            try:
+                result = await self.api.create_agent_action(
+                    project_id=input.project_id,
+                    user_id=input.user_id,
+                    request={
+                        "requestId": request_id,
+                        "sourceRunId": ctx.run_id,
+                        "kind": "note.create_from_markdown",
+                        "risk": "write",
+                        "approvalMode": "require",
+                        "input": {
+                            "title": name,
+                            "folderId": None,
+                            "bodyMarkdown": body_markdown,
+                        },
+                        "preview": {
+                            "summary": "Create a concept wiki page from source ingest",
+                            "sourceNoteId": input.note_id,
+                            "sourceTitle": source_title,
+                            "targetTitle": name,
+                        },
+                    },
+                )
+                if not result.get("idempotent"):
+                    created += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Compiler: failed to create wiki page action for %s: %s",
+                    name,
+                    exc,
+                )
+
+        return created
 
 
 # ---------------------------------------------------------------------------
@@ -572,6 +699,23 @@ def _build_embed_text(candidate: dict[str, str]) -> str:
     name = candidate["name"].strip()
     description = candidate.get("description", "").strip()
     return name if not description else f"{name} — {description}"
+
+
+def _build_wiki_page_stub(
+    *,
+    title: str,
+    description: str,
+    source_title: str,
+) -> str:
+    body = description or "Fill this page with grounded notes after review."
+    return (
+        f"# {title}\n\n"
+        f"{body}\n\n"
+        "## Source\n\n"
+        f"Proposed by Compiler from source note **{source_title}**.\n\n"
+        "Review the source note, expand this into a grounded wiki page, "
+        "or reject the action."
+    )
 
 
 _JSON_BLOCK = re.compile(r"```(?:json)?\s*(.+?)```", re.DOTALL)
@@ -638,6 +782,4 @@ def _is_retryable(exc: Exception) -> bool:
 
     if isinstance(exc, httpx.HTTPStatusError):
         return 500 <= exc.response.status_code < 600
-    if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)):
-        return True
-    return False
+    return isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))
