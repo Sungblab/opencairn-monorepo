@@ -105,4 +105,21 @@ describe("layoutTimeline", () => {
       .map((node) => node.x);
     expect(new Set(sameYearXs).size).toBe(2);
   });
+
+  it("staggers dense lane rows so labels do not stack on one line", () => {
+    const out = layoutTimeline(
+      nodes(
+        Array.from({ length: 9 }, (_, index) => ({
+          id: `created-${index}`,
+          name: `created ${index}`,
+          createdAt: "2026-01-01T00:00:00.000Z",
+        })),
+      ),
+    );
+
+    expect(new Set(out.nodes.map((node) => node.y)).size).toBeGreaterThan(1);
+    expect(Math.max(...out.nodes.map((node) => node.y))).toBeGreaterThan(
+      Math.min(...out.nodes.map((node) => node.y)),
+    );
+  });
 });

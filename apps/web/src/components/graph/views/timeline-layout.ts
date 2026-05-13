@@ -5,6 +5,7 @@ const NODE_PADDING_X = 120;
 const MIN_WIDTH = 860;
 const LANE_TOP = 74;
 const LANE_GAP = 118;
+const DENSE_ROW_GAP = 30;
 const BOTTOM_PADDING = 72;
 
 export type TimelineLaneId = "event" | "created" | "undated";
@@ -110,6 +111,9 @@ export function layoutTimeline(input: ViewNode[]): TimelineLayout {
     const laneIndex = indexByLane.get(lane) ?? 0;
     indexByLane.set(lane, laneIndex + 1);
     const laneTotal = totalByLane.get(lane) ?? 1;
+    const rowCount = laneTotal > 8 ? 5 : laneTotal > 3 ? 3 : 1;
+    const rowIndex = rowCount === 1 ? 0 : laneIndex % rowCount;
+    const rowOffset = (rowIndex - (rowCount - 1) / 2) * DENSE_ROW_GAP;
     const ratio =
       year === null
         ? (laneIndex + 0.5) / laneTotal
@@ -135,7 +139,7 @@ export function layoutTimeline(input: ViewNode[]): TimelineLayout {
         NODE_PADDING_X / 2,
         Math.min(width - NODE_PADDING_X / 2, baseX + duplicateYearOffset),
       ),
-      y: laneY(lane),
+      y: laneY(lane) + rowOffset,
       year,
       lane,
     };
