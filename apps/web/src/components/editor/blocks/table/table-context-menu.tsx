@@ -33,6 +33,31 @@ export interface TableCellElementProps extends PlateElementProps {
   isHeader?: boolean;
 }
 
+export function TableElement({
+  attributes,
+  children,
+}: PlateElementProps) {
+  return (
+    <table
+      {...attributes}
+      className="my-4 w-full border-collapse text-left text-sm"
+    >
+      <tbody>{children}</tbody>
+    </table>
+  );
+}
+
+export function TableRowElement({
+  attributes,
+  children,
+}: PlateElementProps) {
+  return (
+    <tr {...attributes} className="border-b border-border last:border-b-0">
+      {children}
+    </tr>
+  );
+}
+
 export function TableCellElement({
   attributes,
   children,
@@ -48,9 +73,13 @@ export function TableCellElement({
   // the layout doesn't flicker — context menu works on the next render.
   if (!path) {
     return isHeader ? (
-      <th {...attributes}>{children}</th>
+      <th {...attributes} className="border border-border bg-muted/40 px-3 py-2">
+        {children}
+      </th>
     ) : (
-      <td {...attributes}>{children}</td>
+      <td {...attributes} className="border border-border px-3 py-2 align-top">
+        {children}
+      </td>
     );
   }
 
@@ -75,7 +104,18 @@ export function TableCellElement({
         data-testid="table-cell-context-trigger"
         // Render the trigger AS the table cell so right-click works across
         // the full cell area without breaking <table><tr><td> structure.
-        render={<Tag {...attributes}>{children}</Tag>}
+        render={
+          <Tag
+            {...attributes}
+            className={
+              isHeader
+                ? "border border-border bg-muted/40 px-3 py-2"
+                : "border border-border px-3 py-2 align-top"
+            }
+          >
+            {children}
+          </Tag>
+        }
       />
       <ContextMenuContent>
         <ContextMenuItem

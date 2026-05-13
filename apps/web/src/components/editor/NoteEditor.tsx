@@ -92,6 +92,7 @@ import { NoteContextRail, type NoteRailTab } from "./note-context-rail";
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
 import type { AgentCommandId } from "@/components/agent-panel/agent-commands";
+import { HorizontalRuleElement } from "./elements/horizontal-rule";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
@@ -107,7 +108,7 @@ const basePlugins = [
   H2Plugin,
   H3Plugin,
   BlockquotePlugin,
-  HorizontalRulePlugin,
+  HorizontalRulePlugin.withComponent(HorizontalRuleElement),
   ListPlugin,
   CodeBlockPlugin,
   CodeLinePlugin,

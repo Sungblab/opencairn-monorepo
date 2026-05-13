@@ -21,6 +21,7 @@ import {
   useCollaborativeEditor,
 } from "@/hooks/useCollaborativeEditor";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
+import { HorizontalRuleElement } from "@/components/editor/elements/horizontal-rule";
 
 // Same plugin list as NoteEditor minus wiki-link + slash menu. Reading mode
 // is content-only, so interactive overlays are off. If you find yourself
@@ -35,7 +36,7 @@ const readingPlugins = [
   H2Plugin,
   H3Plugin,
   BlockquotePlugin,
-  HorizontalRulePlugin,
+  HorizontalRulePlugin.withComponent(HorizontalRuleElement),
   ListPlugin,
   ...latexPlugins,
 ];

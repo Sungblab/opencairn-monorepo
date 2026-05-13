@@ -2,7 +2,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import koMessages from "@/../messages/ko/editor.json";
-import { TableCellElement } from "./table-context-menu";
+import {
+  TableCellElement,
+  TableElement,
+  TableRowElement,
+} from "./table-context-menu";
 
 // Plate editor mock — captures every tf call so each test can assert
 // "right-click → click menu item → correct transform fired with the right
@@ -131,5 +135,23 @@ describe("TableCellElement context menu", () => {
     renderCell();
     expect(screen.queryByTestId("table-cell-context-trigger")).toBeNull();
     expect(screen.getByTestId("cell-content")).toBeInTheDocument();
+  });
+
+  it("renders Plate table nodes as valid table markup", () => {
+    render(
+      <NextIntlClientProvider locale="ko" messages={{ editor: koMessages }}>
+        {/* @ts-expect-error — Plate's full editor context isn't needed here. */}
+        <TableElement attributes={{ "data-slate-node": "element", ref: null }}>
+          {/* @ts-expect-error — Plate's full editor context isn't needed here. */}
+          <TableRowElement attributes={{ "data-slate-node": "element", ref: null }}>
+            <td data-testid="valid-cell">cell</td>
+          </TableRowElement>
+        </TableElement>
+      </NextIntlClientProvider>,
+    );
+
+    const table = screen.getByRole("table");
+    expect(table.tagName).toBe("TABLE");
+    expect(table.querySelector("tbody > tr > td")).not.toBeNull();
   });
 });

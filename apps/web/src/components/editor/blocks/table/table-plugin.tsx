@@ -9,6 +9,8 @@ import type { AnyPlatePlugin } from "platejs/react";
 import {
   TableCellElement,
   TableCellHeaderElement,
+  TableElement,
+  TableRowElement,
 } from "./table-context-menu";
 
 // Plan 2D — Table block. The official @platejs/table plugins handle node
@@ -21,8 +23,8 @@ import {
 // so replacing them is lossless for the existing layout — we only add the
 // menu trigger.
 export const tablePlugins: AnyPlatePlugin[] = [
-  BaseTablePlugin,
-  TableRowPlugin,
+  BaseTablePlugin.withComponent(TableElement),
+  TableRowPlugin.withComponent(TableRowElement),
   TableCellPlugin.withComponent(TableCellElement),
   TableCellHeaderPlugin.withComponent(TableCellHeaderElement),
 ];
