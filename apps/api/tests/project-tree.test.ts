@@ -204,6 +204,61 @@ describe("unified project tree routes", () => {
     ]);
   });
 
+  it("surfaces completed bundle ingest status for artifact files", async () => {
+    const bundleNodeId = randomUUID();
+    const fileId = randomUUID();
+    await db.insert(projectTreeNodes).values({
+      id: bundleNodeId,
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      parentId: null,
+      kind: "source_bundle",
+      label: "week-1.pdf",
+      icon: "file-pdf",
+      path: labelFromId(bundleNodeId),
+      metadata: { status: "completed" },
+    });
+    await db.insert(agentFiles).values({
+      id: fileId,
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      createdBy: seed.userId,
+      title: "summary.md",
+      filename: "summary.md",
+      extension: "md",
+      kind: "markdown",
+      mimeType: "text/markdown",
+      objectKey: "test/summary.md",
+      bytes: 12,
+      contentHash: "hash",
+      source: "manual",
+      versionGroupId: randomUUID(),
+      version: 1,
+      ingestStatus: "queued",
+    });
+    await db.insert(projectTreeNodes).values({
+      id: fileId,
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      parentId: bundleNodeId,
+      kind: "agent_file",
+      targetTable: "agent_files",
+      targetId: fileId,
+      label: "summary.md",
+      icon: "file",
+      path: `${labelFromId(bundleNodeId)}.${labelFromId(fileId)}`,
+      metadata: { role: "analysis", bundleNodeId },
+    });
+
+    const res = await authedFetch(`/api/agent-files/${fileId}`, {
+      userId: seed.userId,
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { file: { ingestStatus: string } };
+    expect(body.file.ingestStatus).toBe("completed");
+  });
+
   it("moves legacy generated source notes from extracted results to analysis results", async () => {
     const bundleNodeId = randomUUID();
     const parsedGroupId = randomUUID();

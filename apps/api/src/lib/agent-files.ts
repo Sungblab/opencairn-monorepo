@@ -573,6 +573,15 @@ async function withBundleIngestStatus(
         sql`(
           ${projectTreeNodes.targetId} = ${row.id}::uuid
           OR ${projectTreeNodes.metadata}->>'originalFileId' = ${row.id}
+          OR EXISTS (
+            SELECT 1
+            FROM project_tree_nodes artifact_node
+            WHERE artifact_node.project_id = ${row.projectId}::uuid
+              AND artifact_node.target_table = 'agent_files'
+              AND artifact_node.target_id = ${row.id}::uuid
+              AND artifact_node.deleted_at IS NULL
+              AND artifact_node.metadata->>'bundleNodeId' = ${projectTreeNodes.id}::text
+          )
         )`,
         sql`${projectTreeNodes.metadata}->>'status' IN ('completed', 'failed')`,
       ),
