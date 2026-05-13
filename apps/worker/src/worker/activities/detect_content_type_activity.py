@@ -10,10 +10,9 @@ from __future__ import annotations
 import os
 import re
 
-from temporalio import activity
-
 from llm import get_provider
 from llm.base import ProviderConfig
+from temporalio import activity
 
 CONTENT_TYPES = frozenset(
     {"document", "paper", "slide", "book", "code", "table", "image"}
@@ -80,7 +79,7 @@ async def detect_content_type(inp: dict) -> dict:
             provider=os.environ.get("LLM_PROVIDER", "gemini"),
             api_key=os.environ.get("LLM_API_KEY"),
             model=os.environ.get(
-                "LLM_FLASH_LITE_MODEL", "gemini-3.1-flash-lite-preview"
+                "LLM_FLASH_LITE_MODEL", "gemini-3.1-flash-lite"
             ),
         )
         provider = get_provider(cfg)

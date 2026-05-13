@@ -92,12 +92,13 @@ async def test_conflicting_signals_trigger_llm_fallback():
     with patch(
         "worker.activities.detect_content_type_activity.get_provider",
         return_value=mock_provider,
-    ):
+    ) as get_provider:
         result = await detect_content_type(
             {"mime_type": "application/pdf", "parsed_pages": pages}
         )
     assert result["used_llm"] is True
     assert result["content_type"] == "paper"
+    assert get_provider.call_args.args[0].model == "gemini-3.1-flash-lite"
 
 
 @pytest.mark.asyncio
@@ -109,14 +110,13 @@ async def test_llm_unknown_response_falls_back_to_document():
     with patch(
         "worker.activities.detect_content_type_activity._heuristic",
         return_value=("document", 0.5),
+    ), patch(
+        "worker.activities.detect_content_type_activity.get_provider",
+        return_value=mock_provider,
     ):
-        with patch(
-            "worker.activities.detect_content_type_activity.get_provider",
-            return_value=mock_provider,
-        ):
-            result = await detect_content_type(
-                {"mime_type": "application/pdf", "parsed_pages": []}
-            )
+        result = await detect_content_type(
+            {"mime_type": "application/pdf", "parsed_pages": []}
+        )
     assert result["content_type"] == "document"
     assert result["used_llm"] is True
 
