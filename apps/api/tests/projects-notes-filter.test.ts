@@ -526,6 +526,18 @@ describe("GET /api/projects/:id/wiki-index", () => {
       title: "Stale analysis note",
       type: "wiki",
     });
+    await insertNote({
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      title: "Duplicate wiki page",
+      type: "wiki",
+    });
+    await insertNote({
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      title: "Duplicate wiki page",
+      type: "wiki",
+    });
     await db.insert(noteAnalysisJobs).values([
       {
         workspaceId: seed.workspaceId,
@@ -566,6 +578,7 @@ describe("GET /api/projects/:id/wiki-index", () => {
             | "analysis_failed"
             | "analysis_queued"
             | "analysis_stale"
+            | "duplicate_titles"
             | "unresolved_missing";
           severity: "blocking" | "warning" | "info";
           count: number;
@@ -593,6 +606,12 @@ describe("GET /api/projects/:id/wiki-index", () => {
           severity: "warning",
           count: 1,
           sampleTitles: ["Stale analysis note"],
+        }),
+        expect.objectContaining({
+          kind: "duplicate_titles",
+          severity: "warning",
+          count: 2,
+          sampleTitles: ["Duplicate wiki page"],
         }),
         expect.objectContaining({
           kind: "unresolved_missing",

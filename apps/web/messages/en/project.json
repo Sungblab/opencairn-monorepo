@@ -172,6 +172,7 @@
         "analysis_running": "{count} analyzing",
         "analysis_queued": "{count} queued",
         "analysis_stale": "{count} stale analyses",
+        "duplicate_titles": "{count} duplicate titles",
         "unresolved_missing": "{count} broken links",
         "unresolved_ambiguous": "{count} duplicate links",
         "orphan_pages": "{count} isolated pages"

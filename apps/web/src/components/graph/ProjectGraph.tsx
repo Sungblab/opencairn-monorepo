@@ -241,6 +241,7 @@ function ProjectGraphWikiHealth({
 }
 
 const LIBRARIAN_REPAIR_ISSUES = new Set<ProjectWikiIndexHealthIssueKind>([
+  "duplicate_titles",
   "unresolved_missing",
   "unresolved_ambiguous",
   "orphan_pages",

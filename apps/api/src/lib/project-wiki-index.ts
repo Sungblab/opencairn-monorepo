@@ -61,6 +61,7 @@ export type ProjectWikiIndexHealthIssueKind =
   | "analysis_running"
   | "analysis_queued"
   | "analysis_stale"
+  | "duplicate_titles"
   | "unresolved_missing"
   | "unresolved_ambiguous"
   | "orphan_pages";
@@ -244,6 +245,7 @@ export async function buildProjectWikiIndex(opts: {
         computeNoteAnalysisContentHash(note),
       ]),
     ),
+    duplicateTitles: findDuplicateTitles(visibleNotes),
     orphanPages,
     unresolvedLinks,
     titleById,
@@ -382,6 +384,7 @@ function buildProjectWikiHealth(opts: {
     status: "queued" | "running" | "completed" | "failed";
   }>;
   currentContentHashById: Map<string, string>;
+  duplicateTitles: string[];
   orphanPages: ProjectWikiIndexPage[];
   unresolvedLinks: ProjectWikiIndexUnresolvedLink[];
   titleById: Map<string, string>;
@@ -427,6 +430,11 @@ function buildProjectWikiHealth(opts: {
     titles: opts.orphanPages.map((page) => page.title),
   });
   addHealthIssue(issues, {
+    kind: "duplicate_titles",
+    severity: "warning",
+    titles: opts.duplicateTitles,
+  });
+  addHealthIssue(issues, {
     kind: "analysis_stale",
     severity: "warning",
     titles: staleAnalysisTitles,
@@ -454,6 +462,22 @@ function buildProjectWikiHealth(opts: {
         : "healthy";
 
   return { status, issues };
+}
+
+function findDuplicateTitles(
+  notes: Array<{ title: string }>,
+): string[] {
+  const titlesByNormalized = new Map<string, string[]>();
+  for (const note of notes) {
+    const normalized = note.title.trim().toLocaleLowerCase();
+    if (!normalized) continue;
+    const titles = titlesByNormalized.get(normalized) ?? [];
+    titles.push(note.title);
+    titlesByNormalized.set(normalized, titles);
+  }
+  return [...titlesByNormalized.values()]
+    .filter((titles) => titles.length > 1)
+    .flat();
 }
 
 function addHealthIssue(

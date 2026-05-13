@@ -16,6 +16,7 @@
       "analysis_running": "{count} analyses running",
       "analysis_queued": "{count} analyses queued",
       "analysis_stale": "{count} stale analyses",
+      "duplicate_titles": "{count} duplicate titles",
       "unresolved_missing": "{count} broken wiki links",
       "unresolved_ambiguous": "{count} ambiguous wiki links",
       "orphan_pages": "{count} orphan notes"

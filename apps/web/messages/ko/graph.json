@@ -16,6 +16,7 @@
       "analysis_running": "분석 중 {count}개",
       "analysis_queued": "대기 중 {count}개",
       "analysis_stale": "오래된 분석 {count}개",
+      "duplicate_titles": "중복 제목 {count}개",
       "unresolved_missing": "끊긴 위키링크 {count}개",
       "unresolved_ambiguous": "모호한 위키링크 {count}개",
       "orphan_pages": "고립 노트 {count}개"
