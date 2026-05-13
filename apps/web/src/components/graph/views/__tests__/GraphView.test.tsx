@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
@@ -8,9 +8,43 @@ import GraphView, {
   graphForceTuningForSize,
 } from "../GraphView";
 
-vi.mock("next/dynamic", () => ({
-  default: () => () => <div data-testid="force-graph-mount">force graph</div>,
-}));
+const forceGraphMock = vi.hoisted(() => {
+  const force = {
+    strength: vi.fn(),
+    distance: vi.fn(),
+  };
+  return {
+    handle: {
+      centerAt: vi.fn(),
+      zoom: vi.fn(() => 1),
+      zoomToFit: vi.fn(),
+      d3Force: vi.fn(() => force),
+      d3ReheatSimulation: vi.fn(),
+    },
+  };
+});
+
+vi.mock("next/dynamic", async () => {
+  const React = await vi.importActual<typeof import("react")>("react");
+  return {
+    default: () =>
+      React.forwardRef((props: Record<string, unknown>, ref) => {
+        React.useImperativeHandle(ref, () => forceGraphMock.handle);
+        return React.createElement(
+          "div",
+          {
+            "data-testid": "force-graph-mount",
+            "data-node-count": Array.isArray(
+              (props.graphData as { nodes?: unknown[] } | undefined)?.nodes,
+            )
+              ? (props.graphData as { nodes: unknown[] }).nodes.length
+              : 0,
+          },
+          "force graph",
+        );
+      }),
+  };
+});
 
 let searchParams = new URLSearchParams();
 
@@ -37,6 +71,15 @@ function renderWith(data: unknown) {
 }
 
 describe("GraphView", () => {
+  beforeEach(() => {
+    forceGraphMock.handle.centerAt.mockClear();
+    forceGraphMock.handle.zoom.mockClear();
+    forceGraphMock.handle.zoomToFit.mockClear();
+    forceGraphMock.handle.d3Force.mockClear();
+    forceGraphMock.handle.d3ReheatSimulation.mockClear();
+    searchParams = new URLSearchParams();
+  });
+
   it("spreads small default graphs instead of letting chain data collapse into a line", () => {
     const small = graphForceTuningForSize({ nodeCount: 15, linkCount: 14 });
     const large = graphForceTuningForSize({ nodeCount: 90, linkCount: 120 });
@@ -46,6 +89,45 @@ describe("GraphView", () => {
     expect(small.centerStrength).toBeGreaterThan(large.centerStrength);
     expect(small.homeStrength).toBeGreaterThan(large.homeStrength);
     expect(small.collisionPadding).toBeGreaterThan(large.collisionPadding);
+  });
+
+  it("fits the rendered graph into the canvas on first paint", async () => {
+    renderWith({
+      nodes: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "A",
+          description: "",
+          degree: 1,
+          noteCount: 0,
+          firstNoteId: null,
+        },
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          name: "B",
+          description: "",
+          degree: 1,
+          noteCount: 0,
+          firstNoteId: null,
+        },
+      ],
+      edges: [
+        {
+          id: "33333333-3333-4333-8333-333333333333",
+          sourceId: "11111111-1111-4111-8111-111111111111",
+          targetId: "22222222-2222-4222-8222-222222222222",
+          relationType: "supports",
+          weight: 1,
+        },
+      ],
+      truncated: false,
+      totalConcepts: 2,
+    });
+
+    expect(await screen.findByTestId("force-graph-mount")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(forceGraphMock.handle.zoomToFit).toHaveBeenCalledWith(500, 56);
+    });
   });
 
   it("filters explicit note links with the graph search", () => {

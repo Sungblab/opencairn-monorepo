@@ -47,6 +47,7 @@ type ForceGraphHandle = {
     (): number;
     (scale: number, durationMs?: number): unknown;
   };
+  zoomToFit?: (durationMs?: number, padding?: number) => unknown;
   d3Force: (forceName: string, force?: unknown) => unknown;
   d3ReheatSimulation: () => unknown;
 };
@@ -110,6 +111,10 @@ type SimulationNode = ForceGraphNodeObject & {
 type SimulationForce = ((alpha: number) => void) & {
   initialize?: (nodes: SimulationNode[]) => void;
 };
+
+const GRAPH_AUTO_FIT_PADDING = 56;
+const GRAPH_AUTO_FIT_DELAY_MS = 80;
+const GRAPH_AUTO_FIT_DURATION_MS = 500;
 
 const ForceGraph2D = dynamic(
   async () => {
@@ -433,6 +438,9 @@ export default function GraphView({ projectId }: { projectId: string }) {
   const consumedEdgeParam = useRef<string | null>(null);
   const graphRef = useRef<ForceGraphHandle>(null);
   const graphTuningRef = useRef<GraphForceTuning | null>(null);
+  const lastAutoFitKeyRef = useRef<string | null>(null);
+  const pendingAutoFitKeyRef = useRef<string | null>(null);
+  const autoFitTimerRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasPaletteRef = useRef<GraphCanvasPalette>(DEFAULT_CANVAS_PALETTE);
   const [size, setSize] = useState({ width: 900, height: 640 });
@@ -473,6 +481,13 @@ export default function GraphView({ projectId }: { projectId: string }) {
     [filteredData],
   );
 
+  const graphAutoFitKey = useMemo(() => {
+    if (!graphData) return null;
+    const nodeKey = graphData.nodes.map((node) => node.id).join("|");
+    const linkKey = graphData.links.map((link) => link.edgeId).join("|");
+    return `${size.width}x${size.height}:${nodeKey}:${linkKey}`;
+  }, [graphData, size.height, size.width]);
+
   const graphTuning = useMemo(
     () =>
       graphForceTuningForSize({
@@ -482,12 +497,42 @@ export default function GraphView({ projectId }: { projectId: string }) {
     [graphData?.links.length, graphData?.nodes.length],
   );
 
-  const setGraphHandle = useCallback((graph: ForceGraphHandle | null) => {
-    graphRef.current = graph;
-    if (graphTuningRef.current) {
-      tuneForceGraphLayout(graph, graphTuningRef.current);
+  const scheduleGraphAutoFit = useCallback((key: string | null) => {
+    if (!key || !graphRef.current?.zoomToFit) return;
+    if (
+      lastAutoFitKeyRef.current === key ||
+      pendingAutoFitKeyRef.current === key
+    ) {
+      return;
     }
+    if (autoFitTimerRef.current !== null) {
+      window.clearTimeout(autoFitTimerRef.current);
+    }
+    pendingAutoFitKeyRef.current = key;
+    autoFitTimerRef.current = window.setTimeout(() => {
+      const graph = graphRef.current;
+      if (pendingAutoFitKeyRef.current !== key || !graph?.zoomToFit) {
+        pendingAutoFitKeyRef.current = null;
+        autoFitTimerRef.current = null;
+        return;
+      }
+      graph.zoomToFit(GRAPH_AUTO_FIT_DURATION_MS, GRAPH_AUTO_FIT_PADDING);
+      lastAutoFitKeyRef.current = key;
+      pendingAutoFitKeyRef.current = null;
+      autoFitTimerRef.current = null;
+    }, GRAPH_AUTO_FIT_DELAY_MS);
   }, []);
+
+  const setGraphHandle = useCallback(
+    (graph: ForceGraphHandle | null) => {
+      graphRef.current = graph;
+      if (graphTuningRef.current) {
+        tuneForceGraphLayout(graph, graphTuningRef.current);
+      }
+      scheduleGraphAutoFit(graphAutoFitKey);
+    },
+    [graphAutoFitKey, scheduleGraphAutoFit],
+  );
 
   const visibleNodeCount = useMemo(
     () => filteredData?.nodes.length ?? 0,
@@ -505,6 +550,18 @@ export default function GraphView({ projectId }: { projectId: string }) {
     graphTuningRef.current = graphTuning;
     tuneForceGraphLayout(graphRef.current, graphTuning);
   }, [graphTuning]);
+
+  useEffect(() => {
+    scheduleGraphAutoFit(graphAutoFitKey);
+  }, [graphAutoFitKey, scheduleGraphAutoFit]);
+
+  useEffect(() => {
+    return () => {
+      if (autoFitTimerRef.current !== null) {
+        window.clearTimeout(autoFitTimerRef.current);
+      }
+    };
+  }, []);
 
   const selectedEdge = useMemo(
     () => filteredData?.edges.find((edge) => edge.id === selectedEdgeId) as
