@@ -29,6 +29,7 @@ workflow files are intentionally excluded from the public repository.
 | Billing model | `architecture/billing-model.md` |
 | Agentic workflows across notes, files, code, import, and export | `architecture/agentic-workflow-roadmap.md` |
 | Document generation and file IDE flow | `architecture/document-generation-ide-flow.md` |
+| Workspace ontology classes, predicates, triples, and validation | `architecture/ontology-atlas.md` |
 | Architecture decisions | `architecture/adr/` |
 
 ## Agents And Runtime

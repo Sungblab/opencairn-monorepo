@@ -10,6 +10,7 @@ export type GraphExpansionHit = {
   headingPath: string;
   snippet: string;
   graphScore: number;
+  ontologyPathScore: number;
   sourceType: string | null;
   sourceUrl: string | null;
   updatedAt: string | null;
@@ -70,8 +71,13 @@ export async function expandGraphCandidates(
        AND n.deleted_at IS NULL
       WHERE cn.note_id = ANY(${opts.seedNoteIds})
     ),
-    expanded(concept_id, depth, path_text) AS (
-      SELECT seed_c.id, 0, seed_c.name
+    expanded(concept_id, depth, path_ids, path_text, path_score) AS (
+      SELECT
+        seed_c.id,
+        0,
+        ARRAY[seed_c.id],
+        seed_c.name,
+        1.0::double precision
       FROM seed_concepts sc
       JOIN concepts seed_c
         ON seed_c.id = sc.concept_id
@@ -80,7 +86,17 @@ export async function expandGraphCandidates(
       SELECT
         neighbor.id AS concept_id,
         expanded.depth + 1 AS depth,
-        expanded.path_text || ' --[' || ce.relation_type || ']--> ' || neighbor.name AS path_text
+        expanded.path_ids || ARRAY[neighbor.id],
+        expanded.path_text ||
+          CASE
+            WHEN ce.source_id = expanded.concept_id
+              THEN ' --[' || relation.ontology_predicate || ',w=' ||
+                ROUND(weight.step_weight::numeric, 2)::text || ']--> '
+            ELSE ' <--[' || relation.ontology_predicate || ',w=' ||
+                ROUND(weight.step_weight::numeric, 2)::text || ']-- '
+          END ||
+          neighbor.name AS path_text,
+        expanded.path_score * weight.step_weight AS path_score
       FROM expanded
       JOIN concept_edges ce
         ON ce.source_id = expanded.concept_id
@@ -91,7 +107,56 @@ export async function expandGraphCandidates(
           ELSE ce.source_id
         END
        AND neighbor.project_id = ${opts.projectId}
+      CROSS JOIN LATERAL (
+        SELECT CASE
+          WHEN ce.relation_type IN ('is_a', 'is-a', 'type-of', 'kind-of')
+            THEN 'is_a'
+          WHEN ce.relation_type IN ('part_of', 'part-of', 'component-of')
+            THEN 'part_of'
+          WHEN ce.relation_type IN ('contains', 'includes', 'has-part')
+            THEN 'contains'
+          WHEN ce.relation_type IN ('depends_on', 'depends-on', 'requires', 'prerequisite')
+            THEN 'depends_on'
+          WHEN ce.relation_type IN ('causes', 'leads-to', 'produces')
+            THEN 'causes'
+          WHEN ce.relation_type IN ('derived_from', 'derived-from', 'materializes')
+            THEN 'derived_from'
+          WHEN ce.relation_type IN ('same_as_candidate', 'same-as-candidate', 'synonym', 'duplicate')
+            THEN 'same_as_candidate'
+          WHEN ce.relation_type IN ('co-mentioned', 'co-mention', 'co-occurs', 'co_occurs')
+            THEN 'appears_with'
+          WHEN ce.relation_type IN ('source-proximity', 'source_membership', 'near-in-source')
+            THEN 'near_in_source'
+          WHEN ce.relation_type IN ('related-to', 'related_to', 'related', 'is_related_to')
+            THEN 'is_related_to'
+          ELSE 'is_related_to'
+        END AS ontology_predicate
+      ) relation
+      CROSS JOIN LATERAL (
+        SELECT (
+          CASE relation.ontology_predicate
+            WHEN 'depends_on' THEN 1.0
+            WHEN 'is_a' THEN 0.95
+            WHEN 'part_of' THEN 0.92
+            WHEN 'contains' THEN 0.9
+            WHEN 'causes' THEN 0.88
+            WHEN 'derived_from' THEN 0.84
+            WHEN 'same_as_candidate' THEN 0.78
+            WHEN 'is_related_to' THEN 0.58
+            WHEN 'near_in_source' THEN 0.36
+            WHEN 'appears_with' THEN 0.28
+            ELSE 0.5
+          END *
+          CASE
+            WHEN ce.source_id = expanded.concept_id THEN 1.0
+            WHEN relation.ontology_predicate IN ('depends_on', 'causes', 'derived_from')
+              THEN 0.62
+            ELSE 0.78
+          END
+        )::double precision AS step_weight
+      ) weight
       WHERE expanded.depth < ${maxDepth}
+        AND NOT neighbor.id = ANY(expanded.path_ids)
     )
     SELECT
       n.id AS note_id,
@@ -102,8 +167,10 @@ export async function expandGraphCandidates(
       n.source_type,
       n.source_url,
       n.updated_at,
-      MAX(1.0 / (1 + expanded.depth)) AS graph_score,
-      MIN(expanded.path_text) FILTER (WHERE expanded.depth > 0) AS graph_path
+      MAX(expanded.path_score / (1 + expanded.depth * 0.25)) AS graph_score,
+      MAX(expanded.path_score) AS ontology_path_score,
+      (ARRAY_AGG(expanded.path_text ORDER BY expanded.path_score DESC, expanded.depth ASC)
+        FILTER (WHERE expanded.depth > 0))[1] AS graph_path
     FROM expanded
     JOIN concept_notes cn
       ON cn.concept_id = expanded.concept_id
@@ -132,6 +199,7 @@ export async function expandGraphCandidates(
     headingPath: String(row.heading_path ?? ""),
     snippet: clipSnippet(row.content_text),
     graphScore: clamp01(Number(row.graph_score ?? 0)),
+    ontologyPathScore: clamp01(Number(row.ontology_path_score ?? 0)),
     sourceType: row.source_type == null ? null : String(row.source_type),
     sourceUrl: row.source_url == null ? null : String(row.source_url),
     updatedAt: dateString(row.updated_at),

@@ -6,14 +6,31 @@ import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { GitMerge, Network, RotateCw, Search, Workflow } from "lucide-react";
+import {
+  Bot,
+  Check,
+  GitMerge,
+  Network,
+  RotateCw,
+  Search,
+  Workflow,
+  X,
+} from "lucide-react";
 import type {
+  WorkspaceAtlasEdge,
   WorkspaceAtlasNode,
+  WorkspaceAtlasOntologyPredicate,
   WorkspaceAtlasResponse,
 } from "@opencairn/shared";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
+import { plan8AgentsApi } from "@/lib/api-client";
 
 const ATLAS_FIT_PADDING = 64;
+const ATLAS_DEFAULT_LIMIT = 45;
+const ATLAS_SEARCH_LIMIT = 80;
+const ATLAS_DISPLAY_NODE_LIMIT = 42;
+const ATLAS_DISPLAY_EDGE_LIMIT = 96;
+const ATLAS_DISPLAY_COMENTION_LIMIT = 18;
 
 const CytoscapeComponent = dynamic(() => import("react-cytoscapejs"), {
   ssr: false,
@@ -28,14 +45,26 @@ type ProjectOption = {
   name: string;
 };
 
+type CuratorSuggestion = {
+  id: string;
+  type: string;
+  payload?: Record<string, unknown> | null;
+  title?: string | null;
+  summary?: string | null;
+  createdAt?: string | Date | null;
+};
+
 async function fetchWorkspaceAtlas(params: {
   workspaceId: string;
   projectId: string;
   q: string;
 }): Promise<WorkspaceAtlasResponse> {
-  const query = new URLSearchParams({ limit: "120" });
+  const queryText = params.q.trim();
+  const query = new URLSearchParams({
+    limit: String(queryText ? ATLAS_SEARCH_LIMIT : ATLAS_DEFAULT_LIMIT),
+  });
   if (params.projectId) query.set("projectId", params.projectId);
-  if (params.q.trim()) query.set("q", params.q.trim());
+  if (queryText) query.set("q", queryText);
   const res = await fetch(
     `/api/workspaces/${params.workspaceId}/ontology-atlas?${query.toString()}`,
     { credentials: "include" },
@@ -52,6 +81,35 @@ async function fetchProjects(workspaceId: string): Promise<ProjectOption[]> {
   return (await res.json()) as ProjectOption[];
 }
 
+async function fetchCuratorSuggestions(projectId: string): Promise<CuratorSuggestion[]> {
+  const res = await fetch(
+    `/api/curator/suggestions?projectId=${encodeURIComponent(projectId)}`,
+    { credentials: "include" },
+  );
+  if (!res.ok) throw new Error(`curator-suggestions ${res.status}`);
+  return (await res.json()) as CuratorSuggestion[];
+}
+
+function payloadText(
+  payload: Record<string, unknown> | null | undefined,
+  key: string,
+): string {
+  const value = payload?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+function formatCuratorSuggestion(suggestion: CuratorSuggestion): string {
+  if (suggestion.summary) return suggestion.summary;
+  if (suggestion.title) return suggestion.title;
+  const source = payloadText(suggestion.payload, "sourceName");
+  const target = payloadText(suggestion.payload, "targetName");
+  const relation =
+    payloadText(suggestion.payload, "proposedRelationType") ||
+    payloadText(suggestion.payload, "relationType");
+  const names = [source, target].filter(Boolean).join(" -> ");
+  return [names, relation].filter(Boolean).join(" · ") || suggestion.type;
+}
+
 async function refreshAtlasEvidence(params: {
   workspaceId: string;
   noteIds: string[];
@@ -66,6 +124,118 @@ async function refreshAtlasEvidence(params: {
     },
   );
   if (!res.ok) throw new Error(`ontology-atlas-refresh ${res.status}`);
+}
+
+function atlasNodeScore(node: WorkspaceAtlasNode): number {
+  return (
+    (node.bridge ? 10_000 : 0) +
+    (node.duplicateCandidate ? 5_000 : 0) +
+    (node.layer === "explicit" ? 1_000 : 0) +
+    node.projectCount * 250 +
+    node.degree * 8 +
+    node.mentionCount
+  );
+}
+
+function atlasEdgeScore(edge: WorkspaceAtlasEdge): number {
+  const typeBoost =
+    edge.edgeType === "wiki_link"
+      ? 1_000
+      : edge.edgeType === "project_tree"
+        ? 900
+        : edge.edgeType === "source_artifact"
+          ? 800
+          : edge.edgeType === "ai_relation"
+            ? 500
+            : edge.edgeType === "source_membership"
+              ? 120
+              : 0;
+  return (
+    typeBoost +
+    (edge.crossProject ? 250 : 0) +
+    (edge.layer === "explicit" ? 180 : 0) +
+    edge.weight * 10
+  );
+}
+
+function simplifyAtlasForDisplay(
+  data: WorkspaceAtlasResponse,
+  searching: boolean,
+): WorkspaceAtlasResponse {
+  const maxNodes = searching ? ATLAS_SEARCH_LIMIT : ATLAS_DISPLAY_NODE_LIMIT;
+  const selectedIds = new Set(
+    [...data.nodes]
+      .sort((a, b) => atlasNodeScore(b) - atlasNodeScore(a) || a.label.localeCompare(b.label))
+      .slice(0, maxNodes)
+      .map((node) => node.id),
+  );
+  const selectedNodes = data.nodes.filter((node) => selectedIds.has(node.id));
+  const primaryEdges: WorkspaceAtlasEdge[] = [];
+  const displayEdges: WorkspaceAtlasEdge[] = [];
+  for (const edge of data.edges) {
+    if (!selectedIds.has(edge.sourceId) || !selectedIds.has(edge.targetId)) {
+      continue;
+    }
+    if (edge.edgeType === "co_mention") {
+      displayEdges.push(edge);
+      continue;
+    }
+    if (edge.edgeType === "source_membership") {
+      displayEdges.push(edge);
+      continue;
+    }
+    primaryEdges.push(edge);
+  }
+  const sortedPrimary = [...primaryEdges].sort(
+    (a, b) => atlasEdgeScore(b) - atlasEdgeScore(a),
+  );
+  const sortedDisplay = [...displayEdges]
+    .sort((a, b) => atlasEdgeScore(b) - atlasEdgeScore(a))
+    .slice(0, searching ? ATLAS_DISPLAY_COMENTION_LIMIT * 2 : ATLAS_DISPLAY_COMENTION_LIMIT);
+  const edges = [...sortedPrimary, ...sortedDisplay].slice(
+    0,
+    searching ? ATLAS_DISPLAY_EDGE_LIMIT * 2 : ATLAS_DISPLAY_EDGE_LIMIT,
+  );
+  return {
+    ...data,
+    nodes: selectedNodes,
+    edges,
+    truncated:
+      data.truncated ||
+      selectedNodes.length < data.nodes.length ||
+      edges.length < data.edges.length,
+  };
+}
+
+function ontologyPredicateLabel(
+  t: ReturnType<typeof useTranslations>,
+  predicate: WorkspaceAtlasOntologyPredicate,
+): string {
+  switch (predicate) {
+    case "is_a":
+      return t("predicates.is_a");
+    case "part_of":
+      return t("predicates.part_of");
+    case "contains":
+      return t("predicates.contains");
+    case "depends_on":
+      return t("predicates.depends_on");
+    case "causes":
+      return t("predicates.causes");
+    case "links_to":
+      return t("predicates.links_to");
+    case "derived_from":
+      return t("predicates.derived_from");
+    case "appears_with":
+      return t("predicates.appears_with");
+    case "near_in_source":
+      return t("predicates.near_in_source");
+    case "same_as_candidate":
+      return t("predicates.same_as_candidate");
+    case "is_related_to":
+    default:
+      return t("predicates.is_related_to");
+  }
 }
 
 export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
@@ -97,6 +267,12 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
         q,
       }),
   });
+  const curatorSuggestionsQuery = useQuery({
+    queryKey: ["workspace-atlas-curator-suggestions", projectId],
+    enabled: Boolean(projectId),
+    staleTime: 20_000,
+    queryFn: () => fetchCuratorSuggestions(projectId),
+  });
   const refreshMutation = useMutation({
     mutationFn: (noteIds: string[]) =>
       refreshAtlasEvidence({
@@ -109,22 +285,51 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
       });
     },
   });
+  const curatorMutation = useMutation({
+    mutationFn: () => plan8AgentsApi.runCurator({ projectId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["workspace-atlas-curator-suggestions", projectId],
+      });
+    },
+  });
+  const resolveSuggestionMutation = useMutation({
+    mutationFn: ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "accepted" | "rejected";
+    }) => plan8AgentsApi.resolveSuggestion(id, status),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["workspace-atlas-curator-suggestions", projectId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["workspace-atlas", workspaceId],
+      });
+    },
+  });
 
   const data = atlasQuery.data;
+  const displayData = useMemo(
+    () => (data ? simplifyAtlasForDisplay(data, Boolean(q.trim())) : null),
+    [data, q],
+  );
   const selectedNode = useMemo(
-    () => data?.nodes.find((node) => node.id === selectedNodeId) ?? null,
-    [data?.nodes, selectedNodeId],
+    () => displayData?.nodes.find((node) => node.id === selectedNodeId) ?? null,
+    [displayData?.nodes, selectedNodeId],
   );
 
   const elements = useMemo(() => {
-    if (!data) return [];
-    const visibleNodes = data.nodes.filter((node) => {
+    if (!displayData) return [];
+    const visibleNodes = displayData.nodes.filter((node) => {
       if (node.layer === "explicit") return showExplicit;
       if (node.layer === "ai") return showAi;
       return showExplicit || showAi;
     });
     const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
-    const visibleEdges = data.edges.filter((edge) => {
+    const visibleEdges = displayData.edges.filter((edge) => {
       if (!visibleNodeIds.has(edge.sourceId) || !visibleNodeIds.has(edge.targetId)) {
         return false;
       }
@@ -138,6 +343,7 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
           id: node.id,
           label: node.label,
           objectType: node.objectType,
+          ontologyClass: node.ontologyClass,
           layer: node.layer,
           projectCount: node.projectCount,
           mentionCount: node.mentionCount,
@@ -152,8 +358,11 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
           id: edge.id,
           source: edge.sourceId,
           target: edge.targetId,
-          label: edge.relationType,
+          label: ontologyPredicateLabel(t, edge.ontologyPredicate),
           edgeType: edge.edgeType,
+          ontologyPredicate: edge.ontologyPredicate,
+          inferred: edge.inferred,
+          ontologyValid: edge.ontologyValid,
           layer: edge.layer,
           weight: edge.weight,
           crossProject: edge.crossProject,
@@ -161,13 +370,17 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
         },
       })),
     ];
-  }, [data, showAi, showExplicit]);
+  }, [displayData, showAi, showExplicit, t]);
 
   useEffect(() => {
-    if (selectedNodeId && data && !data.nodes.some((node) => node.id === selectedNodeId)) {
+    if (
+      selectedNodeId &&
+      displayData &&
+      !displayData.nodes.some((node) => node.id === selectedNodeId)
+    ) {
       setSelectedNodeId(null);
     }
-  }, [data, selectedNodeId]);
+  }, [displayData, selectedNodeId]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -186,7 +399,7 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
     return () => {
       cy.off("tap", onTap);
     };
-  }, [data]);
+  }, [displayData]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -202,14 +415,48 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
   }, [elements]);
 
   const stats = useMemo(() => {
-    const nodes = data?.nodes ?? [];
+    const nodes = displayData?.nodes ?? [];
     return {
       concepts: nodes.filter((node) => node.objectType === "concept").length,
       bridges: nodes.filter((node) => node.bridge).length,
       duplicates: nodes.filter((node) => node.duplicateCandidate).length,
-      relations: data?.edges.length ?? 0,
+      relations: displayData?.edges.length ?? 0,
+      violations: displayData?.edges.filter((edge) => edge.ontologyValid === false).length ?? 0,
     };
-  }, [data]);
+  }, [displayData]);
+
+  const predicateStats = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const edge of displayData?.edges ?? []) {
+      counts.set(edge.ontologyPredicate, (counts.get(edge.ontologyPredicate) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 7);
+  }, [displayData]);
+
+  const agentSignals = useMemo(() => {
+    const edges = displayData?.edges ?? [];
+    const ontology = displayData?.ontology;
+    return {
+      pendingSuggestions: curatorSuggestionsQuery.data?.length ?? 0,
+      violations: ontology?.violations.length ?? stats.violations,
+      inferredTriples:
+        ontology?.triples.filter((triple) => triple.inferred).length ?? 0,
+      broadRelations: edges.filter(
+        (edge) => edge.ontologyPredicate === "is_related_to",
+      ).length,
+      duplicates: stats.duplicates,
+      staleNodes: displayData?.nodes.filter((node) => node.stale).length ?? 0,
+    };
+  }, [
+    curatorSuggestionsQuery.data?.length,
+    displayData?.edges,
+    displayData?.nodes,
+    displayData?.ontology,
+    stats.duplicates,
+    stats.violations,
+  ]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -226,11 +473,12 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
               {t("description")}
             </p>
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             <Stat label={t("stats.concepts")} value={stats.concepts} />
             <Stat label={t("stats.bridges")} value={stats.bridges} />
             <Stat label={t("stats.duplicates")} value={stats.duplicates} />
             <Stat label={t("stats.relations")} value={stats.relations} />
+            <Stat label={t("stats.violations")} value={stats.violations} />
           </div>
         </div>
       </header>
@@ -270,6 +518,101 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
             <Legend icon={Network} label={t("legend.unclassified")} />
             <Legend icon={Network} label={t("legend.stale")} />
           </div>
+          {predicateStats.length > 0 ? (
+            <div className="space-y-2 rounded-[var(--radius-control)] border border-border p-3">
+              <p className="text-xs font-semibold">{t("ontology.predicates")}</p>
+              <div className="space-y-1.5 text-xs">
+                {predicateStats.map(([predicate, count]) => (
+                  <div
+                    key={predicate}
+                    className="flex items-center justify-between gap-3 text-muted-foreground"
+                  >
+                    <span className="truncate">
+                      {ontologyPredicateLabel(
+                        t,
+                        predicate as WorkspaceAtlasOntologyPredicate,
+                      )}
+                    </span>
+                    <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
+                      {count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="space-y-3 rounded-[var(--radius-control)] border border-border p-3">
+            <div className="flex items-center gap-2">
+              <Bot aria-hidden className="h-4 w-4 text-muted-foreground" />
+              <p className="text-xs font-semibold">{t("agents.title")}</p>
+            </div>
+            <div className="grid gap-1.5 text-xs text-muted-foreground">
+              <AgentSignal label={t("agents.pending")} value={agentSignals.pendingSuggestions} />
+              <AgentSignal label={t("agents.violations")} value={agentSignals.violations} />
+              <AgentSignal label={t("agents.broadRelations")} value={agentSignals.broadRelations} />
+              <AgentSignal label={t("agents.inferred")} value={agentSignals.inferredTriples} />
+              <AgentSignal label={t("agents.stale")} value={agentSignals.staleNodes} />
+            </div>
+            <button
+              type="button"
+              disabled={!projectId || curatorMutation.isPending}
+              onClick={() => curatorMutation.mutate()}
+              className="h-8 w-full rounded-[var(--radius-control)] border border-border px-2 text-left text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {curatorMutation.isPending
+                ? t("agents.runningCurator")
+                : projectId
+                  ? t("agents.runCurator")
+                  : t("agents.selectProject")}
+            </button>
+            {(curatorSuggestionsQuery.data?.length ?? 0) > 0 ? (
+              <div className="space-y-2">
+                {curatorSuggestionsQuery.data?.slice(0, 3).map((suggestion) => (
+                  <div
+                    key={suggestion.id}
+                    className="rounded-[var(--radius-control)] border border-border bg-muted/30 p-2"
+                  >
+                    <p className="truncate text-xs font-medium">
+                      {t(`agents.suggestionTypes.${suggestion.type}`)}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
+                      {formatCuratorSuggestion(suggestion)}
+                    </p>
+                    <div className="mt-2 flex gap-1.5">
+                      <button
+                        type="button"
+                        aria-label={t("agents.acceptSuggestion")}
+                        disabled={resolveSuggestionMutation.isPending}
+                        onClick={() =>
+                          resolveSuggestionMutation.mutate({
+                            id: suggestion.id,
+                            status: "accepted",
+                          })
+                        }
+                        className="grid h-7 flex-1 place-items-center rounded-[var(--radius-control)] border border-border bg-background disabled:opacity-50"
+                      >
+                        <Check aria-hidden className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t("agents.rejectSuggestion")}
+                        disabled={resolveSuggestionMutation.isPending}
+                        onClick={() =>
+                          resolveSuggestionMutation.mutate({
+                            id: suggestion.id,
+                            status: "rejected",
+                          })
+                        }
+                        className="grid h-7 flex-1 place-items-center rounded-[var(--radius-control)] border border-border bg-background disabled:opacity-50"
+                      >
+                        <X aria-hidden className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <div className="grid gap-2 text-xs font-medium">
             <button
               type="button"
@@ -301,7 +644,7 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
             <div className="grid h-full place-items-center text-sm text-destructive">
               {t("error")}
             </div>
-          ) : !data || data.nodes.length === 0 ? (
+          ) : !displayData || displayData.nodes.length === 0 ? (
             <div className="grid h-full place-items-center text-sm text-muted-foreground">
               {t("empty")}
             </div>
@@ -313,9 +656,9 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
                 animate: true,
                 randomize: false,
                 padding: 48,
-                idealEdgeLength: 130,
-                nodeRepulsion: 7000,
-                gravity: 0.22,
+                nodeRepulsion: 9000,
+                idealEdgeLength: 150,
+                gravity: 0.18,
               } as cytoscape.LayoutOptions}
               stylesheet={ATLAS_STYLESHEET as cytoscape.StylesheetJsonBlock[]}
               cy={(cy: cytoscape.Core) => {
@@ -332,6 +675,17 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
           refreshPending={refreshMutation.isPending}
         />
       </div>
+    </div>
+  );
+}
+
+function AgentSignal({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="truncate">{label}</span>
+      <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
+        {value}
+      </span>
     </div>
   );
 }
@@ -621,6 +975,69 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
     },
   },
   {
+    selector: 'edge[ontologyPredicate = "is_a"]',
+    style: {
+      "line-color": "#2563eb",
+      "target-arrow-color": "#2563eb",
+      width: 3,
+    },
+  },
+  {
+    selector: 'edge[ontologyPredicate = "part_of"], edge[ontologyPredicate = "derived_from"]',
+    style: {
+      "line-color": "#7c3aed",
+      "target-arrow-color": "#7c3aed",
+      "line-style": "dotted",
+      width: 2.5,
+    },
+  },
+  {
+    selector: 'edge[ontologyPredicate = "contains"]',
+    style: {
+      "line-color": "#d97706",
+      "target-arrow-color": "#d97706",
+      width: 2.5,
+    },
+  },
+  {
+    selector: 'edge[ontologyPredicate = "depends_on"]',
+    style: {
+      "line-color": "#0891b2",
+      "target-arrow-color": "#0891b2",
+      width: 2.75,
+    },
+  },
+  {
+    selector: 'edge[ontologyPredicate = "causes"]',
+    style: {
+      "line-color": "#dc2626",
+      "target-arrow-color": "#dc2626",
+      width: 3,
+    },
+  },
+  {
+    selector: 'edge[ontologyPredicate = "same_as_candidate"]',
+    style: {
+      "line-color": "#171717",
+      "target-arrow-color": "#171717",
+      "line-style": "dotted",
+      width: 3,
+    },
+  },
+  {
+    selector: 'edge[ontologyPredicate = "appears_with"]',
+    style: {
+      "target-arrow-shape": "none",
+      label: "",
+    },
+  },
+  {
+    selector: 'edge[ontologyPredicate = "near_in_source"]',
+    style: {
+      "line-style": "dashed",
+    },
+  },
+  {
     selector: "edge[?crossProject]",
     style: {
       "line-color": "#171717",
@@ -640,9 +1057,24 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
     },
   },
   {
+    selector: "edge[?inferred]",
+    style: {
+      opacity: 0.82,
+    },
+  },
+  {
     selector: "edge[?stale]",
     style: {
       opacity: 0.58,
+    },
+  },
+  {
+    selector: "edge[ontologyValid = false]",
+    style: {
+      "line-color": "#ef4444",
+      "target-arrow-color": "#ef4444",
+      "line-style": "dotted",
+      opacity: 0.9,
     },
   },
 ];

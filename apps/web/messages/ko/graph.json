@@ -81,6 +81,20 @@
     "zoomOut": "축소",
     "reset": "보기 초기화"
   },
+  "insights": {
+    "title": "그래프 정리",
+    "reduced": "중요 노드 중심으로 축약됨",
+    "full": "현재 필터 전체 표시",
+    "run": "큐레이터",
+    "running": "실행 중",
+    "curatorStarted": "큐레이터 실행을 시작했습니다.",
+    "curatorFailed": "큐레이터 실행에 실패했습니다.",
+    "nodes": "노드",
+    "edges": "선",
+    "bridge": "브리지",
+    "display": "보조",
+    "weak": "약한 근거"
+  },
   "cards": {
     "title": "개념 카드",
     "description": "개념 {count}개를 카드로 훑고 출처, 질문, 복습으로 이어갑니다.",

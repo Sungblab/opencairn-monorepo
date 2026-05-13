@@ -287,6 +287,9 @@ export const suggestionTypeEnum = pgEnum("suggestion_type", [
   "curator_orphan",
   "curator_duplicate",
   "curator_contradiction",
+  "curator_ontology_violation",
+  "curator_relation_refinement",
+  "curator_hierarchy_cycle",
   "curator_external_source",
   "synthesis_insight",
 ]);

@@ -953,6 +953,9 @@ export interface Plan8Suggestion {
     | "curator_orphan"
     | "curator_duplicate"
     | "curator_contradiction"
+    | "curator_ontology_violation"
+    | "curator_relation_refinement"
+    | "curator_hierarchy_cycle"
     | "curator_external_source"
     | "synthesis_insight";
   payload: Record<string, unknown>;
@@ -1037,7 +1040,17 @@ export const plan8AgentsApi = {
       body: JSON.stringify(body),
     }),
   resolveSuggestion: (id: string, status: "accepted" | "rejected") =>
-    apiClient<{ ok: true; status: "accepted" | "rejected" }>(
+    apiClient<{
+      ok: true;
+      status: "accepted" | "rejected";
+      apply?: {
+        applied: boolean;
+        action?: "edge_relation_updated" | "edge_deleted";
+        edgeId?: string;
+        relationType?: string;
+        reason?: string;
+      };
+    }>(
       `/agents/plan8/suggestions/${encodeURIComponent(id)}`,
       {
         method: "PATCH",

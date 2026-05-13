@@ -2,6 +2,7 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { urls } from "@/lib/urls";
 import { useTabsStore } from "@/stores/tabs-store";
+import { plan8AgentsApi } from "@/lib/api-client";
 import { useProjectGraph } from "../useProjectGraph";
 import { GraphFilters } from "../GraphFilters";
 import { GraphSkeleton } from "../GraphSkeleton";
@@ -36,6 +38,7 @@ import {
   type ForceGraphLink,
   type ForceGraphNode,
 } from "./force-graph-model";
+import { simplifyGraphForDefaultView } from "./display-graph";
 
 type ForceGraphNodeObject = ForceGraphNode & {
   x?: number;
@@ -454,6 +457,17 @@ export default function GraphView({ projectId }: { projectId: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasPaletteRef = useRef<GraphCanvasPalette>(DEFAULT_CANVAS_PALETTE);
   const [size, setSize] = useState({ width: 900, height: 640 });
+  const curatorMutation = useMutation({
+    mutationFn: () => plan8AgentsApi.runCurator({ projectId }),
+    onSuccess: (result) => {
+      toast.success(t("insights.curatorStarted"), {
+        description: result.workflowId,
+      });
+    },
+    onError: () => {
+      toast.error(t("insights.curatorFailed"));
+    },
+  });
 
   useEffect(() => {
     const el = containerRef.current;
@@ -486,9 +500,18 @@ export default function GraphView({ projectId }: { projectId: string }) {
     return filterGraphDataForView(data, filters);
   }, [data, filters]);
 
+  const displayData = useMemo(() => {
+    if (!filteredData) return null;
+    if (filters.search.trim() || filters.relation) return filteredData;
+    return simplifyGraphForDefaultView(filteredData, {
+      maxNodes: 28,
+      maxEdges: 64,
+    });
+  }, [filteredData, filters.relation, filters.search]);
+
   const graphData = useMemo(
-    () => (filteredData ? buildForceGraphData(filteredData) : null),
-    [filteredData],
+    () => (displayData ? buildForceGraphData(displayData) : null),
+    [displayData],
   );
 
   const graphAutoFitKey = useMemo(() => {
@@ -506,6 +529,27 @@ export default function GraphView({ projectId }: { projectId: string }) {
       }),
     [graphData?.links.length, graphData?.nodes.length],
   );
+
+  const graphInsights = useMemo(() => {
+    const nodes = displayData?.nodes ?? [];
+    const edges = displayData?.edges ?? [];
+    return {
+      shownNodes: nodes.length,
+      shownEdges: edges.length,
+      bridgeNodes: nodes.filter((node) => (node.degree ?? 0) >= 3).length,
+      weakEdges: edges.filter(
+        (edge) => edge.support?.status === "weak" || edge.support?.status === "missing",
+      ).length,
+      displayEdges: edges.filter(
+        (edge) =>
+          edge.surfaceType === "co_mention" ||
+          edge.surfaceType === "source_membership",
+      ).length,
+      reduced:
+        Boolean(displayData?.truncated) ||
+        Boolean(filteredData && displayData && filteredData.nodes.length > displayData.nodes.length),
+    };
+  }, [displayData, filteredData]);
 
   const scheduleGraphAutoFit = useCallback((key: string | null) => {
     if (!key || !graphRef.current?.zoomToFit) return;
@@ -545,8 +589,8 @@ export default function GraphView({ projectId }: { projectId: string }) {
   );
 
   const visibleNodeCount = useMemo(
-    () => filteredData?.nodes.length ?? 0,
-    [filteredData],
+    () => displayData?.nodes.length ?? 0,
+    [displayData],
   );
 
   const relations = useMemo(() => {
@@ -574,24 +618,24 @@ export default function GraphView({ projectId }: { projectId: string }) {
   }, []);
 
   const selectedEdge = useMemo(
-    () => filteredData?.edges.find((edge) => edge.id === selectedEdgeId) as
+    () => displayData?.edges.find((edge) => edge.id === selectedEdgeId) as
       | GroundedEdge
       | undefined,
-    [filteredData?.edges, selectedEdgeId],
+    [displayData?.edges, selectedEdgeId],
   );
   const selectedCoMentionEdge = useMemo(
-    () => filteredData?.edges.find((edge) => edge.id === selectedCoMentionEdgeId) as
+    () => displayData?.edges.find((edge) => edge.id === selectedCoMentionEdgeId) as
       | GroundedEdge
       | undefined,
-    [filteredData?.edges, selectedCoMentionEdgeId],
+    [displayData?.edges, selectedCoMentionEdgeId],
   );
   const bundlesById = useMemo(
-    () => evidenceBundleById(filteredData?.evidenceBundles),
-    [filteredData?.evidenceBundles],
+    () => evidenceBundleById(displayData?.evidenceBundles),
+    [displayData?.evidenceBundles],
   );
   const selectedNode = useMemo(
-    () => filteredData?.nodes.find((node) => node.id === selectedNodeId) ?? null,
-    [filteredData?.nodes, selectedNodeId],
+    () => displayData?.nodes.find((node) => node.id === selectedNodeId) ?? null,
+    [displayData?.nodes, selectedNodeId],
   );
   const activeNodeId = hoveredNodeId ?? selectedNodeId;
   const neighborhood = useMemo(
@@ -607,11 +651,11 @@ export default function GraphView({ projectId }: { projectId: string }) {
       return;
     }
     if (selectedEdgeParam === consumedEdgeParam.current) return;
-    if (filteredData?.edges.some((edge) => edge.id === selectedEdgeParam)) {
+    if (displayData?.edges.some((edge) => edge.id === selectedEdgeParam)) {
       setSelectedEdgeId(selectedEdgeParam);
       consumedEdgeParam.current = selectedEdgeParam;
     }
-  }, [filteredData?.edges, selectedEdgeParam]);
+  }, [displayData?.edges, selectedEdgeParam]);
 
   const onNodeDoubleClick = useCallback(
     (firstNoteId: string | null, conceptName: string) => {
@@ -785,13 +829,13 @@ export default function GraphView({ projectId }: { projectId: string }) {
   if (error) return <GraphError error={error as Error} />;
   if (!data) return <GraphEmpty />;
   if (!hasRenderableGraphData(data)) return <GraphEmpty />;
-  if (!filteredData || !graphData || graphData.nodes.length === 0) {
+  if (!displayData || !graphData || graphData.nodes.length === 0) {
     return (
       <div className="flex h-full flex-col">
         <GraphFilters
           filters={filters}
           relations={relations}
-          truncated={data.truncated}
+          truncated={data.truncated || Boolean(displayData?.truncated)}
           shown={0}
           total={data.totalConcepts}
           onChange={(next) => setFilters((f) => ({ ...f, ...next }))}
@@ -808,7 +852,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
       <GraphFilters
         filters={filters}
         relations={relations}
-        truncated={data.truncated}
+        truncated={data.truncated || Boolean(displayData.truncated)}
         shown={visibleNodeCount}
         total={data.totalConcepts}
         onChange={(next) => setFilters((f) => ({ ...f, ...next }))}
@@ -946,6 +990,11 @@ export default function GraphView({ projectId }: { projectId: string }) {
           onZoomOut={() => zoomGraphBy(1 / 1.2)}
           onReset={resetGraphView}
         />
+        <GraphInsightPanel
+          insights={graphInsights}
+          running={curatorMutation.isPending}
+          onRunCurator={() => curatorMutation.mutate()}
+        />
         {selectedNode && (
           <ConceptInspector
             name={selectedNode.name}
@@ -986,6 +1035,62 @@ export default function GraphView({ projectId }: { projectId: string }) {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+function GraphInsightPanel({
+  insights,
+  running,
+  onRunCurator,
+}: {
+  insights: {
+    shownNodes: number;
+    shownEdges: number;
+    bridgeNodes: number;
+    weakEdges: number;
+    displayEdges: number;
+    reduced: boolean;
+  };
+  running: boolean;
+  onRunCurator: () => void;
+}) {
+  const t = useTranslations("graph.insights");
+  return (
+    <div className="absolute left-3 top-3 z-10 w-[260px] rounded-[var(--radius-panel)] border border-border bg-background/94 p-3 text-xs shadow-sm backdrop-blur">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="font-semibold">{t("title")}</p>
+          <p className="mt-0.5 text-muted-foreground">
+            {insights.reduced ? t("reduced") : t("full")}
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={running}
+          onClick={onRunCurator}
+          className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-control)] border border-border px-2 font-medium disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Sparkles aria-hidden className="h-3.5 w-3.5" />
+          {running ? t("running") : t("run")}
+        </button>
+      </div>
+      <div className="mt-3 grid grid-cols-5 gap-2">
+        <GraphInsightStat label={t("nodes")} value={insights.shownNodes} />
+        <GraphInsightStat label={t("edges")} value={insights.shownEdges} />
+        <GraphInsightStat label={t("bridge")} value={insights.bridgeNodes} />
+        <GraphInsightStat label={t("display")} value={insights.displayEdges} />
+        <GraphInsightStat label={t("weak")} value={insights.weakEdges} />
+      </div>
+    </div>
+  );
+}
+
+function GraphInsightStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-[var(--radius-control)] border border-border bg-muted/35 px-2 py-1.5">
+      <div className="text-sm font-semibold tabular-nums">{value}</div>
+      <div className="truncate text-[11px] text-muted-foreground">{label}</div>
     </div>
   );
 }

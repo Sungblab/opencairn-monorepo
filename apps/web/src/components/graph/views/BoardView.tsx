@@ -1,10 +1,12 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { LocateFixed, Minus, Plus, RotateCcw } from "lucide-react";
 import type { ViewNode } from "@opencairn/shared";
 import { useProjectGraph } from "../useProjectGraph";
 import type { GroundedEdge } from "../grounded-types";
 import { projectNoteLinksToGraph } from "./note-link-projection";
+import { simplifyGraphForDefaultView } from "./display-graph";
 
 interface Props {
   projectId: string;
@@ -87,14 +89,26 @@ export default function BoardView({ projectId, root }: Props) {
     view: "board",
     root,
   });
+  const [zoom, setZoom] = useState(0.76);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const displayData = useMemo(
+    () =>
+      data
+        ? simplifyGraphForDefaultView(data, {
+            maxNodes: 18,
+            maxEdges: 36,
+          })
+        : null,
+    [data],
+  );
   const projected = useMemo(
     () =>
       projectNoteLinksToGraph(
-        data?.nodes ?? [],
-        data?.edges ?? [],
-        data?.noteLinks,
+        displayData?.nodes ?? [],
+        displayData?.edges ?? [],
+        displayData?.noteLinks,
       ),
-    [data?.edges, data?.nodes, data?.noteLinks],
+    [displayData?.edges, displayData?.nodes, displayData?.noteLinks],
   );
   const initialPositions = useMemo(
     () =>
@@ -117,6 +131,17 @@ export default function BoardView({ projectId, root }: Props) {
     setPositions(initialPositions);
   }, [initialPositions]);
 
+  const clampZoom = useCallback((value: number) => {
+    return Math.max(0.42, Math.min(1.6, value));
+  }, []);
+  const fitBoard = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const availableWidth = Math.max(320, viewport.clientWidth - 48);
+    const availableHeight = Math.max(320, viewport.clientHeight - 48);
+    setZoom(clampZoom(Math.min(availableWidth / BOARD_WIDTH, availableHeight / BOARD_HEIGHT)));
+  }, [clampZoom]);
+
   if (isLoading) {
     return <div className="p-6 text-sm text-muted-foreground">…</div>;
   }
@@ -136,16 +161,33 @@ export default function BoardView({ projectId, root }: Props) {
   }
 
   return (
-    <div className="h-full overflow-auto bg-muted/20 p-4">
+    <div
+      ref={viewportRef}
+      className="relative h-full overflow-auto bg-background"
+    >
+      <ViewZoomControls
+        onFit={fitBoard}
+        onZoomIn={() => setZoom((value) => clampZoom(value * 1.16))}
+        onZoomOut={() => setZoom((value) => clampZoom(value / 1.16))}
+        onReset={() => setZoom(0.76)}
+      />
+      <div
+        className="p-4"
+        style={{ width: BOARD_WIDTH * zoom + 32, height: BOARD_HEIGHT * zoom + 32 }}
+      >
       <div
         data-testid="board-canvas"
-        className="relative rounded-lg border border-border bg-background"
-        style={{ width: BOARD_WIDTH, height: BOARD_HEIGHT }}
+        className="relative origin-top-left rounded-lg border border-border bg-background shadow-sm"
+        style={{
+          width: BOARD_WIDTH,
+          height: BOARD_HEIGHT,
+          transform: `scale(${zoom})`,
+        }}
         onPointerMove={(event) => {
           const drag = dragRef.current;
           if (!drag) return;
-          const dx = event.clientX - drag.startX;
-          const dy = event.clientY - drag.startY;
+          const dx = (event.clientX - drag.startX) / zoom;
+          const dy = (event.clientY - drag.startY) / zoom;
           setPositions((current) => {
             const next = new Map(current);
             next.set(
@@ -230,6 +272,43 @@ export default function BoardView({ projectId, root }: Props) {
           );
         })}
       </div>
+      </div>
+    </div>
+  );
+}
+
+function ViewZoomControls({
+  onFit,
+  onZoomIn,
+  onZoomOut,
+  onReset,
+}: {
+  onFit: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+}) {
+  const t = useTranslations("graph.controls");
+  const buttons = [
+    { label: t("fit"), icon: LocateFixed, onClick: onFit },
+    { label: t("zoomIn"), icon: Plus, onClick: onZoomIn },
+    { label: t("zoomOut"), icon: Minus, onClick: onZoomOut },
+    { label: t("reset"), icon: RotateCcw, onClick: onReset },
+  ];
+  return (
+    <div className="sticky right-3 top-3 z-20 ml-auto mr-3 mt-3 flex w-fit items-center gap-1 rounded-lg border border-border bg-background/90 p-1 shadow-sm backdrop-blur">
+      {buttons.map(({ label, icon: Icon, onClick }) => (
+        <button
+          key={label}
+          type="button"
+          aria-label={label}
+          title={label}
+          onClick={onClick}
+          className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
+        >
+          <Icon aria-hidden className="size-4" />
+        </button>
+      ))}
     </div>
   );
 }

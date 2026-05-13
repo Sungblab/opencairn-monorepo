@@ -61,6 +61,15 @@ MERGE_SIMILARITY_THRESHOLD = 0.88
 MAX_COMPILER_WIKI_PAGE_ACTIONS = 5
 WIKI_PAGE_REQUEST_NAMESPACE = uuid.UUID("dd8d8cc6-7f4b-42d0-8f2c-c8d3fe89da8f")
 WIKI_PAGE_UPDATE_REQUEST_NAMESPACE = uuid.UUID("61009c8c-2759-43fc-b398-97e36d433184")
+ONTOLOGY_RELATION_PREDICATES = {
+    "is_a",
+    "part_of",
+    "contains",
+    "depends_on",
+    "causes",
+    "same_as_candidate",
+    "is_related_to",
+}
 
 
 @dataclass(frozen=True)
@@ -190,7 +199,7 @@ class CompilerAgent(Agent):
                 return
 
             # 2. LLM extraction.
-            extracted, extraction_events = await self._extract_concepts(
+            extracted, extracted_relations, extraction_events = await self._extract_concepts(
                 title=title, body=body_text, ctx=ctx, seq=seq
             )
             async for ev in extraction_events:
@@ -217,6 +226,7 @@ class CompilerAgent(Agent):
             merged = 0
             linked = 0
             concept_ids: list[str] = []
+            concept_id_by_name: dict[str, str] = {}
             created_concepts: list[dict[str, str]] = []
             existing_concepts: list[dict[str, str]] = []
             for candidate, embedding in zip(extracted, embed_vectors, strict=False):
@@ -232,6 +242,7 @@ class CompilerAgent(Agent):
                 if result.concept_id is None:
                     continue
                 concept_ids.append(result.concept_id)
+                concept_id_by_name[candidate["name"].strip().casefold()] = result.concept_id
                 if result.was_created:
                     created += 1
                     created_concepts.append(
@@ -251,6 +262,23 @@ class CompilerAgent(Agent):
                     )
                 if result.was_linked:
                     linked += 1
+
+            ontology_edges_created = await self._create_ontology_relation_edges(
+                input=validated,
+                relations=extracted_relations,
+                concept_id_by_name=concept_id_by_name,
+            )
+            if ontology_edges_created > 0:
+                yield CustomEvent(
+                    run_id=ctx.run_id,
+                    workspace_id=ctx.workspace_id,
+                    agent_name=self.name,
+                    seq=seq.next(),
+                    ts=time.time(),
+                    type="custom",
+                    label="compiler.ontology_edges_created",
+                    payload={"count": ontology_edges_created},
+                )
 
             wiki_page_actions_created = await self._create_wiki_page_actions(
                 input=validated,
@@ -375,7 +403,11 @@ class CompilerAgent(Agent):
         body: str,
         ctx: ToolContext,
         seq: _SeqCounter,
-    ) -> tuple[list[dict[str, str]], AsyncGenerator[AgentEvent, None]]:
+    ) -> tuple[
+        list[dict[str, str]],
+        list[dict[str, Any]],
+        AsyncGenerator[AgentEvent, None],
+    ]:
         events: list[AgentEvent] = []
         started = time.time()
         prompt = build_extraction_user_prompt(title, body)
@@ -411,8 +443,8 @@ class CompilerAgent(Agent):
             )
         )
 
-        concepts = _parse_extraction(raw)
-        return concepts, _aiter(events)
+        concepts, relations = _parse_extraction(raw)
+        return concepts, relations, _aiter(events)
 
     async def _process_concept(
         self,
@@ -606,6 +638,45 @@ class CompilerAgent(Agent):
             display_name=merge_target["name"] if merge_target else name,
             events=_aiter(events),
         )
+
+    async def _create_ontology_relation_edges(
+        self,
+        *,
+        input: CompilerInput,
+        relations: list[dict[str, Any]],
+        concept_id_by_name: dict[str, str],
+    ) -> int:
+        created = 0
+        seen: set[tuple[str, str, str]] = set()
+        for relation in relations:
+            source_name = str(relation.get("source") or "").strip().casefold()
+            target_name = str(relation.get("target") or "").strip().casefold()
+            predicate = str(relation.get("predicate") or "").strip()
+            if predicate not in ONTOLOGY_RELATION_PREDICATES:
+                continue
+            source_id = concept_id_by_name.get(source_name)
+            target_id = concept_id_by_name.get(target_name)
+            if not source_id or not target_id or source_id == target_id:
+                continue
+            key = (source_id, predicate, target_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            confidence = relation.get("confidence", 0.7)
+            try:
+                weight = float(confidence)
+            except (TypeError, ValueError):
+                weight = 0.7
+            _, edge_created = await self.api.upsert_edge(
+                source_id=source_id,
+                target_id=target_id,
+                relation_type=predicate,
+                weight=max(0.1, min(1.0, weight)),
+                evidence_note_id=input.note_id,
+            )
+            if edge_created:
+                created += 1
+        return created
 
     async def _create_wiki_page_actions(
         self,
@@ -964,14 +1035,14 @@ def _node_text(node: Any) -> str:
 _JSON_BLOCK = re.compile(r"```(?:json)?\s*(.+?)```", re.DOTALL)
 
 
-def _parse_extraction(raw: str) -> list[dict[str, str]]:
+def _parse_extraction(raw: str) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
     """Tolerant JSON parser. Some providers wrap output in a fenced block
     even when we ask for pure JSON (particularly Ollama); strip those here.
     On any parse failure, log and return an empty list — a bad extraction
     must not fail the workflow.
     """
     if not raw or not raw.strip():
-        return []
+        return [], []
     candidate = raw.strip()
     m = _JSON_BLOCK.search(candidate)
     if m:
@@ -980,12 +1051,12 @@ def _parse_extraction(raw: str) -> list[dict[str, str]]:
         payload = json.loads(candidate)
     except json.JSONDecodeError:
         logger.warning("Compiler: LLM extraction was not valid JSON; discarding")
-        return []
+        return [], []
     if not isinstance(payload, dict):
-        return []
+        return [], []
     concepts = payload.get("concepts")
     if not isinstance(concepts, list):
-        return []
+        return [], []
     out: list[dict[str, str]] = []
     for item in concepts:
         if not isinstance(item, dict):
@@ -995,7 +1066,34 @@ def _parse_extraction(raw: str) -> list[dict[str, str]]:
             continue
         description = str(item.get("description", "")).strip()
         out.append({"name": name[:200], "description": description[:2000]})
-    return out
+    concept_names = {item["name"].casefold() for item in out}
+    relations_payload = payload.get("relations")
+    relations: list[dict[str, Any]] = []
+    if isinstance(relations_payload, list):
+        for item in relations_payload[:20]:
+            if not isinstance(item, dict):
+                continue
+            source = str(item.get("source", "")).strip()
+            target = str(item.get("target", "")).strip()
+            predicate = str(item.get("predicate", "")).strip()
+            if (
+                not source
+                or not target
+                or source.casefold() not in concept_names
+                or target.casefold() not in concept_names
+                or predicate not in ONTOLOGY_RELATION_PREDICATES
+            ):
+                continue
+            confidence = item.get("confidence", 0.7)
+            relations.append(
+                {
+                    "source": source[:200],
+                    "predicate": predicate,
+                    "target": target[:200],
+                    "confidence": confidence,
+                }
+            )
+    return out, relations
 
 
 def _pick_merge_target(

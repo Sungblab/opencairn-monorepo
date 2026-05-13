@@ -1,9 +1,10 @@
 """CuratorAgent — knowledge-base quality scanner.
 
-Runs three detection passes on a project's knowledge graph:
+Runs four detection passes on a project's knowledge graph:
 1. **Orphan concepts** — concepts with degree 0 (no edges).
 2. **Duplicate concepts** — concept pairs with cosine similarity >= 0.9.
-3. **Contradiction detection** — topic concept pairs checked via LLM.
+3. **Ontology quality** — weak predicates, hierarchy cycles, and promotion candidates.
+4. **Contradiction detection** — topic concept pairs checked via LLM.
 
 Each finding is persisted to the ``suggestions`` table via the internal API.
 Follows the runtime.Agent contract (Plan 12) so all events are observed by
@@ -115,6 +116,7 @@ class CuratorAgent(Agent):
             orphans_found = 0
             duplicates_found = 0
             contradictions_found = 0
+            ontology_issues_found = 0
             suggestions_created = 0
 
             # ------------------------------------------------------------------
@@ -232,7 +234,59 @@ class CuratorAgent(Agent):
             )
 
             # ------------------------------------------------------------------
-            # Step 3 — Contradiction detection via LLM
+            # Step 3 — Ontology quality review
+            # ------------------------------------------------------------------
+            ontology_call_id = f"call-{uuid.uuid4().hex[:8]}"
+            ontology_args = {"project_id": validated.project_id}
+            yield ToolUse(
+                run_id=ctx.run_id,
+                workspace_id=ctx.workspace_id,
+                agent_name=self.name,
+                seq=seq.next(),
+                ts=time.time(),
+                type="tool_use",
+                tool_call_id=ontology_call_id,
+                tool_name="list_ontology_issues",
+                input_args=ontology_args,
+                input_hash=hash_input(ontology_args),
+                concurrency_safe=True,
+            )
+            ontology_start = time.time()
+            ontology_issues = await self.api.list_ontology_issues(validated.project_id)
+            ontology_suggestions = _ontology_suggestions(
+                ontology_issues,
+                user_id=validated.user_id,
+                workspace_id=validated.workspace_id,
+                project_id=validated.project_id,
+            )
+            ontology_issues_found = len(ontology_suggestions)
+            await asyncio.gather(*[
+                post_internal("/api/internal/suggestions", suggestion)
+                for suggestion in ontology_suggestions
+            ])
+            suggestions_created += ontology_issues_found
+
+            yield ToolResult(
+                run_id=ctx.run_id,
+                workspace_id=ctx.workspace_id,
+                agent_name=self.name,
+                seq=seq.next(),
+                ts=time.time(),
+                type="tool_result",
+                tool_call_id=ontology_call_id,
+                ok=True,
+                output={
+                    "ontology_issues_found": ontology_issues_found,
+                    "broad_relations": len(ontology_issues.get("broadRelations", [])),
+                    "hierarchy_cycles": len(ontology_issues.get("hierarchyCycles", [])),
+                    "promotion_candidates": len(ontology_issues.get("promotionCandidates", [])),
+                    "suggestions_created": ontology_issues_found,
+                },
+                duration_ms=int((time.time() - ontology_start) * 1000),
+            )
+
+            # ------------------------------------------------------------------
+            # Step 4 — Contradiction detection via LLM
             # ------------------------------------------------------------------
             contra_call_id = f"call-{uuid.uuid4().hex[:8]}"
             contra_args = {"project_id": validated.project_id, "max_pairs": validated.max_contradiction_pairs}
@@ -373,6 +427,7 @@ class CuratorAgent(Agent):
             output = {
                 "orphans_found": orphans_found,
                 "duplicates_found": duplicates_found,
+                "ontology_issues_found": ontology_issues_found,
                 "contradictions_found": contradictions_found,
                 "suggestions_created": suggestions_created,
             }
@@ -477,3 +532,139 @@ def _build_candidate_pairs(
         if a.get("description") and b.get("description"):
             pairs.append((a, b))
     return pairs
+
+
+def _ontology_suggestions(
+    issues: dict[str, Any],
+    *,
+    user_id: str,
+    workspace_id: str,
+    project_id: str,
+) -> list[dict[str, Any]]:
+    suggestions: list[dict[str, Any]] = []
+
+    for row in list(issues.get("broadRelations") or [])[:25]:
+        if not isinstance(row, dict):
+            continue
+        issue_kind = str(row.get("issue_kind") or "broad_relation")
+        is_unknown_predicate = issue_kind == "unknown_predicate"
+        suggestions.append(
+            {
+                "userId": user_id,
+                "workspaceId": workspace_id,
+                "projectId": project_id,
+                "type": (
+                    "curator_ontology_violation"
+                    if is_unknown_predicate
+                    else "curator_relation_refinement"
+                ),
+                "payload": {
+                    "kind": issue_kind,
+                    "edgeId": row.get("edge_id"),
+                    "relationType": row.get("relation_type"),
+                    "sourceId": row.get("source_id"),
+                    "targetId": row.get("target_id"),
+                    "sourceName": row.get("source_name", ""),
+                    "targetName": row.get("target_name", ""),
+                    "weight": row.get("weight"),
+                    **(
+                        {"proposedRelationType": "related-to"}
+                        if is_unknown_predicate
+                        else {}
+                    ),
+                    "recommendation": (
+                        "Map this unknown relation type to a controlled ontology "
+                        "predicate before it is used for reasoning."
+                        if is_unknown_predicate
+                        else (
+                            "Replace generic relation with a controlled ontology "
+                            "predicate such as is_a, depends_on, part_of, causes, "
+                            "or same_as_candidate."
+                        )
+                    ),
+                },
+            }
+        )
+
+    for row in list(issues.get("promotionCandidates") or [])[:25]:
+        if not isinstance(row, dict):
+            continue
+        proposed_relation = _promotion_relation_candidate(row)
+        suggestions.append(
+            {
+                "userId": user_id,
+                "workspaceId": workspace_id,
+                "projectId": project_id,
+                "type": "curator_relation_refinement",
+                "payload": {
+                    "kind": "promote_display_relation",
+                    "edgeId": row.get("edge_id"),
+                    "relationType": row.get("relation_type"),
+                    "sourceId": row.get("source_id"),
+                    "targetId": row.get("target_id"),
+                    "sourceName": row.get("source_name", ""),
+                    "targetName": row.get("target_name", ""),
+                    "weight": row.get("weight"),
+                    **(
+                        {"proposedRelationType": proposed_relation}
+                        if proposed_relation
+                        else {}
+                    ),
+                    "recommendation": (
+                        "High-weight display relation should be reviewed for "
+                        "promotion into a semantic ontology predicate."
+                    ),
+                },
+            }
+        )
+
+    for row in list(issues.get("hierarchyCycles") or [])[:25]:
+        if not isinstance(row, dict):
+            continue
+        suggestions.append(
+            {
+                "userId": user_id,
+                "workspaceId": workspace_id,
+                "projectId": project_id,
+                "type": "curator_hierarchy_cycle",
+                "payload": {
+                    "kind": "is_a_cycle",
+                    "edgeId": row.get("edge_id"),
+                    "reverseEdgeId": row.get("reverse_edge_id"),
+                    "sourceId": row.get("source_id"),
+                    "targetId": row.get("target_id"),
+                    "sourceName": row.get("source_name", ""),
+                    "targetName": row.get("target_name", ""),
+                    "recommendation": (
+                        "Break the reciprocal is_a relation or convert one "
+                        "side into same_as_candidate if the concepts are duplicates."
+                    ),
+                },
+            }
+        )
+
+    return suggestions
+
+
+def _promotion_relation_candidate(row: dict[str, Any]) -> str | None:
+    source = _relation_name_key(row.get("source_name"))
+    target = _relation_name_key(row.get("target_name"))
+    if not source or not target:
+        return None
+    source_tokens = set(source.split())
+    target_tokens = set(target.split())
+    if not source_tokens or not target_tokens:
+        return None
+    overlap = len(source_tokens & target_tokens) / max(
+        len(source_tokens),
+        len(target_tokens),
+    )
+    if source in target or target in source or overlap >= 0.6:
+        return "same_as_candidate"
+    return None
+
+
+def _relation_name_key(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return re.sub(r"[^a-z0-9가-힣]+", " ", value.lower()).strip()

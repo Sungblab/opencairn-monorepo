@@ -2,6 +2,13 @@ import { db, projects, eq, sql } from "@opencairn/db";
 import type {
   WorkspaceAtlasEdge,
   WorkspaceAtlasNode,
+  WorkspaceAtlasNodeObjectType,
+  WorkspaceAtlasOntology,
+  WorkspaceAtlasOntologyClass,
+  WorkspaceAtlasOntologyPredicateSpec,
+  WorkspaceAtlasOntologyPredicate,
+  WorkspaceAtlasTriple,
+  WorkspaceAtlasOntologyViolation,
   WorkspaceAtlasResponse,
 } from "@opencairn/shared";
 import { canRead } from "./permissions";
@@ -79,6 +86,285 @@ const BRIDGE_NODE_SCORE = 10_000;
 const DUPLICATE_CANDIDATE_SCORE = 5_000;
 const PROJECT_CONTEXT_SCORE = 1_000;
 const DEGREE_SCORE = 10;
+const OPENCAIRN_ONTOLOGY_IRI = "https://opencairn.local/ontology/workspace";
+
+const ONTOLOGY_CLASSES: WorkspaceAtlasOntology["classes"] = [
+  {
+    id: "concept",
+    label: "Concept",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#Concept`,
+  },
+  {
+    id: "note",
+    label: "Note",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#Note`,
+  },
+  {
+    id: "source",
+    label: "Source",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#Source`,
+  },
+  {
+    id: "artifact",
+    label: "Artifact",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#Artifact`,
+  },
+];
+
+const ONTOLOGY_PREDICATES: WorkspaceAtlasOntologyPredicateSpec[] = [
+  {
+    id: "is_related_to",
+    label: "related",
+    iri: "http://www.w3.org/2004/02/skos/core#related",
+    domain: ["concept"],
+    range: ["concept"],
+    transitive: false,
+    symmetric: true,
+  },
+  {
+    id: "is_a",
+    label: "is a",
+    iri: "http://www.w3.org/2004/02/skos/core#broader",
+    domain: ["concept"],
+    range: ["concept"],
+    transitive: true,
+    symmetric: false,
+  },
+  {
+    id: "part_of",
+    label: "part of",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#partOf`,
+    domain: ["concept", "artifact"],
+    range: ["concept", "artifact", "source"],
+    transitive: true,
+    symmetric: false,
+  },
+  {
+    id: "contains",
+    label: "contains",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#contains`,
+    domain: ["source", "artifact", "concept"],
+    range: ["artifact", "note", "concept"],
+    transitive: true,
+    symmetric: false,
+    inverseOf: "part_of",
+  },
+  {
+    id: "depends_on",
+    label: "depends on",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#dependsOn`,
+    domain: ["concept"],
+    range: ["concept"],
+    transitive: false,
+    symmetric: false,
+  },
+  {
+    id: "causes",
+    label: "causes",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#causes`,
+    domain: ["concept"],
+    range: ["concept"],
+    transitive: false,
+    symmetric: false,
+  },
+  {
+    id: "links_to",
+    label: "links to",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#linksTo`,
+    domain: ["note"],
+    range: ["note", "concept"],
+    transitive: false,
+    symmetric: false,
+  },
+  {
+    id: "derived_from",
+    label: "derived from",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#derivedFrom`,
+    domain: ["note", "concept"],
+    range: ["source", "artifact", "note"],
+    transitive: false,
+    symmetric: false,
+  },
+  {
+    id: "appears_with",
+    label: "appears with",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#appearsWith`,
+    domain: ["concept"],
+    range: ["concept"],
+    transitive: false,
+    symmetric: true,
+  },
+  {
+    id: "near_in_source",
+    label: "near in source",
+    iri: `${OPENCAIRN_ONTOLOGY_IRI}#nearInSource`,
+    domain: ["concept"],
+    range: ["concept"],
+    transitive: false,
+    symmetric: true,
+  },
+  {
+    id: "same_as_candidate",
+    label: "same as candidate",
+    iri: "http://www.w3.org/2004/02/skos/core#closeMatch",
+    domain: ["concept"],
+    range: ["concept"],
+    transitive: false,
+    symmetric: true,
+  },
+];
+
+const ONTOLOGY_PREDICATE_BY_ID = new Map(
+  ONTOLOGY_PREDICATES.map((predicate) => [predicate.id, predicate]),
+);
+
+function ontologyClassForObjectType(
+  objectType: WorkspaceAtlasNodeObjectType,
+): WorkspaceAtlasOntologyClass {
+  if (objectType === "source_bundle") return "source";
+  if (objectType === "artifact") return "artifact";
+  if (objectType === "note") return "note";
+  return "concept";
+}
+
+function ontologyPredicateForRelation(
+  edgeType: WorkspaceAtlasEdge["edgeType"],
+  relationType: string,
+): WorkspaceAtlasOntologyPredicate {
+  if (edgeType === "wiki_link") return "links_to";
+  if (edgeType === "project_tree") return "contains";
+  if (edgeType === "source_artifact") return "contains";
+  if (edgeType === "co_mention") return "appears_with";
+  if (edgeType === "source_membership") return "near_in_source";
+
+  const normalized = relationType.toLowerCase().replace(/[_\s-]+/g, " ");
+  if (/\bis a\b|\bkind of\b|\btype of\b|\bsubclass\b/.test(normalized)) {
+    return "is_a";
+  }
+  if (/\bpart of\b|\bcomponent\b|\bbelongs to\b/.test(normalized)) {
+    return "part_of";
+  }
+  if (/\bcontain|\binclud|\bhas\b|\bcompose/.test(normalized)) {
+    return "contains";
+  }
+  if (/\bdepend|\brequir|\bprerequisite|\buse\b/.test(normalized)) {
+    return "depends_on";
+  }
+  if (/\bcause|\blead|\bresult|\btrigger|\bproduce/.test(normalized)) {
+    return "causes";
+  }
+  if (/\bsame|\bsynonym|\bequivalent|\bduplicate|\balias/.test(normalized)) {
+    return "same_as_candidate";
+  }
+  return "is_related_to";
+}
+
+function validateOntologyEdge(
+  edge: WorkspaceAtlasEdge,
+  nodesById: Map<string, WorkspaceAtlasNode>,
+): WorkspaceAtlasEdge {
+  const predicate = ONTOLOGY_PREDICATE_BY_ID.get(edge.ontologyPredicate);
+  const sourceClass = nodesById.get(edge.sourceId)?.ontologyClass ?? "concept";
+  const targetClass = nodesById.get(edge.targetId)?.ontologyClass ?? "concept";
+  if (!predicate) return edge;
+  if (!predicate.domain.includes(sourceClass)) {
+    return {
+      ...edge,
+      ontologyValid: false,
+      ontologyViolation: "domain" as const,
+    };
+  }
+  if (!predicate.range.includes(targetClass)) {
+    return {
+      ...edge,
+      ontologyValid: false,
+      ontologyViolation: "range" as const,
+    };
+  }
+  return {
+    ...edge,
+    ontologyValid: true,
+    ontologyViolation: undefined,
+  };
+}
+
+function buildWorkspaceOntology(
+  workspaceId: string,
+  nodes: WorkspaceAtlasNode[],
+  edges: WorkspaceAtlasEdge[],
+): WorkspaceAtlasOntology {
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const violations: WorkspaceAtlasOntologyViolation[] = [];
+  for (const edge of edges) {
+    if (edge.ontologyValid !== false) continue;
+    const sourceClass = nodesById.get(edge.sourceId)?.ontologyClass ?? "concept";
+    const objectClass = nodesById.get(edge.targetId)?.ontologyClass ?? "concept";
+    violations.push({
+      edgeId: edge.id,
+      predicate: edge.ontologyPredicate,
+      subjectClass: sourceClass,
+      objectClass,
+      reason: edge.ontologyViolation ?? "domain",
+    });
+  }
+  const directTriples: WorkspaceAtlasTriple[] = edges
+    .filter((edge) => edge.ontologyValid !== false)
+    .map((edge) => ({
+      subjectId: edge.sourceId,
+      predicate: edge.ontologyPredicate,
+      objectId: edge.targetId,
+      inferred: edge.inferred,
+      sourceEdgeId: edge.id,
+    }));
+  return {
+    schemeIri: `${OPENCAIRN_ONTOLOGY_IRI}/workspace/${workspaceId}`,
+    classes: ONTOLOGY_CLASSES,
+    predicates: ONTOLOGY_PREDICATES,
+    triples: [...directTriples, ...inferTransitiveTriples(directTriples)],
+    violations,
+  };
+}
+
+function inferTransitiveTriples(triples: WorkspaceAtlasTriple[]): WorkspaceAtlasTriple[] {
+  const inferred: WorkspaceAtlasTriple[] = [];
+  const existing = new Set(
+    triples.map((triple) => `${triple.subjectId}\0${triple.predicate}\0${triple.objectId}`),
+  );
+  const transitivePredicates = ONTOLOGY_PREDICATES
+    .filter((predicate) => predicate.transitive)
+    .map((predicate) => predicate.id);
+  for (const predicate of transitivePredicates) {
+    const adjacency = new Map<string, Set<string>>();
+    for (const triple of triples) {
+      if (triple.predicate !== predicate) continue;
+      const targets = adjacency.get(triple.subjectId) ?? new Set<string>();
+      targets.add(triple.objectId);
+      adjacency.set(triple.subjectId, targets);
+    }
+    for (const subjectId of adjacency.keys()) {
+      const visited = new Set<string>();
+      const stack = [...(adjacency.get(subjectId) ?? [])];
+      while (stack.length > 0) {
+        const objectId = stack.pop();
+        if (!objectId || visited.has(objectId)) continue;
+        visited.add(objectId);
+        for (const next of adjacency.get(objectId) ?? []) {
+          stack.push(next);
+        }
+        const key = `${subjectId}\0${predicate}\0${objectId}`;
+        if (existing.has(key)) continue;
+        existing.add(key);
+        inferred.push({
+          subjectId,
+          predicate,
+          objectId,
+          inferred: true,
+        });
+      }
+    }
+  }
+  return inferred;
+}
 const EXPLICIT_LAYER_SCORE = 25;
 const SOURCE_MEMBERSHIP_EDGE_LIMIT = 900;
 const SOURCE_MEMBERSHIP_MAX_CONCEPTS_PER_CHUNK = 40;
@@ -559,6 +845,7 @@ function buildAtlasNodes(rows: ConceptRow[], limit: number): WorkspaceAtlasNode[
       id: atlasNodeId(normalizedName),
       label: primary?.name ?? normalizedName,
       objectType: "concept" as const,
+      ontologyClass: "concept" as const,
       layer: "ai" as const,
       normalizedName,
       description: primary?.description ?? undefined,
@@ -640,6 +927,9 @@ function buildAtlasEdges(
         sourceId: group.sourceId,
         targetId: group.targetId,
         edgeType: "ai_relation" as const,
+        ontologyPredicate: ontologyPredicateForRelation("ai_relation", group.relationType),
+        inferred: true,
+        ontologyValid: true,
         layer: "ai" as const,
         relationType: group.relationType,
         weight: Math.max(...group.weights),
@@ -683,6 +973,9 @@ function buildCoMentionAtlasEdges(nodes: WorkspaceAtlasNode[]): WorkspaceAtlasEd
         sourceId: source.id,
         targetId: target.id,
         edgeType: "co_mention",
+        ontologyPredicate: "appears_with",
+        inferred: true,
+        ontologyValid: true,
         layer: "ai",
         relationType: "co-mention",
         weight: Math.min(1, sharedNotes.length / 4),
@@ -733,6 +1026,9 @@ function buildSourceMembershipAtlasEdges(
         sourceId,
         targetId,
         edgeType: "source_membership" as const,
+        ontologyPredicate: "near_in_source" as const,
+        inferred: true,
+        ontologyValid: true,
         layer: "ai" as const,
         relationType: "source-proximity",
         weight: Math.max(0.18, Math.min(1, Number(row.chunk_count) / maxChunks)),
@@ -756,6 +1052,7 @@ function buildExplicitNoteNodes(rows: NoteRow[]): WorkspaceAtlasNode[] {
     id: noteNodeId(row.id),
     label: row.title?.trim() || "Untitled",
     objectType: "note",
+    ontologyClass: "note",
     layer: "explicit",
     normalizedName: normalizeConceptName(row.title?.trim() || row.id),
     conceptIds: [],
@@ -794,6 +1091,9 @@ function buildWikiLinkEdges(
       sourceId,
       targetId,
       edgeType: "wiki_link",
+      ontologyPredicate: "links_to",
+      inferred: false,
+      ontologyValid: true,
       layer: "explicit",
       relationType: "links-to",
       weight: 1,
@@ -836,30 +1136,34 @@ function buildTreeNodesAndEdges(rows: TreeNodeRow[], selectedNoteIds: Set<string
     (row) => row.kind !== "note" && readableAncestorIds.has(row.id),
   );
   const nodeIds = new Set(materializedRows.map((row) => treeNodeId(row.id)));
-  const nodes = materializedRows.map((row) => ({
-    id: treeNodeId(row.id),
-    label: row.label,
-    objectType: treeObjectType(row.kind),
-    layer: "explicit" as const,
-    normalizedName: normalizeConceptName(row.label),
-    conceptIds: [],
-    sourceNoteIds: [],
-    projectContexts: [
-      {
-        projectId: row.project_id,
-        projectName: row.project_name,
-        conceptIds: [],
-        mentionCount: 0,
-      },
-    ],
-    projectCount: 1,
-    mentionCount: 0,
-    degree: 0,
-    bridge: false,
-    duplicateCandidate: false,
-    unclassified: false,
-    stale: false,
-  }));
+  const nodes = materializedRows.map((row) => {
+    const objectType = treeObjectType(row.kind);
+    return {
+      id: treeNodeId(row.id),
+      label: row.label,
+      objectType,
+      ontologyClass: ontologyClassForObjectType(objectType),
+      layer: "explicit" as const,
+      normalizedName: normalizeConceptName(row.label),
+      conceptIds: [],
+      sourceNoteIds: [],
+      projectContexts: [
+        {
+          projectId: row.project_id,
+          projectName: row.project_name,
+          conceptIds: [],
+          mentionCount: 0,
+        },
+      ],
+      projectCount: 1,
+      mentionCount: 0,
+      degree: 0,
+      bridge: false,
+      duplicateCandidate: false,
+      unclassified: false,
+      stale: false,
+    };
+  });
   const edges: WorkspaceAtlasEdge[] = rows.flatMap((row): WorkspaceAtlasEdge[] => {
     if (!row.parent_id) return [];
     const parentId = treeNodeId(row.parent_id);
@@ -878,6 +1182,9 @@ function buildTreeNodesAndEdges(rows: TreeNodeRow[], selectedNoteIds: Set<string
         sourceId: parentId,
         targetId: noteNodeId(row.target_id),
         edgeType: "source_artifact" as const,
+        ontologyPredicate: "contains" as const,
+        inferred: false,
+        ontologyValid: true,
         layer: "explicit" as const,
         relationType: "materializes",
         weight: 1,
@@ -895,6 +1202,9 @@ function buildTreeNodesAndEdges(rows: TreeNodeRow[], selectedNoteIds: Set<string
       sourceId: parentId,
       targetId: childId,
       edgeType: "project_tree" as const,
+      ontologyPredicate: "contains" as const,
+      inferred: false,
+      ontologyValid: true,
       layer: "explicit" as const,
       relationType: "contains",
       weight: 1,
@@ -961,7 +1271,7 @@ export async function getWorkspaceOntologyAtlasForUser(
       [...readableNoteIds],
     ),
   ]);
-  const edges = [
+  const rawEdges = [
     ...buildWikiLinkEdges(wikiRows, selectedNodeIds),
     ...tree.edges.filter(
       (edge) => selectedNodeIds.has(edge.sourceId) && selectedNodeIds.has(edge.targetId),
@@ -970,11 +1280,15 @@ export async function getWorkspaceOntologyAtlasForUser(
     ...buildCoMentionAtlasEdges(nodes),
     ...buildAtlasEdges(edgeRows, nodes, conceptToNode),
   ];
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const edges = rawEdges.map((edge) => validateOntologyEdge(edge, nodesById));
+  const ontology = buildWorkspaceOntology(workspaceId, nodes, edges);
 
   return {
     workspaceId,
     nodes,
     edges,
+    ontology,
     readableProjectCount: readableProjects.length,
     totalConcepts,
     truncated: nodes.length < totalAvailableNodes,

@@ -451,6 +451,14 @@ async function graphExpansionHits(opts: {
       const evidenceId = hit.chunkId
         ? `graph:chunk:${hit.chunkId}`
         : `graph:note:${hit.noteId}`;
+      const semanticBoost = hit.graphPath?.includes("depends_on") ||
+        hit.graphPath?.includes("is_a") ||
+        hit.graphPath?.includes("part_of") ||
+        hit.graphPath?.includes("causes") ||
+        hit.graphPath?.includes("derived_from");
+      const weakDisplayPath = hit.graphPath?.includes("appears_with") ||
+        hit.graphPath?.includes("near_in_source");
+      const confidence = hit.graphScore * (semanticBoost ? 0.88 : weakDisplayPath ? 0.48 : 0.68);
       return {
         sourceKey,
         noteId: hit.noteId,
@@ -459,17 +467,17 @@ async function graphExpansionHits(opts: {
         title: hit.title,
         headingPath: hit.headingPath,
         snippet: hit.snippet,
-        score: hit.graphScore * 0.5,
+        score: hit.graphScore * (semanticBoost ? 0.72 : weakDisplayPath ? 0.32 : 0.5),
         channelScores: { graph: hit.graphScore },
         sourceType: hit.sourceType,
         sourceUrl: hit.sourceUrl,
         updatedAt: hit.updatedAt,
         provenance: "inferred",
         producer: { kind: "api", tool: "retrieval-graph-expansion" },
-        confidence: hit.graphScore * 0.75,
+        confidence,
         sourceSpan: null,
         evidenceId,
-        support: "mentions",
+        support: semanticBoost ? "supports" : "mentions",
         graphPath: hit.graphPath,
       };
     }),

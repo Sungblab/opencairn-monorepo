@@ -540,6 +540,12 @@ class AgentApiClient:
             f"/api/internal/projects/{project_id}/concept-pair-chunks?{params}"
         )
 
+    async def list_ontology_issues(self, project_id: str) -> dict[str, Any]:
+        """Ontology quality candidates for Curator suggestions."""
+        return await get_internal(
+            f"/api/internal/projects/{project_id}/ontology-issues"
+        )
+
     async def merge_concepts(
         self,
         *,

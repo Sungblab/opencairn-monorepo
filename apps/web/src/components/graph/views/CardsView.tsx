@@ -1,12 +1,14 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
+import { LocateFixed, Minus, Plus, RotateCcw } from "lucide-react";
 import { urls } from "@/lib/urls";
 import { useProjectGraph } from "../useProjectGraph";
 import { evidenceBundleById, type GroundedEdge } from "../grounded-types";
 import { ConceptCard } from "./ConceptCard";
 import { projectNoteLinksToGraph } from "./note-link-projection";
+import { simplifyGraphForDefaultView } from "./display-graph";
 
 interface Props {
   projectId: string;
@@ -131,22 +133,35 @@ export default function CardsView({ projectId }: Props) {
     view: "cards",
   });
   const [focusedConceptId, setFocusedConceptId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(0.72);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+
+  const displayData = useMemo(
+    () =>
+      data
+        ? simplifyGraphForDefaultView(data, {
+            maxNodes: 14,
+            maxEdges: 28,
+          })
+        : null,
+    [data],
+  );
 
   const cardsByConceptId = useMemo(() => {
-    return new Map((data?.cards ?? []).map((card) => [card.conceptId, card]));
-  }, [data]);
+    return new Map((displayData?.cards ?? []).map((card) => [card.conceptId, card]));
+  }, [displayData?.cards]);
   const bundlesById = useMemo(
-    () => evidenceBundleById(data?.evidenceBundles),
-    [data?.evidenceBundles],
+    () => evidenceBundleById(displayData?.evidenceBundles),
+    [displayData?.evidenceBundles],
   );
   const projected = useMemo(
     () =>
       projectNoteLinksToGraph(
-        data?.nodes ?? [],
-        data?.edges ?? [],
-        data?.noteLinks,
+        displayData?.nodes ?? [],
+        displayData?.edges ?? [],
+        displayData?.noteLinks,
       ),
-    [data?.edges, data?.nodes, data?.noteLinks],
+    [displayData?.edges, displayData?.nodes, displayData?.noteLinks],
   );
   const layout = useMemo(
     () =>
@@ -157,6 +172,21 @@ export default function CardsView({ projectId }: Props) {
       ),
     [focusedConceptId, projected.edges, projected.nodes],
   );
+
+  const clampZoom = useCallback((value: number) => {
+    return Math.max(0.42, Math.min(1.55, value));
+  }, []);
+  const fitCards = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const availableWidth = Math.max(320, viewport.clientWidth - 48);
+    const availableHeight = Math.max(320, viewport.clientHeight - 48);
+    setZoom(
+      clampZoom(
+        Math.min(availableWidth / layout.width, availableHeight / layout.height),
+      ),
+    );
+  }, [clampZoom, layout.height, layout.width]);
 
   if (isLoading) {
     return <div className="p-6 text-sm text-muted-foreground">…</div>;
@@ -177,31 +207,32 @@ export default function CardsView({ projectId }: Props) {
   }
 
   return (
-    <div className="h-full overflow-y-auto p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold">{t("cards.title")}</h2>
-          <p className="text-xs text-muted-foreground">
-            {t("cards.description", { count: projected.nodes.length })}
-          </p>
-        </div>
-        {data.truncated ? (
-          <span className="rounded border border-border px-2 py-1 text-xs text-muted-foreground">
-            {t("cards.truncated", {
-              shown: data.nodes.length,
-              total: data.totalConcepts,
-            })}
-          </span>
-        ) : null}
-      </div>
-      <div className="overflow-auto rounded-lg border border-border bg-muted/20">
+    <div className="flex h-full flex-col overflow-hidden bg-background">
+      <div
+        ref={viewportRef}
+        className="relative min-h-0 flex-1 overflow-auto bg-background"
+      >
+        <ViewZoomControls
+          onFit={fitCards}
+          onZoomIn={() => setZoom((value) => clampZoom(value * 1.16))}
+          onZoomOut={() => setZoom((value) => clampZoom(value / 1.16))}
+          onReset={() => setZoom(0.72)}
+        />
         <div
           data-testid="concept-card-graph"
           className="relative"
           style={{
+            width: layout.width * zoom,
+            height: layout.height * zoom,
+            minWidth: "100%",
+          }}
+        >
+        <div
+          className="relative origin-top-left"
+          style={{
             width: layout.width,
             height: layout.height,
-            minWidth: "100%",
+            transform: `scale(${zoom})`,
           }}
         >
           <svg
@@ -331,7 +362,44 @@ export default function CardsView({ projectId }: Props) {
           );
         })}
         </div>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function ViewZoomControls({
+  onFit,
+  onZoomIn,
+  onZoomOut,
+  onReset,
+}: {
+  onFit: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+}) {
+  const t = useTranslations("graph.controls");
+  const buttons = [
+    { label: t("fit"), icon: LocateFixed, onClick: onFit },
+    { label: t("zoomIn"), icon: Plus, onClick: onZoomIn },
+    { label: t("zoomOut"), icon: Minus, onClick: onZoomOut },
+    { label: t("reset"), icon: RotateCcw, onClick: onReset },
+  ];
+  return (
+    <div className="sticky right-3 top-3 z-20 ml-auto mr-3 mt-3 flex w-fit items-center gap-1 rounded-lg border border-border bg-background/90 p-1 shadow-sm backdrop-blur">
+      {buttons.map(({ label, icon: Icon, onClick }) => (
+        <button
+          key={label}
+          type="button"
+          aria-label={label}
+          title={label}
+          onClick={onClick}
+          className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
+        >
+          <Icon aria-hidden className="size-4" />
+        </button>
+      ))}
     </div>
   );
 }

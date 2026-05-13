@@ -35,6 +35,7 @@
     "generate_document": "Generate doc",
     "trash": "Trash",
     "chat": "Chat",
+    "workbench": "Workbench",
     "tools": "Tools",
     "notifications": "Notifications",
     "graph": "Project graph",
@@ -102,12 +103,15 @@
   "footer": {
     "notifications_aria": "Notifications",
     "settings_aria": "Settings",
+    "rename_workspace": "Rename space",
     "profile_menu_aria": "Profile menu",
     "profile": "Profile",
     "account_settings": "Settings",
     "workspace_settings": "Space settings",
     "current_space": "Current space",
     "admin_console": "Admin console",
+    "theme": "Theme",
+    "active_theme": "Current theme",
     "switch_workspace": "Switch workspace",
     "switch_space": "Move between spaces",
     "active_space": "Current space",
@@ -125,10 +129,11 @@
   },
   "upload": {
     "title": "Upload file",
-    "description": "PDFs open as the original file first while analysis continues in the background.",
-    "drop": "Drag a file here or click to choose",
+    "description": "When multiple files are uploaded together, the original opens first while analysis runs in parallel in the background.",
+    "drop": "Drag files here or click to choose",
     "hint": "PDF, documents, images, audio, video, Markdown",
     "selected": "Selected: {name}",
+    "selected_many": "{count} files selected",
     "start": "Start upload",
     "uploading": "Uploading…",
     "error": "Upload failed. Please try again."
@@ -154,6 +159,11 @@
     "confirm_delete": "Delete \"{label}\"?",
     "confirm_delete_title": "Delete item?",
     "confirm_delete_body": "\"{label}\" will be removed from the project tree."
+  },
+  "tree_badges": {
+    "analysis_completed": "Analyzed",
+    "analysis_running": "Analyzing",
+    "analysis_failed": "Analysis failed"
   },
   "toasts": {
     "move_failed": "Couldn't move. Please try again.",

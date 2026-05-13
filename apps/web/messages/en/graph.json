@@ -81,6 +81,20 @@
     "zoomOut": "Zoom out",
     "reset": "Reset view"
   },
+  "insights": {
+    "title": "Graph cleanup",
+    "reduced": "Reduced to important nodes",
+    "full": "Showing the current filter",
+    "run": "Curator",
+    "running": "Running",
+    "curatorStarted": "Curator run started.",
+    "curatorFailed": "Could not start Curator.",
+    "nodes": "Nodes",
+    "edges": "Edges",
+    "bridge": "Bridge",
+    "display": "Display",
+    "weak": "Weak evidence"
+  },
   "cards": {
     "title": "Concept cards",
     "description": "Scan {count} concepts as cards, then open sources, ask, or review.",

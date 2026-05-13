@@ -33,20 +33,21 @@ from worker.agents.compiler.agent import (
 
 def test_parse_extraction_accepts_plain_json() -> None:
     raw = json.dumps({"concepts": [{"name": "배치 정규화", "description": "..."}]})
-    assert _parse_extraction(raw) == [
-        {"name": "배치 정규화", "description": "..."}
-    ]
+    assert _parse_extraction(raw) == (
+        [{"name": "배치 정규화", "description": "..."}],
+        [],
+    )
 
 
 def test_parse_extraction_strips_markdown_fence() -> None:
     raw = '```json\n{"concepts": [{"name": "Foo", "description": "bar"}]}\n```'
-    assert _parse_extraction(raw) == [{"name": "Foo", "description": "bar"}]
+    assert _parse_extraction(raw) == ([{"name": "Foo", "description": "bar"}], [])
 
 
 def test_parse_extraction_returns_empty_on_garbage() -> None:
-    assert _parse_extraction("not json at all") == []
-    assert _parse_extraction("") == []
-    assert _parse_extraction("{}") == []
+    assert _parse_extraction("not json at all") == ([], [])
+    assert _parse_extraction("") == ([], [])
+    assert _parse_extraction("{}") == ([], [])
 
 
 def test_parse_extraction_skips_items_without_name() -> None:
@@ -59,15 +60,53 @@ def test_parse_extraction_skips_items_without_name() -> None:
             ]
         }
     )
-    assert _parse_extraction(raw) == [{"name": "Keep", "description": "real"}]
+    assert _parse_extraction(raw) == ([{"name": "Keep", "description": "real"}], [])
 
 
 def test_parse_extraction_truncates_long_fields() -> None:
     long_name = "a" * 500
     raw = json.dumps({"concepts": [{"name": long_name, "description": "b" * 5000}]})
-    out = _parse_extraction(raw)
+    out, relations = _parse_extraction(raw)
     assert len(out[0]["name"]) == 200
     assert len(out[0]["description"]) == 2000
+    assert relations == []
+
+
+def test_parse_extraction_accepts_ontology_relations() -> None:
+    raw = json.dumps(
+        {
+            "concepts": [
+                {"name": "Python", "description": "Language"},
+                {"name": "f-string", "description": "String interpolation"},
+            ],
+            "relations": [
+                {
+                    "source": "f-string",
+                    "predicate": "is_a",
+                    "target": "Python",
+                    "confidence": 0.8,
+                },
+                {
+                    "source": "f-string",
+                    "predicate": "near_in_source",
+                    "target": "Python",
+                    "confidence": 0.2,
+                },
+            ],
+        }
+    )
+
+    concepts, relations = _parse_extraction(raw)
+
+    assert [concept["name"] for concept in concepts] == ["Python", "f-string"]
+    assert relations == [
+        {
+            "source": "f-string",
+            "predicate": "is_a",
+            "target": "Python",
+            "confidence": 0.8,
+        }
+    ]
 
 
 def test_pick_merge_target_returns_none_on_exact_name_match() -> None:
@@ -180,6 +219,7 @@ def _make_api(*, existing: list[dict[str, Any]] | None = None) -> MagicMock:
     )
     api.search_concepts = AsyncMock(return_value=list(existing or []))
     api.upsert_concept = AsyncMock(return_value=("concept-abc", True))
+    api.upsert_edge = AsyncMock(return_value=("edge-1", True))
     api.link_concept_note = AsyncMock(return_value=None)
     api.log_wiki = AsyncMock(return_value="log-1")
     api.get_project_wiki_index = AsyncMock(

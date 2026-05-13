@@ -1,7 +1,7 @@
 {
   "title": "Ontology Atlas",
-  "eyebrow": "Workspace knowledge map",
-  "description": "Explore concepts and relations scattered across projects.",
+  "eyebrow": "Workspace ontology",
+  "description": "Normalize concepts into classes and semantic predicates across projects.",
   "loading": "Loading Atlas…",
   "empty": "No concepts to show yet.",
   "error": "Could not load the Atlas.",
@@ -14,7 +14,8 @@
     "concepts": "Concepts",
     "bridges": "Bridges",
     "duplicates": "Duplicate candidates",
-    "relations": "Relations"
+    "relations": "Relations",
+    "violations": "Violations"
   },
   "legend": {
     "bridge": "Cross-project bridge",
@@ -25,6 +26,43 @@
   "layers": {
     "explicit": "Explicit links",
     "ai": "AI concepts"
+  },
+  "ontology": {
+    "predicates": "Ontology predicates"
+  },
+  "agents": {
+    "title": "Agent review",
+    "pending": "Pending suggestions",
+    "violations": "Schema violations",
+    "broadRelations": "Broad relations",
+    "inferred": "Inferred triples",
+    "stale": "Needs re-analysis",
+    "runCurator": "Run Curator",
+    "runningCurator": "Starting Curator",
+    "selectProject": "Select a project first",
+    "acceptSuggestion": "Accept suggestion",
+    "rejectSuggestion": "Dismiss suggestion",
+    "suggestionTypes": {
+      "curator_orphan": "Orphan concept",
+      "curator_duplicate": "Duplicate candidate",
+      "curator_contradiction": "Contradiction candidate",
+      "curator_ontology_violation": "Ontology violation",
+      "curator_relation_refinement": "Relation refinement",
+      "curator_hierarchy_cycle": "Hierarchy cycle"
+    }
+  },
+  "predicates": {
+    "is_related_to": "Related",
+    "is_a": "Is-a",
+    "part_of": "Part of",
+    "contains": "Contains",
+    "depends_on": "Depends on",
+    "causes": "Causes",
+    "links_to": "Links to",
+    "derived_from": "Derived from",
+    "appears_with": "Appears with",
+    "near_in_source": "Near in source",
+    "same_as_candidate": "Same-as candidate"
   },
   "detail": {
     "placeholderTitle": "Select a concept",

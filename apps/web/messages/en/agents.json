@@ -13,6 +13,8 @@
     "failed": "Couldn't start the agent run.",
     "suggestion": {
       "accepted": "Suggestion accepted.",
+      "acceptedApplied": "Suggestion accepted and graph updated.",
+      "acceptedManual": "Suggestion accepted. Relation choice still needs manual review.",
       "rejected": "Suggestion dismissed.",
       "failed": "Could not update the suggestion."
     },
@@ -201,6 +203,9 @@
     "curator_orphan": "Orphan concept",
     "curator_duplicate": "Duplicate candidate",
     "curator_contradiction": "Contradiction candidate",
+    "curator_ontology_violation": "Ontology violation",
+    "curator_relation_refinement": "Relation refinement",
+    "curator_hierarchy_cycle": "Hierarchy cycle",
     "curator_external_source": "External source",
     "synthesis_insight": "Synthesis insight"
   },

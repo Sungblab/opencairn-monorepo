@@ -382,7 +382,7 @@ export const GraphViewResponse = ViewSpec.extend({
 });
 export type GraphViewResponse = z.infer<typeof GraphViewResponse>;
 
-// ─── Workspace Ontology Atlas ───────────────────────────────────────────
+// ─── Workspace Ontology Atlas ──────────────────────────────────────────
 
 export const workspaceAtlasProjectContextSchema = z.object({
   projectId: z.string().uuid(),
@@ -409,10 +409,21 @@ export type WorkspaceAtlasNodeObjectType = z.infer<
   typeof workspaceAtlasNodeObjectTypeSchema
 >;
 
+export const workspaceAtlasOntologyClassSchema = z.enum([
+  "concept",
+  "note",
+  "source",
+  "artifact",
+]);
+export type WorkspaceAtlasOntologyClass = z.infer<
+  typeof workspaceAtlasOntologyClassSchema
+>;
+
 export const workspaceAtlasNodeSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
   objectType: workspaceAtlasNodeObjectTypeSchema.default("concept"),
+  ontologyClass: workspaceAtlasOntologyClassSchema.default("concept"),
   layer: workspaceAtlasNodeLayerSchema.default("ai"),
   normalizedName: z.string().min(1),
   description: z.string().optional(),
@@ -441,11 +452,85 @@ export const workspaceAtlasEdgeTypeSchema = z.enum([
 ]);
 export type WorkspaceAtlasEdgeType = z.infer<typeof workspaceAtlasEdgeTypeSchema>;
 
+export const workspaceAtlasOntologyPredicateSchema = z.enum([
+  "is_related_to",
+  "is_a",
+  "part_of",
+  "contains",
+  "depends_on",
+  "causes",
+  "links_to",
+  "derived_from",
+  "appears_with",
+  "near_in_source",
+  "same_as_candidate",
+]);
+export type WorkspaceAtlasOntologyPredicate = z.infer<
+  typeof workspaceAtlasOntologyPredicateSchema
+>;
+
+export const workspaceAtlasOntologyClassSpecSchema = z.object({
+  id: workspaceAtlasOntologyClassSchema,
+  label: z.string().min(1),
+  parentId: workspaceAtlasOntologyClassSchema.optional(),
+  iri: z.string().url().optional(),
+});
+export type WorkspaceAtlasOntologyClassSpec = z.infer<
+  typeof workspaceAtlasOntologyClassSpecSchema
+>;
+
+export const workspaceAtlasOntologyPredicateSpecSchema = z.object({
+  id: workspaceAtlasOntologyPredicateSchema,
+  label: z.string().min(1),
+  iri: z.string().url().optional(),
+  domain: z.array(workspaceAtlasOntologyClassSchema).min(1),
+  range: z.array(workspaceAtlasOntologyClassSchema).min(1),
+  transitive: z.boolean().default(false),
+  symmetric: z.boolean().default(false),
+  inverseOf: workspaceAtlasOntologyPredicateSchema.optional(),
+});
+export type WorkspaceAtlasOntologyPredicateSpec = z.infer<
+  typeof workspaceAtlasOntologyPredicateSpecSchema
+>;
+
+export const workspaceAtlasTripleSchema = z.object({
+  subjectId: z.string().min(1),
+  predicate: workspaceAtlasOntologyPredicateSchema,
+  objectId: z.string().min(1),
+  inferred: z.boolean().default(false),
+  sourceEdgeId: z.string().min(1).optional(),
+});
+export type WorkspaceAtlasTriple = z.infer<typeof workspaceAtlasTripleSchema>;
+
+export const workspaceAtlasOntologyViolationSchema = z.object({
+  edgeId: z.string().min(1),
+  predicate: workspaceAtlasOntologyPredicateSchema,
+  subjectClass: workspaceAtlasOntologyClassSchema,
+  objectClass: workspaceAtlasOntologyClassSchema,
+  reason: z.enum(["domain", "range"]),
+});
+export type WorkspaceAtlasOntologyViolation = z.infer<
+  typeof workspaceAtlasOntologyViolationSchema
+>;
+
+export const workspaceAtlasOntologySchema = z.object({
+  schemeIri: z.string().url(),
+  classes: z.array(workspaceAtlasOntologyClassSpecSchema),
+  predicates: z.array(workspaceAtlasOntologyPredicateSpecSchema),
+  triples: z.array(workspaceAtlasTripleSchema),
+  violations: z.array(workspaceAtlasOntologyViolationSchema).default([]),
+});
+export type WorkspaceAtlasOntology = z.infer<typeof workspaceAtlasOntologySchema>;
+
 export const workspaceAtlasEdgeSchema = z.object({
   id: z.string().min(1),
   sourceId: z.string().min(1),
   targetId: z.string().min(1),
   edgeType: workspaceAtlasEdgeTypeSchema.default("ai_relation"),
+  ontologyPredicate: workspaceAtlasOntologyPredicateSchema.default("is_related_to"),
+  inferred: z.boolean().default(false),
+  ontologyValid: z.boolean().default(true),
+  ontologyViolation: z.enum(["domain", "range"]).optional(),
   layer: workspaceAtlasNodeLayerSchema.default("ai"),
   relationType: z.string().min(1),
   weight: z.number().min(0),
@@ -462,6 +547,7 @@ export const workspaceAtlasResponseSchema = z.object({
   workspaceId: z.string().uuid(),
   nodes: z.array(workspaceAtlasNodeSchema),
   edges: z.array(workspaceAtlasEdgeSchema),
+  ontology: workspaceAtlasOntologySchema.optional(),
   readableProjectCount: z.number().int().min(0),
   totalConcepts: z.number().int().min(0),
   truncated: z.boolean(),

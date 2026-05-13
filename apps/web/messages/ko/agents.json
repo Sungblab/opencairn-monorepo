@@ -13,6 +13,8 @@
     "failed": "에이전트 실행을 시작하지 못했습니다.",
     "suggestion": {
       "accepted": "제안을 수락했습니다.",
+      "acceptedApplied": "제안을 수락하고 그래프를 업데이트했습니다.",
+      "acceptedManual": "제안을 수락했습니다. 관계 선택은 수동 검토가 필요합니다.",
       "rejected": "제안을 기각했습니다.",
       "failed": "제안 상태를 변경하지 못했습니다."
     },
@@ -201,6 +203,9 @@
     "curator_orphan": "고립 개념",
     "curator_duplicate": "중복 후보",
     "curator_contradiction": "모순 후보",
+    "curator_ontology_violation": "온톨로지 위반",
+    "curator_relation_refinement": "관계 정제",
+    "curator_hierarchy_cycle": "계층 순환",
     "curator_external_source": "외부 자료",
     "synthesis_insight": "종합 인사이트"
   },

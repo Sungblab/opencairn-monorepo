@@ -35,6 +35,7 @@
     "generate_document": "문서 생성",
     "trash": "휴지통",
     "chat": "채팅",
+    "workbench": "워크벤치",
     "tools": "도구",
     "notifications": "알림",
     "graph": "프로젝트 그래프",
@@ -102,12 +103,15 @@
   "footer": {
     "notifications_aria": "알림",
     "settings_aria": "설정",
+    "rename_workspace": "공간 이름 변경",
     "profile_menu_aria": "프로필 메뉴",
     "profile": "프로필",
     "account_settings": "설정",
     "workspace_settings": "공간 설정",
     "current_space": "현재 공간",
     "admin_console": "관리자 콘솔",
+    "theme": "테마",
+    "active_theme": "현재 테마",
     "switch_workspace": "워크스페이스 전환",
     "switch_space": "공간 이동",
     "active_space": "현재 공간",
@@ -125,10 +129,11 @@
   },
   "upload": {
     "title": "파일 업로드",
-    "description": "PDF는 원본을 먼저 열고 분석은 백그라운드에서 진행합니다.",
-    "drop": "파일을 드래그하거나 클릭해서 선택하세요",
+    "description": "여러 파일을 한 번에 올리면 원본을 먼저 열고 분석은 백그라운드에서 병렬 진행합니다.",
+    "drop": "파일을 여러 개 드래그하거나 클릭해서 선택하세요",
     "hint": "PDF, 문서, 이미지, 오디오, 영상, Markdown",
     "selected": "선택됨: {name}",
+    "selected_many": "{count}개 파일 선택됨",
     "start": "업로드 시작",
     "uploading": "업로드 중…",
     "error": "업로드에 실패했어요. 다시 시도해주세요."
@@ -154,6 +159,11 @@
     "confirm_delete": "\"{label}\"을(를) 삭제할까요?",
     "confirm_delete_title": "삭제할까요?",
     "confirm_delete_body": "\"{label}\"은 프로젝트 트리에서 삭제됩니다."
+  },
+  "tree_badges": {
+    "analysis_completed": "분석 완료",
+    "analysis_running": "분석 중",
+    "analysis_failed": "분석 실패"
   },
   "toasts": {
     "move_failed": "이동에 실패했어요. 다시 시도해주세요.",

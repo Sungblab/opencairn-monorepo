@@ -2627,6 +2627,110 @@ internal.get("/projects/:id/concept-pair-chunks", async (c) => {
   });
 });
 
+// GET /internal/projects/:id/ontology-issues — ontology quality signals for
+// Curator. This intentionally returns candidates, not mutations; Curator turns
+// them into user-reviewable suggestions.
+internal.get("/projects/:id/ontology-issues", async (c) => {
+  const projectId = c.req.param("id");
+  if (!z.string().uuid().safeParse(projectId).success) {
+    return c.json({ error: "Invalid project id" }, 400);
+  }
+
+  const rowsOf = <T>(raw: unknown): T[] =>
+    ((raw as { rows?: T[] }).rows ?? (raw as T[] | undefined) ?? []);
+
+  const broadRaw = await db.execute(sql`
+    SELECT
+      e.id AS edge_id,
+      e.relation_type,
+      CASE
+        WHEN e.relation_type IN ('related-to', 'related_to', 'related', 'is_related_to')
+        THEN 'broad_relation'
+        ELSE 'unknown_predicate'
+      END AS issue_kind,
+      e.weight,
+      source.id AS source_id,
+      source.name AS source_name,
+      target.id AS target_id,
+      target.name AS target_name
+    FROM concept_edges e
+    JOIN concepts source ON source.id = e.source_id
+    JOIN concepts target ON target.id = e.target_id
+    WHERE source.project_id = ${projectId}
+      AND target.project_id = ${projectId}
+      AND (
+        e.relation_type IN ('related-to', 'related_to', 'related', 'is_related_to')
+        OR e.relation_type NOT IN (
+          'is_a', 'is-a', 'type-of', 'kind-of',
+          'part_of', 'part-of', 'component-of',
+          'contains', 'includes', 'has-part',
+          'depends_on', 'depends-on', 'requires', 'prerequisite',
+          'causes', 'leads-to', 'produces',
+          'derived_from', 'derived-from', 'materializes',
+          'same_as_candidate', 'same-as-candidate', 'synonym', 'duplicate',
+          'co-mentioned', 'co-mention', 'co-occurs', 'co_occurs',
+          'source-proximity', 'source_membership', 'near-in-source'
+        )
+      )
+    ORDER BY e.weight DESC, source.name ASC
+    LIMIT 50
+  `);
+
+  const cycleRaw = await db.execute(sql`
+    SELECT
+      e1.id AS edge_id,
+      e2.id AS reverse_edge_id,
+      a.id AS source_id,
+      a.name AS source_name,
+      b.id AS target_id,
+      b.name AS target_name
+    FROM concept_edges e1
+    JOIN concept_edges e2
+      ON e2.source_id = e1.target_id
+     AND e2.target_id = e1.source_id
+    JOIN concepts a ON a.id = e1.source_id
+    JOIN concepts b ON b.id = e1.target_id
+    WHERE a.project_id = ${projectId}
+      AND b.project_id = ${projectId}
+      AND e1.relation_type IN ('is_a', 'is-a', 'type-of', 'kind-of')
+      AND e2.relation_type IN ('is_a', 'is-a', 'type-of', 'kind-of')
+      AND e1.id < e2.id
+    LIMIT 25
+  `);
+
+  const promotionRaw = await db.execute(sql`
+    SELECT
+      e.id AS edge_id,
+      e.relation_type,
+      e.weight,
+      source.id AS source_id,
+      source.name AS source_name,
+      target.id AS target_id,
+      target.name AS target_name
+    FROM concept_edges e
+    JOIN concepts source ON source.id = e.source_id
+    JOIN concepts target ON target.id = e.target_id
+    WHERE source.project_id = ${projectId}
+      AND target.project_id = ${projectId}
+      AND e.weight >= 0.75
+      AND e.relation_type IN (
+        'co-mentioned',
+        'co-mention',
+        'co-occurs',
+        'co_occurs',
+        'source-proximity',
+        'near-in-source'
+      )
+    ORDER BY e.weight DESC, source.name ASC
+    LIMIT 50
+  `);
+
+  return c.json({
+    broadRelations: rowsOf(broadRaw),
+    hierarchyCycles: rowsOf(cycleRaw),
+    promotionCandidates: rowsOf(promotionRaw),
+  });
+});
 // POST /internal/notes/:id/refresh-tsv — safety valve: force-regenerate
 // content_tsv for a single note. The trigger keeps the column fresh
 // automatically; this endpoint exists so Librarian can rebuild after a
@@ -4206,6 +4310,9 @@ const internalSuggestionCreateSchema = z.object({
     "curator_orphan",
     "curator_duplicate",
     "curator_contradiction",
+    "curator_ontology_violation",
+    "curator_relation_refinement",
+    "curator_hierarchy_cycle",
     "curator_external_source",
     "synthesis_insight",
   ]),

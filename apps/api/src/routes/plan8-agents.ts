@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   agentRuns,
   audioFiles,
+  conceptEdges,
   concepts,
   db,
   notes,
@@ -15,9 +16,10 @@ import {
   eq,
   inArray,
   isNull,
+  type Tx,
 } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
-import { canRead } from "../lib/permissions";
+import { canRead, canWrite } from "../lib/permissions";
 import { streamObject } from "../lib/s3-get";
 import type { AppEnv } from "../lib/types";
 
@@ -35,6 +37,9 @@ const PLAN8_SUGGESTION_TYPES = [
   "curator_orphan",
   "curator_duplicate",
   "curator_contradiction",
+  "curator_ontology_violation",
+  "curator_relation_refinement",
+  "curator_hierarchy_cycle",
   "curator_external_source",
   "synthesis_insight",
 ] as const;
@@ -51,6 +56,102 @@ const idParamSchema = z.object({
 const suggestionStatusSchema = z.object({
   status: z.enum(["accepted", "rejected"]),
 });
+
+type SuggestionApplyResult =
+  | {
+      applied: true;
+      action: "edge_relation_updated";
+      edgeId: string;
+      relationType: string;
+    }
+  | { applied: true; action: "edge_deleted"; edgeId: string }
+  | { applied: false; reason: string };
+
+function payloadString(
+  payload: unknown,
+  key: string,
+): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+async function conceptEdgeBelongsToProject(
+  client: typeof db | Tx,
+  edgeId: string,
+  projectId: string,
+): Promise<boolean> {
+  const [edge] = await client
+    .select({ id: conceptEdges.id })
+    .from(conceptEdges)
+    .innerJoin(concepts, eq(concepts.id, conceptEdges.sourceId))
+    .where(and(eq(conceptEdges.id, edgeId), eq(concepts.projectId, projectId)))
+    .limit(1);
+  return Boolean(edge);
+}
+
+async function applyAcceptedSuggestion(
+  client: typeof db | Tx,
+  type: string,
+  payload: unknown,
+  projectId: string,
+): Promise<SuggestionApplyResult> {
+  if (type === "curator_hierarchy_cycle") {
+    const edgeId =
+      payloadString(payload, "reverseEdgeId") ?? payloadString(payload, "edgeId");
+    if (!edgeId) return { applied: false, reason: "missing_edge_id" };
+    if (!(await conceptEdgeBelongsToProject(client, edgeId, projectId))) {
+      return { applied: false, reason: "edge_not_found" };
+    }
+    await client.delete(conceptEdges).where(eq(conceptEdges.id, edgeId));
+    return { applied: true, action: "edge_deleted", edgeId };
+  }
+
+  if (type === "curator_ontology_violation") {
+    const edgeId = payloadString(payload, "edgeId");
+    if (!edgeId) return { applied: false, reason: "missing_edge_id" };
+    if (!(await conceptEdgeBelongsToProject(client, edgeId, projectId))) {
+      return { applied: false, reason: "edge_not_found" };
+    }
+    const relationType =
+      payloadString(payload, "proposedRelationType") ?? "related-to";
+    await client
+      .update(conceptEdges)
+      .set({ relationType })
+      .where(eq(conceptEdges.id, edgeId));
+    return {
+      applied: true,
+      action: "edge_relation_updated",
+      edgeId,
+      relationType,
+    };
+  }
+
+  if (type === "curator_relation_refinement") {
+    const edgeId = payloadString(payload, "edgeId");
+    const relationType = payloadString(payload, "proposedRelationType");
+    if (!edgeId || !relationType) {
+      return { applied: false, reason: "manual_relation_choice_required" };
+    }
+    if (!(await conceptEdgeBelongsToProject(client, edgeId, projectId))) {
+      return { applied: false, reason: "edge_not_found" };
+    }
+    await client
+      .update(conceptEdges)
+      .set({ relationType })
+      .where(eq(conceptEdges.id, edgeId));
+    return {
+      applied: true,
+      action: "edge_relation_updated",
+      edgeId,
+      relationType,
+    };
+  }
+
+  return { applied: false, reason: "no_apply_handler" };
+}
 
 export const plan8AgentRoutes = new Hono<AppEnv>();
 
@@ -268,7 +369,10 @@ plan8AgentRoutes.patch(
     const [row] = await db
       .select({
         id: suggestions.id,
+        type: suggestions.type,
+        payload: suggestions.payload,
         projectId: suggestions.projectId,
+        status: suggestions.status,
       })
       .from(suggestions)
       .where(and(eq(suggestions.id, id), eq(suggestions.userId, userId)))
@@ -278,16 +382,34 @@ plan8AgentRoutes.patch(
     if (!(await canRead(userId, { type: "project", id: row.projectId }))) {
       return c.json({ error: "notFound" }, 404);
     }
+    if (
+      status === "accepted" &&
+      !(await canWrite(userId, { type: "project", id: row.projectId }))
+    ) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    if (row.status !== "pending") {
+      return c.json({ error: "alreadyResolved" }, 409);
+    }
 
-    await db
-      .update(suggestions)
-      .set({
-        status,
-        resolvedAt: new Date(),
-      })
-      .where(eq(suggestions.id, row.id));
+    const applyResult = await db.transaction(async (tx) => {
+      const result =
+        status === "accepted"
+          ? await applyAcceptedSuggestion(tx, row.type, row.payload, row.projectId)
+          : { applied: false as const, reason: "rejected" };
 
-    return c.json({ ok: true, status });
+      await tx
+        .update(suggestions)
+        .set({
+          status,
+          resolvedAt: new Date(),
+        })
+        .where(eq(suggestions.id, row.id));
+
+      return result;
+    });
+
+    return c.json({ ok: true, status, apply: applyResult });
   },
 );
 

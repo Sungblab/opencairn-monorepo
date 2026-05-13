@@ -75,6 +75,9 @@ const CURATOR_TYPES = [
   "curator_orphan",
   "curator_duplicate",
   "curator_contradiction",
+  "curator_ontology_violation",
+  "curator_relation_refinement",
+  "curator_hierarchy_cycle",
 ] as const;
 
 curatorRoutes.get(

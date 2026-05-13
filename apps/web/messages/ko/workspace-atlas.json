@@ -1,7 +1,7 @@
 {
   "title": "온톨로지 아틀라스",
-  "eyebrow": "워크스페이스 지식지도",
-  "description": "프로젝트에 흩어진 개념과 관계를 한 화면에서 탐색합니다.",
+  "eyebrow": "워크스페이스 온톨로지",
+  "description": "프로젝트에 흩어진 개념을 클래스와 의미 관계로 정규화해 탐색합니다.",
   "loading": "Atlas를 불러오는 중…",
   "empty": "아직 표시할 개념이 없습니다.",
   "error": "Atlas를 불러오지 못했습니다.",
@@ -14,7 +14,8 @@
     "concepts": "개념",
     "bridges": "브리지",
     "duplicates": "중복 후보",
-    "relations": "관계"
+    "relations": "관계",
+    "violations": "위반"
   },
   "legend": {
     "bridge": "프로젝트 연결",
@@ -25,6 +26,43 @@
   "layers": {
     "explicit": "명시 링크",
     "ai": "AI 개념"
+  },
+  "ontology": {
+    "predicates": "온톨로지 관계"
+  },
+  "agents": {
+    "title": "에이전트 리뷰",
+    "pending": "대기 제안",
+    "violations": "스키마 위반",
+    "broadRelations": "넓은 관계",
+    "inferred": "추론 triple",
+    "stale": "재분석 필요",
+    "runCurator": "큐레이터 실행",
+    "runningCurator": "큐레이터 실행 중",
+    "selectProject": "프로젝트 선택 후 실행",
+    "acceptSuggestion": "제안 수락",
+    "rejectSuggestion": "제안 기각",
+    "suggestionTypes": {
+      "curator_orphan": "고립 개념",
+      "curator_duplicate": "중복 후보",
+      "curator_contradiction": "모순 후보",
+      "curator_ontology_violation": "온톨로지 위반",
+      "curator_relation_refinement": "관계 정제",
+      "curator_hierarchy_cycle": "계층 순환"
+    }
+  },
+  "predicates": {
+    "is_related_to": "관련",
+    "is_a": "상위/하위",
+    "part_of": "부분",
+    "contains": "포함",
+    "depends_on": "의존",
+    "causes": "원인",
+    "links_to": "링크",
+    "derived_from": "파생",
+    "appears_with": "동시 등장",
+    "near_in_source": "출처 근접",
+    "same_as_candidate": "동일 후보"
   },
   "detail": {
     "placeholderTitle": "개념을 선택하세요",

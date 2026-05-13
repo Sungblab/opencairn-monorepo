@@ -53,6 +53,13 @@ def mock_api():
     api = MagicMock()
     api.list_orphan_concepts = AsyncMock(return_value=[])
     api.list_concept_pairs = AsyncMock(return_value=[])
+    api.list_ontology_issues = AsyncMock(
+        return_value={
+            "broadRelations": [],
+            "hierarchyCycles": [],
+            "promotionCandidates": [],
+        }
+    )
     api.list_project_topics = AsyncMock(return_value=[])
     return api
 
@@ -126,6 +133,13 @@ async def test_curator_orphan_detection(mock_provider, ctx):
         ]
     )
     api.list_concept_pairs = AsyncMock(return_value=[])
+    api.list_ontology_issues = AsyncMock(
+        return_value={
+            "broadRelations": [],
+            "hierarchyCycles": [],
+            "promotionCandidates": [],
+        }
+    )
     api.list_project_topics = AsyncMock(return_value=[])
 
     with patch(
@@ -182,6 +196,13 @@ async def test_curator_duplicate_detection(mock_provider, ctx):
             }
         ]
     )
+    api.list_ontology_issues = AsyncMock(
+        return_value={
+            "broadRelations": [],
+            "hierarchyCycles": [],
+            "promotionCandidates": [],
+        }
+    )
     api.list_project_topics = AsyncMock(return_value=[])
 
     with patch(
@@ -218,7 +239,100 @@ async def test_curator_duplicate_detection(mock_provider, ctx):
 
 
 # ---------------------------------------------------------------------------
-# Test 4: Contradiction detection — LLM flags a contradiction
+# Test 4: Ontology issue detection creates reviewable suggestions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_curator_ontology_issue_detection(mock_provider, ctx):
+    """Ontology quality issues become curator suggestions without LLM calls."""
+    api = MagicMock()
+    api.list_orphan_concepts = AsyncMock(return_value=[])
+    api.list_concept_pairs = AsyncMock(return_value=[])
+    api.list_ontology_issues = AsyncMock(
+        return_value={
+            "broadRelations": [
+                {
+                    "edge_id": "e-broad",
+                    "issue_kind": "broad_relation",
+                    "relation_type": "related-to",
+                    "source_id": "c1",
+                    "source_name": "자료형",
+                    "target_id": "c2",
+                    "target_name": "형 변환",
+                    "weight": 0.8,
+                },
+                {
+                    "edge_id": "e-unknown",
+                    "issue_kind": "unknown_predicate",
+                    "relation_type": "random-link",
+                    "source_id": "c3",
+                    "source_name": "입력",
+                    "target_id": "c4",
+                    "target_name": "출력",
+                    "weight": 0.6,
+                },
+            ],
+            "hierarchyCycles": [
+                {
+                    "edge_id": "e-cycle-a",
+                    "reverse_edge_id": "e-cycle-b",
+                    "source_id": "c5",
+                    "source_name": "A",
+                    "target_id": "c6",
+                    "target_name": "B",
+                }
+            ],
+            "promotionCandidates": [
+                {
+                    "edge_id": "e-promote",
+                    "relation_type": "co-mentioned",
+                    "source_id": "c7",
+                    "source_name": "f-string",
+                    "target_id": "c8",
+                    "target_name": "문자열 포매팅",
+                    "weight": 0.92,
+                }
+            ],
+        }
+    )
+    api.list_project_topics = AsyncMock(return_value=[])
+
+    with patch(
+        "worker.agents.curator.agent.post_internal",
+        new_callable=AsyncMock,
+    ) as mock_post:
+        mock_post.return_value = {"id": "sugg-ontology"}
+
+        agent = CuratorAgent(provider=mock_provider, api=api)
+        events = []
+        async for ev in agent.run(
+            {"project_id": "proj-1", "workspace_id": "ws-1", "user_id": "user-1"},
+            ctx,
+        ):
+            events.append(ev)
+
+        end_ev = next(e for e in events if e.type == "agent_end")
+        assert end_ev.output["ontology_issues_found"] == 4
+        assert end_ev.output["suggestions_created"] == 4
+
+        posted_types = [c.args[1].get("type") for c in mock_post.call_args_list]
+        assert posted_types.count("curator_relation_refinement") == 2
+        assert posted_types.count("curator_ontology_violation") == 1
+        assert posted_types.count("curator_hierarchy_cycle") == 1
+
+        violation = next(
+            c.args[1]["payload"]
+            for c in mock_post.call_args_list
+            if c.args[1].get("type") == "curator_ontology_violation"
+        )
+        assert violation["kind"] == "unknown_predicate"
+        assert violation["relationType"] == "random-link"
+        assert violation["proposedRelationType"] == "related-to"
+
+
+# ---------------------------------------------------------------------------
+# Test 5: Contradiction detection — LLM flags a contradiction
 # ---------------------------------------------------------------------------
 
 
@@ -236,6 +350,13 @@ async def test_curator_contradiction_detection(ctx):
     api = MagicMock()
     api.list_orphan_concepts = AsyncMock(return_value=[])
     api.list_concept_pairs = AsyncMock(return_value=[])
+    api.list_ontology_issues = AsyncMock(
+        return_value={
+            "broadRelations": [],
+            "hierarchyCycles": [],
+            "promotionCandidates": [],
+        }
+    )
     api.list_project_topics = AsyncMock(
         return_value=[
             {"id": "t1", "name": "Theory A", "description": "Claims X is true."},
@@ -283,7 +404,7 @@ async def test_curator_contradiction_detection(ctx):
 
 
 # ---------------------------------------------------------------------------
-# Test 5: Contradiction below threshold is NOT flagged
+# Test 6: Contradiction below threshold is NOT flagged
 # ---------------------------------------------------------------------------
 
 
@@ -301,6 +422,13 @@ async def test_curator_contradiction_below_threshold(ctx):
     api = MagicMock()
     api.list_orphan_concepts = AsyncMock(return_value=[])
     api.list_concept_pairs = AsyncMock(return_value=[])
+    api.list_ontology_issues = AsyncMock(
+        return_value={
+            "broadRelations": [],
+            "hierarchyCycles": [],
+            "promotionCandidates": [],
+        }
+    )
     api.list_project_topics = AsyncMock(
         return_value=[
             {"id": "t1", "name": "X", "description": "Desc X"},
@@ -333,7 +461,7 @@ async def test_curator_contradiction_below_threshold(ctx):
 
 
 # ---------------------------------------------------------------------------
-# Test 6: AgentError emitted on exception, exception re-raised
+# Test 7: AgentError emitted on exception, exception re-raised
 # ---------------------------------------------------------------------------
 
 
@@ -349,6 +477,13 @@ async def test_curator_emits_agent_error_on_failure(mock_provider, ctx):
             request=MagicMock(),
             response=MagicMock(status_code=503),
         )
+    )
+    api.list_ontology_issues = AsyncMock(
+        return_value={
+            "broadRelations": [],
+            "hierarchyCycles": [],
+            "promotionCandidates": [],
+        }
     )
 
     agent = CuratorAgent(provider=mock_provider, api=api)
@@ -367,7 +502,7 @@ async def test_curator_emits_agent_error_on_failure(mock_provider, ctx):
 
 
 # ---------------------------------------------------------------------------
-# Test 7: max_orphans cap is respected
+# Test 8: max_orphans cap is respected
 # ---------------------------------------------------------------------------
 
 
@@ -382,6 +517,13 @@ async def test_curator_respects_max_orphans_cap(mock_provider, ctx):
         ]
     )
     api.list_concept_pairs = AsyncMock(return_value=[])
+    api.list_ontology_issues = AsyncMock(
+        return_value={
+            "broadRelations": [],
+            "hierarchyCycles": [],
+            "promotionCandidates": [],
+        }
+    )
     api.list_project_topics = AsyncMock(return_value=[])
 
     with patch(
@@ -409,7 +551,7 @@ async def test_curator_respects_max_orphans_cap(mock_provider, ctx):
 
 
 # ---------------------------------------------------------------------------
-# Test 8: custom event label is correct
+# Test 9: custom event label is correct
 # ---------------------------------------------------------------------------
 
 
