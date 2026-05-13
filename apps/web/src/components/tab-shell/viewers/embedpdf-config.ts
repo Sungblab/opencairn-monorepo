@@ -4,8 +4,28 @@ import {
   type PDFViewerConfig,
 } from "@embedpdf/react-pdf-viewer";
 
+const ENGLISH_ZOOM_PRESETS = [
+  { name: "75%", value: 0.75 },
+  { name: "90%", value: 0.9 },
+  { name: "100%", value: 1 },
+  { name: "125%", value: 1.25 },
+  { name: "150%", value: 1.5 },
+  { name: "Fit width", value: ZoomMode.FitWidth },
+  { name: "Fit page", value: ZoomMode.FitPage },
+] satisfies NonNullable<PDFViewerConfig["zoom"]>["presets"];
+
+const KOREAN_ZOOM_PRESETS = [
+  { name: "75%", value: 0.75 },
+  { name: "90%", value: 0.9 },
+  { name: "100%", value: 1 },
+  { name: "125%", value: 1.25 },
+  { name: "150%", value: 1.5 },
+  { name: "너비에 맞춤", value: ZoomMode.FitWidth },
+  { name: "페이지에 맞춤", value: ZoomMode.FitPage },
+] satisfies NonNullable<PDFViewerConfig["zoom"]>["presets"];
+
 export const EMBEDPDF_STABLE_ZOOM_CONFIG = {
-  defaultZoomLevel: 1,
+  defaultZoomLevel: ZoomMode.FitWidth,
   minZoom: 0.5,
   maxZoom: 3,
   zoomStep: 0.05,
@@ -14,16 +34,31 @@ export const EMBEDPDF_STABLE_ZOOM_CONFIG = {
     { min: 1, max: 2, step: 0.1 },
     { min: 2, max: 3, step: 0.25 },
   ],
-  presets: [
-    { name: "75%", value: 0.75 },
-    { name: "90%", value: 0.9 },
-    { name: "100%", value: 1 },
-    { name: "125%", value: 1.25 },
-    { name: "150%", value: 1.5 },
-    { name: "너비에 맞춤", value: ZoomMode.FitWidth },
-    { name: "페이지에 맞춤", value: ZoomMode.FitPage },
-  ],
+  presets: ENGLISH_ZOOM_PRESETS,
 } satisfies NonNullable<PDFViewerConfig["zoom"]>;
+
+export function embedPdfZoomConfig(
+  locale: string,
+): NonNullable<PDFViewerConfig["zoom"]> {
+  return {
+    ...EMBEDPDF_STABLE_ZOOM_CONFIG,
+    presets: locale.toLowerCase().startsWith("ko")
+      ? KOREAN_ZOOM_PRESETS
+      : ENGLISH_ZOOM_PRESETS,
+  };
+}
+
+export const EMBEDPDF_SELF_CONTAINED_CONFIG = {
+  fonts: {
+    ui: null,
+    signature: null,
+  },
+  stamp: {
+    defaultLibrary: false,
+    manifests: [],
+    libraries: [],
+  },
+} satisfies Pick<PDFViewerConfig, "fonts" | "stamp">;
 
 const KOREAN_EMBEDPDF_LOCALE: Locale = {
   code: "ko",
@@ -76,6 +111,17 @@ const KOREAN_EMBEDPDF_LOCALE: Locale = {
         undo: "실행 취소",
         redo: "다시 실행",
       },
+      page: {
+        next: "다음 페이지",
+        previous: "이전 페이지",
+        first: "첫 페이지",
+        last: "마지막 페이지",
+      },
+      selection: {
+        select: "선택",
+        hand: "손 도구",
+        pan: "이동",
+      },
     },
     mode: {
       view: "보기",
@@ -99,6 +145,16 @@ const KOREAN_EMBEDPDF_LOCALE: Locale = {
       zoomControls: "확대/축소",
       moreOptions: "더 보기",
     },
+    document: {
+      menu: "문서 메뉴",
+      open: "열기",
+      close: "닫기",
+      print: "인쇄",
+      protect: "보안",
+      export: "내보내기",
+      fullscreen: "전체 화면",
+      loading: "문서를 불러오는 중...",
+    },
     page: {
       settings: "페이지 설정",
       single: "한 페이지",
@@ -119,6 +175,9 @@ const KOREAN_EMBEDPDF_LOCALE: Locale = {
       resultsFound: "{count}개 결과",
       page: "{page}페이지",
       noResults: "검색 결과 없음",
+      next: "다음 결과",
+      previous: "이전 결과",
+      clear: "검색어 지우기",
     },
     zoom: {
       in: "확대",
@@ -138,6 +197,10 @@ const KOREAN_EMBEDPDF_LOCALE: Locale = {
       delete: "삭제",
       save: "저장",
       loading: "불러오는 중...",
+      confirm: "확인",
+      reset: "초기화",
+      enabled: "사용",
+      disabled: "사용 안 함",
     },
     print: {
       title: "인쇄 설정",

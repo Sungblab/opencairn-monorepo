@@ -15,9 +15,14 @@ import { useCurrentProjectContext } from "@/components/sidebar/use-current-proje
 import { pdfAnnotationsApi, type PdfAnnotationPayload } from "@/lib/api-client";
 import { SourceContextRail } from "./source-context-rail";
 import {
-  EMBEDPDF_STABLE_ZOOM_CONFIG,
+  EMBEDPDF_SELF_CONTAINED_CONFIG,
   embedPdfI18nConfig,
+  embedPdfZoomConfig,
 } from "./embedpdf-config";
+import {
+  pdfViewStateKey,
+  useEmbedPdfPagePersistence,
+} from "./embedpdf-view-state";
 
 const EmbedPDFViewer = dynamic<PDFViewerProps>(
   () => import("@embedpdf/react-pdf-viewer").then((mod) => mod.PDFViewer),
@@ -142,7 +147,7 @@ function usePdfAnnotationPersistence(noteId: string | null, registry: PluginRegi
 export function SourceViewer({ tab }: { tab: Tab }) {
   const locale = useLocale();
   const t = useTranslations("appShell.viewers.source");
-  const { projectId } = useCurrentProjectContext();
+  const { projectId, wsSlug } = useCurrentProjectContext();
   const fileUrl = useMemo(
     () => (tab.targetId ? `/api/notes/${tab.targetId}/file` : null),
     [tab.targetId],
@@ -155,6 +160,7 @@ export function SourceViewer({ tab }: { tab: Tab }) {
       fileUrl
         ? {
             src: fileUrl,
+            ...EMBEDPDF_SELF_CONTAINED_CONFIG,
             tabBar: "never",
             theme: { preference: "system" },
             disabledCategories: [...READ_ONLY_DISABLED_CATEGORIES],
@@ -164,7 +170,7 @@ export function SourceViewer({ tab }: { tab: Tab }) {
             },
             export: { defaultFileName: title },
             i18n: embedPdfI18nConfig(locale),
-            zoom: EMBEDPDF_STABLE_ZOOM_CONFIG,
+            zoom: embedPdfZoomConfig(locale),
           }
         : null,
     [fileUrl, locale, title],
@@ -177,6 +183,10 @@ export function SourceViewer({ tab }: { tab: Tab }) {
     [tab],
   );
   usePdfAnnotationPersistence(tab.targetId ?? null, registry);
+  useEmbedPdfPagePersistence(
+    tab.targetId ? pdfViewStateKey("source", tab.targetId) : null,
+    registry,
+  );
 
   if (!fileUrl || !viewerConfig || !tab.targetId) return null;
 
@@ -185,12 +195,12 @@ export function SourceViewer({ tab }: { tab: Tab }) {
       data-testid="source-viewer"
       className="flex h-full min-h-0 flex-col overflow-hidden bg-neutral-200 text-neutral-950 dark:bg-neutral-950 dark:text-neutral-50 xl:flex-row"
     >
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         <section
           id={viewerElementId}
           data-testid="source-pdf-area"
           aria-label={t("frameTitle", { title })}
-          className="min-h-0 flex-1 bg-neutral-100 dark:bg-neutral-950"
+          className="h-full min-h-0 w-full flex-1 bg-neutral-100 dark:bg-neutral-950"
         >
           <EmbedPDFViewer
             config={viewerConfig}
@@ -202,6 +212,7 @@ export function SourceViewer({ tab }: { tab: Tab }) {
       <SourceContextRail
         noteId={tab.targetId}
         projectId={projectId}
+        wsSlug={wsSlug}
         sourceTitle={title}
         viewerElementId={viewerElementId}
       />

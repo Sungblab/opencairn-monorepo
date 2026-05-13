@@ -2,10 +2,12 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Code2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { newTab } from "@/lib/tab-factory";
+import { urls } from "@/lib/urls";
 import { useTabsStore } from "@/stores/tabs-store";
 
 interface CodeWorkspaceCreateResponse {
@@ -21,6 +23,9 @@ export function NewCodeWorkspaceButton({
   projectId: string;
 }) {
   const t = useTranslations("codeWorkspaces.create");
+  const locale = useLocale();
+  const router = useRouter();
+  const { wsSlug } = useParams<{ wsSlug: string }>();
   const qc = useQueryClient();
   const tabs = useTabsStore();
   const mutation = useMutation({
@@ -53,6 +58,9 @@ export function NewCodeWorkspaceButton({
             preview: false,
           }),
         );
+      }
+      if (wsSlug) {
+        router.push(urls.workspace.codeWorkspace(locale, wsSlug, workspace.id));
       }
       void qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
     },

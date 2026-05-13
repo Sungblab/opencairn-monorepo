@@ -23,6 +23,14 @@ export const urls = {
     root: (locale: string, slug: string) => ws(locale, slug),
     note: (locale: string, slug: string, noteId: string) =>
       `${ws(locale, slug)}/note/${noteId}`,
+    noteMode: (locale: string, slug: string, noteId: string, mode: string) =>
+      `${ws(locale, slug)}/note/${noteId}/${mode}`,
+    sourceNote: (locale: string, slug: string, noteId: string) =>
+      `${ws(locale, slug)}/note/${noteId}/source`,
+    agentFile: (locale: string, slug: string, fileId: string) =>
+      `${ws(locale, slug)}/file/${fileId}`,
+    codeWorkspace: (locale: string, slug: string, codeWorkspaceId: string) =>
+      `${ws(locale, slug)}/code-workspace/${codeWorkspaceId}`,
     project: (locale: string, slug: string, pid: string) => wsProject(locale, slug, pid),
     projectNote: (locale: string, slug: string, pid: string, nid: string) =>
       `${wsProject(locale, slug, pid)}/note/${nid}`,

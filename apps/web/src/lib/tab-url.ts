@@ -13,6 +13,13 @@ export interface TabRoute {
   mode?: TabMode;
 }
 
+const NOTE_URL_MODES = new Set<TabMode>([
+  "reading",
+  "source",
+  "data",
+  "canvas",
+]);
+
 export function tabToUrl(
   slug: string,
   route: TabRoute,
@@ -22,6 +29,14 @@ export function tabToUrl(
     case "dashboard":
       return `${urls.workspace.root(locale, slug)}/`;
     case "note":
+      if (route.mode && NOTE_URL_MODES.has(route.mode)) {
+        return urls.workspace.noteMode(
+          locale,
+          slug,
+          route.targetId ?? "",
+          route.mode,
+        );
+      }
       return urls.workspace.note(locale, slug, route.targetId ?? "");
     case "project":
       if (route.mode === "graph") {
@@ -42,10 +57,12 @@ export function tabToUrl(
       return route.targetId
         ? urls.workspace.settingsSection(locale, slug, route.targetId)
         : urls.workspace.settings(locale, slug);
+    case "agent_file":
+      return urls.workspace.agentFile(locale, slug, route.targetId ?? "");
+    case "code_workspace":
+      return urls.workspace.codeWorkspace(locale, slug, route.targetId ?? "");
     case "ingest":
     case "lit_search":
-    case "agent_file":
-    case "code_workspace":
       // Transient in-app tabs without canonical URLs — fall back to the
       // workspace base so URL sync doesn't drop the user on /undefined.
       return urls.workspace.root(locale, slug);
@@ -66,7 +83,37 @@ export function urlToTabTarget(
     return { slug, route: { kind: "dashboard", targetId: null } };
   }
   if (parts[0] === "note" && parts[1]) {
-    return { slug, route: { kind: "note", targetId: parts[1] } };
+    const mode = NOTE_URL_MODES.has(parts[2] as TabMode)
+      ? (parts[2] as TabMode)
+      : undefined;
+    return {
+      slug,
+      route: {
+        kind: "note",
+        targetId: parts[1],
+        ...(mode ? { mode } : {}),
+      },
+    };
+  }
+  if (parts[0] === "file" && parts[1]) {
+    return {
+      slug,
+      route: {
+        kind: "agent_file",
+        targetId: parts[1],
+        mode: "agent-file",
+      },
+    };
+  }
+  if (parts[0] === "code-workspace" && parts[1]) {
+    return {
+      slug,
+      route: {
+        kind: "code_workspace",
+        targetId: parts[1],
+        mode: "code-workspace",
+      },
+    };
   }
   if (parts[0] === "project" && parts[1] && parts[2] === "note" && parts[3]) {
     return { slug, route: { kind: "note", targetId: parts[3] } };

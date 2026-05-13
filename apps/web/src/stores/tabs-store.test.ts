@@ -10,8 +10,11 @@ describe("modeFromSourceType", () => {
     expect(modeFromSourceType(null)).toBe("plate");
   });
 
-  it("other source types → 'plate' (Phase 1 baseline)", () => {
-    expect(modeFromSourceType("pdf")).toBe("plate");
+  it("'pdf' source type → 'source' mode", () => {
+    expect(modeFromSourceType("pdf")).toBe("source");
+  });
+
+  it("other source types → 'plate'", () => {
     expect(modeFromSourceType("manual")).toBe("plate");
   });
 });

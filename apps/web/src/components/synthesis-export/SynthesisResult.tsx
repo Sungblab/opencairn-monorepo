@@ -5,8 +5,7 @@ import { useTranslations } from "next-intl";
 import { FilePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { AgentFileSummary } from "@opencairn/shared";
-import { newTab } from "../../lib/tab-factory";
-import { useTabsStore } from "../../stores/tabs-store";
+import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
 import type { SynthesisStreamState } from "../../hooks/use-synthesis-stream";
 
 interface ResynthesizeBoxProps {
@@ -68,9 +67,6 @@ interface PublishResponse {
 
 export function SynthesisResult({ runId, state, onResynthesize }: Props) {
   const t = useTranslations("synthesisExport");
-  const addTab = useTabsStore((s) => s.addTab);
-  const findTabByTarget = useTabsStore((s) => s.findTabByTarget);
-  const setActive = useTabsStore((s) => s.setActive);
   const [publishing, setPublishing] = useState(false);
 
   if (state.status !== "done" || !state.format) {
@@ -100,20 +96,7 @@ export function SynthesisResult({ runId, state, onResynthesize }: Props) {
 
       const body = (await res.json()) as PublishResponse;
       const file = body.file;
-      const existing = findTabByTarget("agent_file", file.id);
-      if (existing) {
-        setActive(existing.id);
-      } else {
-        addTab(
-          newTab({
-            kind: "agent_file",
-            targetId: file.id,
-            title: file.title,
-            mode: "agent-file",
-            preview: false,
-          }),
-        );
-      }
+      openOriginalFileTab(file.id, file.title);
       toast.success(t("result.added"));
     } catch {
       toast.error(t("result.addFailed"));

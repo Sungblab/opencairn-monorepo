@@ -39,7 +39,8 @@ export type TabMode =
 
 /**
  * Map a note's `sourceType` (DB enum) to the Tab Mode that should render it.
- * Phase 1 only auto-detects canvas; other sources default to the Plate editor.
+ * Source PDFs should reopen in the original PDF view. Other sources default to
+ * the Plate editor unless they have a dedicated viewer mode.
  * Callers (sidebar "open note", import flows) use this when they don't already
  * know the desired mode, instead of hardcoding `'plate'`.
  */
@@ -47,6 +48,7 @@ export function modeFromSourceType(
   sourceType: string | null | undefined,
 ): TabMode {
   if (sourceType === "canvas") return "canvas";
+  if (sourceType === "pdf") return "source";
   return "plate";
 }
 

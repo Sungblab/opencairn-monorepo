@@ -184,7 +184,7 @@ describe("ProjectTreeNode", () => {
       title: "Lecture.pdf",
       mode: "agent-file",
     });
-    expect(push).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith("/ko/workspace/acme/file/file-1");
   });
 
   it("labels artifact groups by their role", () => {
@@ -416,6 +416,53 @@ describe("ProjectTreeNode", () => {
     renderNode(node);
     fireEvent.click(screen.getByRole("treeitem"));
     expect(toggle).toHaveBeenCalledOnce();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("keeps artifact group double-clicks from collapsing into rename", () => {
+    const toggle = vi.fn();
+    const onStartRename = vi.fn();
+    const node = mkNode(
+      {
+        kind: "artifact_group",
+        id: "analysis-group",
+        parent_id: "bundle-1",
+        label: "분석 결과",
+        child_count: 1,
+      },
+      { toggle },
+    );
+    renderNode(node, mkCtx({ onStartRename }));
+
+    fireEvent.click(screen.getByRole("treeitem"), { detail: 1 });
+    fireEvent.click(screen.getByRole("treeitem"), { detail: 2 });
+    fireEvent.doubleClick(screen.getByRole("treeitem"));
+
+    expect(toggle).toHaveBeenCalledOnce();
+    expect(onStartRename).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("opens the generated note when clicking an analysis artifact group", () => {
+    const toggle = vi.fn();
+    const onOpenAnalysisGroup = vi.fn();
+    const node = mkNode(
+      {
+        kind: "artifact_group",
+        id: "analysis-group",
+        parent_id: "bundle-1",
+        label: "분석 결과",
+        child_count: 1,
+        metadata: { role: "analysis" },
+      },
+      { toggle },
+    );
+    renderNode(node, mkCtx({ onOpenAnalysisGroup }));
+
+    fireEvent.click(screen.getByRole("treeitem"));
+
+    expect(onOpenAnalysisGroup).toHaveBeenCalledWith("analysis-group", "분석 결과");
+    expect(toggle).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -827,7 +874,9 @@ describe("ProjectTreeNode", () => {
       title: "Generated app",
       preview: false,
     });
-    expect(push).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith(
+      "/ko/workspace/acme/code-workspace/cw-1",
+    );
   });
 
   it("F2 triggers onStartRename for the focused row", () => {

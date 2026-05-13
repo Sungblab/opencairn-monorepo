@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type {
   PDFViewerConfig,
   PDFViewerProps,
+  PluginRegistry,
 } from "@embedpdf/react-pdf-viewer";
 import {
   Download,
@@ -33,9 +34,14 @@ import { newTab } from "@/lib/tab-factory";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
-  EMBEDPDF_STABLE_ZOOM_CONFIG,
+  EMBEDPDF_SELF_CONTAINED_CONFIG,
   embedPdfI18nConfig,
+  embedPdfZoomConfig,
 } from "./embedpdf-config";
+import {
+  pdfViewStateKey,
+  useEmbedPdfPagePersistence,
+} from "./embedpdf-view-state";
 
 interface AgentFileResponse {
   file: AgentFileSummary;
@@ -413,26 +419,33 @@ function AgentFilePdfViewer({
   fileUrl: string;
 }) {
   const locale = useLocale();
+  const [registry, setRegistry] = useState<PluginRegistry | null>(null);
   const config = useMemo<PDFViewerConfig>(
     () => ({
       src: fileUrl,
+      ...EMBEDPDF_SELF_CONTAINED_CONFIG,
       tabBar: "never",
       theme: { preference: "system" },
       export: { defaultFileName: file.filename },
       disabledCategories: ["annotation", "redaction", "signature", "stamp"],
       i18n: embedPdfI18nConfig(locale),
-      zoom: EMBEDPDF_STABLE_ZOOM_CONFIG,
+      zoom: embedPdfZoomConfig(locale),
     }),
     [file.filename, fileUrl, locale],
   );
+  const onReady = useCallback((registry: PluginRegistry) => {
+    setRegistry(registry);
+  }, []);
+  useEmbedPdfPagePersistence(pdfViewStateKey("agent-file", file.id), registry);
 
   return (
     <div
       data-testid="agent-file-pdf-viewer"
-      className="h-full min-h-0 bg-neutral-100 dark:bg-neutral-950"
+      className="h-full min-h-0 w-full bg-neutral-100 dark:bg-neutral-950"
     >
       <EmbedPDFViewer
         config={config}
+        onReady={onReady}
         style={{ width: "100%", height: "100%" }}
       />
     </div>

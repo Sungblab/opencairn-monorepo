@@ -28,6 +28,24 @@ const pdfViewerMock = vi.hoisted(() => ({
               export?: string;
               fullscreen?: string;
             };
+            document?: {
+              open?: string;
+              close?: string;
+              print?: string;
+              export?: string;
+              fullscreen?: string;
+            };
+            commands?: {
+              zoom?: {
+                fitWidth?: string;
+              };
+            };
+            page?: {
+              next?: string;
+            };
+            search?: {
+              placeholder?: string;
+            };
           };
         }>;
       };
@@ -60,6 +78,24 @@ vi.mock("@embedpdf/react-pdf-viewer", () => ({
               open?: string;
               export?: string;
               fullscreen?: string;
+            };
+            document?: {
+              open?: string;
+              close?: string;
+              print?: string;
+              export?: string;
+              fullscreen?: string;
+            };
+            commands?: {
+              zoom?: {
+                fitWidth?: string;
+              };
+            };
+            page?: {
+              next?: string;
+            };
+            search?: {
+              placeholder?: string;
             };
           };
         }>;
@@ -144,9 +180,18 @@ const messages = {
           title: "PDF 작업 패널",
           close: "닫기",
           analysis: "분석",
+          wiki: "위키",
           activity: "활동",
           study: "학습",
           analysisDescription: "현재 PDF를 중심으로 요약, 분해, 인용 추출을 시작합니다.",
+          wikiDescription: "이 PDF에서 이어진 위키 노트와 프로젝트 개념 지도를 확인합니다.",
+          wikiBacklinksTitle: "연결된 노트",
+          wikiBacklinksEmpty: "아직 이 PDF로 돌아오는 위키 링크가 없습니다.",
+          wikiGraphTitle: "프로젝트 지식맵",
+          wikiGraphSummary: "개념 {count}개 · 관계 {edgeCount}개",
+          wikiGraphOpen: "그래프 열기",
+          wikiConceptsTitle: "주요 개념",
+          wikiConceptsEmpty: "인제스트가 끝나면 주요 개념이 여기에 표시됩니다.",
           selectionTitle: "선택 영역",
           selectionEmpty: "페이지나 텍스트를 선택한 뒤 /summarize, /decompose, /cite로 이어가세요.",
           selectionActive: "{count}자 선택됨. 요약, 분해, 인용 추출로 이어갈 수 있어요.",
@@ -212,6 +257,7 @@ function renderSourceViewer(nextTab: Tab = tab) {
 describe("SourceViewer", () => {
   beforeEach(() => {
     pdfViewerMock.props = [];
+    localStorage.clear();
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -266,7 +312,7 @@ describe("SourceViewer", () => {
     expect(viewer).toHaveAttribute("data-src", "/api/notes/n1/file");
     expect(viewer).toHaveAttribute("data-height", "100%");
     expect(pdfViewerMock.props.at(-1)?.config.zoom).toMatchObject({
-      defaultZoomLevel: 1,
+      defaultZoomLevel: "fit-width",
       zoomStep: 0.05,
       presets: expect.arrayContaining([
         { name: "100%", value: 1 },
@@ -286,6 +332,24 @@ describe("SourceViewer", () => {
               open: "열기",
               export: "내보내기",
               fullscreen: "전체 화면",
+            },
+            document: {
+              open: "열기",
+              close: "닫기",
+              print: "인쇄",
+              export: "내보내기",
+              fullscreen: "전체 화면",
+            },
+            commands: {
+              zoom: {
+                fitWidth: "너비에 맞춤",
+              },
+            },
+            page: {
+              next: "다음 페이지",
+            },
+            search: {
+              placeholder: "문서에서 검색",
             },
           },
         },
@@ -329,6 +393,52 @@ describe("SourceViewer", () => {
     window.removeEventListener("opencairn:source-pdf-ready", listener);
   });
 
+  it("restores and persists the EmbedPDF page for source PDFs", async () => {
+    const scrollToPage = vi.fn();
+    const pageChange = {
+      current: null as ((event: { pageNumber: number }) => void) | null,
+    };
+    const registry = {
+      pluginsReady: vi.fn(async () => undefined),
+      getCapabilityProvider: vi.fn((name: string) =>
+        name === "scroll"
+          ? {
+              provides: () => ({
+                scrollToPage,
+                onPageChange: (listener: (event: { pageNumber: number }) => void) => {
+                  pageChange.current = listener;
+                  return vi.fn();
+                },
+              }),
+            }
+          : null,
+      ),
+    };
+    localStorage.setItem(
+      "oc:pdf-view:source:n1",
+      JSON.stringify({ pageNumber: 4 }),
+    );
+
+    renderSourceViewer();
+    await waitFor(() => expect(pdfViewerMock.props.length).toBeGreaterThan(0));
+
+    act(() => {
+      pdfViewerMock.props.at(-1)?.onReady?.(registry);
+    });
+
+    await waitFor(() =>
+      expect(scrollToPage).toHaveBeenCalledWith({
+        pageNumber: 4,
+        behavior: "instant",
+      }),
+    );
+
+    pageChange.current?.({ pageNumber: 9 });
+    expect(
+      JSON.parse(localStorage.getItem("oc:pdf-view:source:n1") ?? "{}"),
+    ).toMatchObject({ pageNumber: 9 });
+  });
+
   it("renders a PDF contextual rail next to the central viewer", async () => {
     renderSourceViewer();
     await screen.findByTestId("embedpdf-viewer");
@@ -368,6 +478,88 @@ describe("SourceViewer", () => {
       kind: "runCommand",
       commandId: "summarize",
     });
+  });
+
+  it("surfaces wiki notes and project graph context from the source rail", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === "/api/notes/n1/backlinks") {
+          return jsonResponse({
+            total: 1,
+            data: [
+              {
+                id: "11111111-1111-4111-8111-111111111111",
+                title: "소프트웨어 개념 정리",
+                projectId: "proj-1",
+                projectName: "First Project",
+                updatedAt: "2026-05-12T00:00:00.000Z",
+              },
+            ],
+          });
+        }
+        if (
+          url ===
+          "/api/projects/proj-1/knowledge-surface?view=cards&includeEvidence=true"
+        ) {
+          return jsonResponse({
+            viewType: "cards",
+            layout: "preset",
+            rootId: null,
+            truncated: false,
+            totalConcepts: 2,
+            nodes: [
+              {
+                id: "22222222-2222-4222-8222-222222222222",
+                name: "소프트웨어",
+                description: "명령과 데이터로 컴퓨터 동작을 정의하는 개념",
+                degree: 3,
+                noteCount: 2,
+                firstNoteId: "11111111-1111-4111-8111-111111111111",
+              },
+              {
+                id: "33333333-3333-4333-8333-333333333333",
+                name: "하드웨어",
+                degree: 1,
+                noteCount: 1,
+                firstNoteId: null,
+              },
+            ],
+            edges: [
+              {
+                id: "edge-1",
+                sourceId: "22222222-2222-4222-8222-222222222222",
+                targetId: "33333333-3333-4333-8333-333333333333",
+                relationType: "contrast",
+                weight: 0.8,
+                surfaceType: "semantic_relation",
+                displayOnly: false,
+                sourceNoteIds: [],
+              },
+            ],
+          });
+        }
+        if (url === "/api/projects/proj-1/study-sessions?sourceNoteId=n1") {
+          return jsonResponse({ sessions: [] });
+        }
+        return jsonResponse({ error: "not_found" }, 404);
+      }),
+    );
+
+    renderSourceViewer();
+    await screen.findByTestId("embedpdf-viewer");
+
+    await userEvent.click(screen.getByRole("button", { name: "위키" }));
+
+    expect(await screen.findByText("소프트웨어 개념 정리")).toBeInTheDocument();
+    expect(screen.getByText("프로젝트 지식맵")).toBeInTheDocument();
+    expect(screen.getByText("개념 2개 · 관계 1개")).toBeInTheDocument();
+    expect(screen.getByText("소프트웨어")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "그래프 열기" })).toHaveAttribute(
+      "href",
+      "/ko/workspace/acme/project/proj-1/graph?view=cards",
+    );
   });
 
   it("reflects text selected inside the PDF area in the source rail", async () => {

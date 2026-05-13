@@ -39,6 +39,30 @@ describe("useUrlTabSync", () => {
     expect(s.activeId).toBe(s.tabs[0].id);
   });
 
+  it("creates non-plate note mode tabs from mode URLs", () => {
+    currentPath = "/ko/workspace/acme/note/n-1/reading";
+
+    renderHook(() => useUrlTabSync(), { wrapper });
+
+    expect(useTabsStore.getState().tabs[0]).toMatchObject({
+      kind: "note",
+      targetId: "n-1",
+      mode: "reading",
+    });
+  });
+
+  it("creates code workspace tabs from canonical URLs", () => {
+    currentPath = "/ko/workspace/acme/code-workspace/cw-1";
+
+    renderHook(() => useUrlTabSync(), { wrapper });
+
+    expect(useTabsStore.getState().tabs[0]).toMatchObject({
+      kind: "code_workspace",
+      targetId: "cw-1",
+      mode: "code-workspace",
+    });
+  });
+
   it("activates existing matching tab instead of creating a new one", () => {
     const existing: Tab = {
       id: "pre",

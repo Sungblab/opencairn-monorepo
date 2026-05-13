@@ -161,10 +161,15 @@ export function ProjectTreeNode({
     };
   }, [actionMenuPos]);
 
-  function handleRowClick() {
+  function handleRowClick(e: React.MouseEvent<HTMLDivElement>) {
     if (isRenaming) return;
     const targetId = node.data.target_id ?? node.data.id;
+    if (kind === "artifact_group" && node.data.metadata?.role === "analysis") {
+      ctx.onOpenAnalysisGroup?.(node.data.id, displayLabel);
+      return;
+    }
     if (canExpand && !opensOnRowClick.has(kind)) {
+      if (e.detail > 1) return;
       node.toggle();
       return;
     }
@@ -177,6 +182,7 @@ export function ProjectTreeNode({
       const existing = tabs.findTabByTarget("agent_file", targetId);
       if (existing) {
         tabs.setActive(existing.id);
+        router.push(urls.workspace.agentFile(locale, wsSlug, targetId));
         return;
       }
       tabs.addTab(
@@ -188,6 +194,7 @@ export function ProjectTreeNode({
           preview: false,
         }),
       );
+      router.push(urls.workspace.agentFile(locale, wsSlug, targetId));
       return;
     }
     if (kind === "code_workspace") {
@@ -195,6 +202,7 @@ export function ProjectTreeNode({
       const existing = tabs.findTabByTarget("code_workspace", targetId);
       if (existing) {
         tabs.setActive(existing.id);
+        router.push(urls.workspace.codeWorkspace(locale, wsSlug, targetId));
         return;
       }
       tabs.addTab(
@@ -206,6 +214,7 @@ export function ProjectTreeNode({
           preview: false,
         }),
       );
+      router.push(urls.workspace.codeWorkspace(locale, wsSlug, targetId));
       return;
     }
     const tabs = useTabsStore.getState();
@@ -220,6 +229,7 @@ export function ProjectTreeNode({
   }
 
   function handleRowDoubleClick() {
+    if (kind === "artifact_group") return;
     ctx.onStartRename(node.data.id);
   }
 
@@ -238,6 +248,16 @@ export function ProjectTreeNode({
         node.data.target_id ?? node.data.id,
       );
     }
+    if (kind === "agent_file" || kind === "source_bundle") {
+      const targetId = node.data.target_id ?? node.data.id;
+      if (!targetId) return null;
+      return urls.workspace.agentFile(locale, wsSlug, targetId);
+    }
+    if (kind === "code_workspace") {
+      const targetId = node.data.target_id ?? node.data.id;
+      if (!targetId) return null;
+      return urls.workspace.codeWorkspace(locale, wsSlug, targetId);
+    }
     return null;
   }
 
@@ -250,7 +270,7 @@ export function ProjectTreeNode({
 
   function pinFavorite() {
     const href = nodeHref();
-    if (!href || !wsSlug) return;
+    if (!href || !wsSlug || kind !== "note") return;
     upsertSidebarFavorite(wsSlug, {
       id: node.data.id,
       targetId: node.data.target_id ?? node.data.id,
@@ -520,7 +540,7 @@ export function ProjectTreeNode({
                       type="button"
                       role="menuitem"
                       className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
-                      disabled={!nodeHref()}
+                      disabled={!nodeHref() || kind !== "note"}
                       onClick={() => {
                         closeActionMenu();
                         pinFavorite();
@@ -572,7 +592,7 @@ export function ProjectTreeNode({
           onCreateFolder={() => ctx.onCreateFolder(node.data.id)}
           onOpenToRight={splitTabForNode() ? openToRight : undefined}
           onCopyLink={copyLink}
-          onFavorite={nodeHref() ? pinFavorite : undefined}
+          onFavorite={nodeHref() && kind === "note" ? pinFavorite : undefined}
           onDelete={() =>
             ctx.onDelete(
               node.data.id,

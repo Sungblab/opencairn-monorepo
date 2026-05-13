@@ -27,11 +27,23 @@ const pdfViewerMock = vi.hoisted(() => ({
               protect?: string;
               screenshot?: string;
             };
+            commands?: {
+              zoom?: {
+                fitWidth?: string;
+              };
+            };
+            page?: {
+              next?: string;
+            };
+            search?: {
+              placeholder?: string;
+            };
           };
         }>;
       };
     };
     style?: React.CSSProperties;
+    onReady?: (registry: unknown) => void;
   }>,
 }));
 
@@ -59,11 +71,23 @@ vi.mock("@embedpdf/react-pdf-viewer", () => ({
               protect?: string;
               screenshot?: string;
             };
+            commands?: {
+              zoom?: {
+                fitWidth?: string;
+              };
+            };
+            page?: {
+              next?: string;
+            };
+            search?: {
+              placeholder?: string;
+            };
           };
         }>;
       };
     };
     style?: React.CSSProperties;
+    onReady?: (registry: unknown) => void;
   }) => {
     pdfViewerMock.props.push(props);
     return (
@@ -250,6 +274,7 @@ function renderViewer(
 describe("AgentFileViewer", () => {
   afterEach(() => {
     pdfViewerMock.props = [];
+    localStorage.clear();
     vi.unstubAllGlobals();
     useTabsStore.setState({
       workspaceId: null,
@@ -334,18 +359,79 @@ describe("AgentFileViewer", () => {
               protect: "보안",
               screenshot: "스크린샷",
             },
+            commands: {
+              zoom: {
+                fitWidth: "너비에 맞춤",
+              },
+            },
+            page: {
+              next: "다음 페이지",
+            },
+            search: {
+              placeholder: "문서에서 검색",
+            },
           },
         },
       ],
     });
     expect(pdfViewerMock.props.at(-1)?.config.zoom).toMatchObject({
-      defaultZoomLevel: 1,
+      defaultZoomLevel: "fit-width",
       zoomStep: 0.05,
       presets: expect.arrayContaining([
         { name: "100%", value: 1 },
         { name: "너비에 맞춤", value: "fit-width" },
       ]),
     });
+  });
+
+  it("restores and persists the EmbedPDF page for agent PDFs", async () => {
+    const file = fileSummary({
+      filename: "analysis.pdf",
+      extension: "pdf",
+      kind: "pdf",
+      mimeType: "application/pdf",
+    });
+    const scrollToPage = vi.fn();
+    const pageChange = {
+      current: null as ((event: { pageNumber: number }) => void) | null,
+    };
+    const registry = {
+      pluginsReady: vi.fn(async () => undefined),
+      getCapabilityProvider: vi.fn((name: string) =>
+        name === "scroll"
+          ? {
+              provides: () => ({
+                scrollToPage,
+                onPageChange: (listener: (event: { pageNumber: number }) => void) => {
+                  pageChange.current = listener;
+                  return vi.fn();
+                },
+              }),
+            }
+          : null,
+      ),
+    };
+    localStorage.setItem(
+      `oc:pdf-view:agent-file:${file.id}`,
+      JSON.stringify({ pageNumber: 5 }),
+    );
+
+    renderViewer(file, "pdf");
+    await waitFor(() => expect(pdfViewerMock.props.length).toBeGreaterThan(0));
+
+    pdfViewerMock.props.at(-1)?.onReady?.(registry);
+
+    await waitFor(() =>
+      expect(scrollToPage).toHaveBeenCalledWith({
+        pageNumber: 5,
+        behavior: "instant",
+      }),
+    );
+
+    pageChange.current?.({ pageNumber: 7 });
+    expect(
+      JSON.parse(localStorage.getItem(`oc:pdf-view:agent-file:${file.id}`) ?? "{}"),
+    ).toMatchObject({ pageNumber: 7 });
   });
 
   it("renders csv as a focused table with source available on demand", async () => {

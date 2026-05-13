@@ -5,6 +5,30 @@ describe("tabToUrl", () => {
   const cases: Array<[TabRoute, string]> = [
     [{ kind: "dashboard", targetId: null }, "/ko/workspace/acme/"],
     [{ kind: "note", targetId: "n-123" }, "/ko/workspace/acme/note/n-123"],
+    [
+      { kind: "note", targetId: "n-123", mode: "source" },
+      "/ko/workspace/acme/note/n-123/source",
+    ],
+    [
+      { kind: "note", targetId: "n-123", mode: "reading" },
+      "/ko/workspace/acme/note/n-123/reading",
+    ],
+    [
+      { kind: "note", targetId: "n-123", mode: "data" },
+      "/ko/workspace/acme/note/n-123/data",
+    ],
+    [
+      { kind: "note", targetId: "n-123", mode: "canvas" },
+      "/ko/workspace/acme/note/n-123/canvas",
+    ],
+    [
+      { kind: "agent_file", targetId: "f-1", mode: "agent-file" },
+      "/ko/workspace/acme/file/f-1",
+    ],
+    [
+      { kind: "code_workspace", targetId: "cw-1", mode: "code-workspace" },
+      "/ko/workspace/acme/code-workspace/cw-1",
+    ],
     [{ kind: "project", targetId: "p-1" }, "/ko/workspace/acme/project/p-1"],
     [
       { kind: "project", targetId: "p-1", mode: "graph" },
@@ -32,6 +56,30 @@ describe("urlToTabTarget", () => {
   const cases: Array<[string, TabRoute | null]> = [
     ["/ko/workspace/acme/", { kind: "dashboard", targetId: null }],
     ["/ko/workspace/acme/note/n-9", { kind: "note", targetId: "n-9" }],
+    [
+      "/ko/workspace/acme/note/n-9/source",
+      { kind: "note", targetId: "n-9", mode: "source" },
+    ],
+    [
+      "/ko/workspace/acme/note/n-9/reading",
+      { kind: "note", targetId: "n-9", mode: "reading" },
+    ],
+    [
+      "/ko/workspace/acme/note/n-9/data",
+      { kind: "note", targetId: "n-9", mode: "data" },
+    ],
+    [
+      "/ko/workspace/acme/note/n-9/canvas",
+      { kind: "note", targetId: "n-9", mode: "canvas" },
+    ],
+    [
+      "/ko/workspace/acme/file/f-1",
+      { kind: "agent_file", targetId: "f-1", mode: "agent-file" },
+    ],
+    [
+      "/ko/workspace/acme/code-workspace/cw-1",
+      { kind: "code_workspace", targetId: "cw-1", mode: "code-workspace" },
+    ],
     ["/workspace/acme/note/n-9", { kind: "note", targetId: "n-9" }],
     ["/ko/workspace/acme/project/p-3", { kind: "project", targetId: "p-3" }],
     [
