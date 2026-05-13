@@ -44,6 +44,8 @@ describe("GraphView", () => {
     expect(small.chargeStrength).toBeLessThan(large.chargeStrength);
     expect(small.linkDistance).toBeGreaterThan(large.linkDistance);
     expect(small.centerStrength).toBeGreaterThan(large.centerStrength);
+    expect(small.homeStrength).toBeGreaterThan(large.homeStrength);
+    expect(small.collisionPadding).toBeGreaterThan(large.collisionPadding);
   });
 
   it("filters explicit note links with the graph search", () => {

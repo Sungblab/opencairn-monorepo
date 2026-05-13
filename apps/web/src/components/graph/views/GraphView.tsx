@@ -47,7 +47,7 @@ type ForceGraphHandle = {
     (): number;
     (scale: number, durationMs?: number): unknown;
   };
-  d3Force: (forceName: string) => unknown;
+  d3Force: (forceName: string, force?: unknown) => unknown;
   d3ReheatSimulation: () => unknown;
 };
 
@@ -71,6 +71,7 @@ type ForceGraph2DProps = {
   linkLabel: (link: ForceGraphLinkObject) => string;
   linkColor: (link: ForceGraphLinkObject) => string;
   linkWidth: (link: ForceGraphLinkObject) => number;
+  linkCurvature: (link: ForceGraphLinkObject) => number;
   linkDirectionalArrowLength: (link: ForceGraphLinkObject) => number;
   linkDirectionalArrowRelPos: number;
   linkLineDash: (link: ForceGraphLinkObject) => number[] | null;
@@ -90,11 +91,24 @@ type GraphForceTuning = {
   chargeStrength: number;
   linkDistance: number;
   centerStrength: number;
+  homeStrength: number;
+  collisionPadding: number;
 };
 
 type TunableForce = {
   strength?: (value: number) => unknown;
-  distance?: (value: number) => unknown;
+  distance?: (value: number | ((link: ForceGraphLinkObject) => number)) => unknown;
+};
+
+type SimulationNode = ForceGraphNodeObject & {
+  vx?: number;
+  vy?: number;
+  layoutX?: number;
+  layoutY?: number;
+};
+
+type SimulationForce = ((alpha: number) => void) & {
+  initialize?: (nodes: SimulationNode[]) => void;
 };
 
 const ForceGraph2D = dynamic(
@@ -198,23 +212,116 @@ export function graphForceTuningForSize({
   const density = nodeCount > 1 ? linkCount / nodeCount : 0;
   if (nodeCount <= 25) {
     return {
-      chargeStrength: density > 1.6 ? -180 : -220,
-      linkDistance: density > 1.6 ? 135 : 165,
-      centerStrength: 0.075,
+      chargeStrength: density > 1.6 ? -230 : -280,
+      linkDistance: density > 1.6 ? 110 : 125,
+      centerStrength: 0.055,
+      homeStrength: 0.085,
+      collisionPadding: 14,
     };
   }
   if (nodeCount <= 70) {
     return {
-      chargeStrength: density > 1.8 ? -120 : -155,
-      linkDistance: density > 1.8 ? 110 : 135,
-      centerStrength: 0.055,
+      chargeStrength: density > 1.8 ? -165 : -205,
+      linkDistance: density > 1.8 ? 96 : 112,
+      centerStrength: 0.045,
+      homeStrength: 0.06,
+      collisionPadding: 10,
     };
   }
   return {
-    chargeStrength: -90,
-    linkDistance: 100,
-    centerStrength: 0.035,
+    chargeStrength: -130,
+    linkDistance: 92,
+    centerStrength: 0.03,
+    homeStrength: 0.035,
+    collisionPadding: 7,
   };
+}
+
+function linkDistanceForRenderedEdge(
+  tuning: GraphForceTuning,
+  link: ForceGraphLinkObject,
+): number {
+  if (link.synthetic && link.relationType === "source-note") {
+    return Math.max(58, tuning.linkDistance * 0.56);
+  }
+  if (link.surfaceType === "wiki_link") {
+    return Math.max(86, tuning.linkDistance * 1.12);
+  }
+  if (link.surfaceType === "co_mention") {
+    return Math.max(100, tuning.linkDistance * 1.28);
+  }
+  return tuning.linkDistance;
+}
+
+function collisionRadiusForNode(node: SimulationNode, padding: number): number {
+  const nodeRadius = Math.max(5, Math.min(18, node.val ?? 6));
+  const labelWidth = Math.min(54, Math.max(16, node.shortLabel.length * 2.5));
+  const labelBoost = node.kind === "note" || node.isHub ? 10 : 4;
+  return nodeRadius + labelWidth * 0.32 + labelBoost + padding;
+}
+
+function createGraphHomeForce(strength: number): SimulationForce {
+  let nodes: SimulationNode[] = [];
+  const force = ((alpha: number) => {
+    const scaled = strength * alpha;
+    for (const node of nodes) {
+      if (
+        typeof node.x !== "number" ||
+        typeof node.y !== "number" ||
+        typeof node.layoutX !== "number" ||
+        typeof node.layoutY !== "number"
+      ) {
+        continue;
+      }
+      node.vx = (node.vx ?? 0) + (node.layoutX - node.x) * scaled;
+      node.vy = (node.vy ?? 0) + (node.layoutY - node.y) * scaled;
+    }
+  }) as SimulationForce;
+  force.initialize = (nextNodes) => {
+    nodes = nextNodes;
+  };
+  return force;
+}
+
+function createGraphCollisionForce(padding: number): SimulationForce {
+  let nodes: SimulationNode[] = [];
+  const force = ((alpha: number) => {
+    const scaled = Math.min(0.42, 0.18 + alpha * 0.45);
+    for (let i = 0; i < nodes.length; i += 1) {
+      const a = nodes[i];
+      if (!a || typeof a.x !== "number" || typeof a.y !== "number") continue;
+      const ar = collisionRadiusForNode(a, padding);
+      for (let j = i + 1; j < nodes.length; j += 1) {
+        const b = nodes[j];
+        if (!b || typeof b.x !== "number" || typeof b.y !== "number") continue;
+        const br = collisionRadiusForNode(b, padding);
+        const minDistance = ar + br;
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let distanceSq = dx * dx + dy * dy;
+        if (distanceSq >= minDistance * minDistance) continue;
+        if (distanceSq === 0) {
+          const jitter = ((i + 1) * 31 + (j + 1) * 17) % 360;
+          dx = Math.cos(jitter) * 0.01;
+          dy = Math.sin(jitter) * 0.01;
+          distanceSq = dx * dx + dy * dy;
+        }
+        const distance = Math.sqrt(distanceSq);
+        const push = ((minDistance - distance) / distance) * scaled;
+        const total = ar + br;
+        const aShare = br / total;
+        const bShare = ar / total;
+        a.vx = (a.vx ?? 0) - dx * push * aShare;
+        a.vy = (a.vy ?? 0) - dy * push * aShare;
+        b.vx = (b.vx ?? 0) + dx * push * bShare;
+        b.vy = (b.vy ?? 0) + dy * push * bShare;
+      }
+    }
+  }) as SimulationForce;
+  force.initialize = (nextNodes) => {
+    nodes = nextNodes;
+  };
+  return force;
 }
 
 function tuneForceGraphLayout(
@@ -225,9 +332,14 @@ function tuneForceGraphLayout(
   const charge = graph.d3Force("charge") as TunableForce | undefined;
   charge?.strength?.(tuning.chargeStrength);
   const link = graph.d3Force("link") as TunableForce | undefined;
-  link?.distance?.(tuning.linkDistance);
+  link?.distance?.((linkObj) => linkDistanceForRenderedEdge(tuning, linkObj));
   const center = graph.d3Force("center") as TunableForce | undefined;
   center?.strength?.(tuning.centerStrength);
+  graph.d3Force("opencairn-home", createGraphHomeForce(tuning.homeStrength));
+  graph.d3Force(
+    "opencairn-collide",
+    createGraphCollisionForce(tuning.collisionPadding),
+  );
   graph.d3ReheatSimulation();
 }
 
@@ -675,6 +787,13 @@ export default function GraphView({ projectId }: { projectId: string }) {
               ? Math.max(0.8, Math.min(2.2, link.weight * 1.35))
               : 0.35
           }
+          linkCurvature={(link) => {
+            if (link.synthetic && link.surfaceType === "wiki_link") return 0.22;
+            if (link.surfaceType === "wiki_link") return 0.16;
+            if (link.surfaceType === "co_mention") return 0.1;
+            if (link.surfaceType === "source_membership") return 0.06;
+            return 0.025;
+          }}
           linkDirectionalArrowLength={() => 0}
           linkDirectionalArrowRelPos={1}
           linkLineDash={(link) => {
@@ -685,9 +804,9 @@ export default function GraphView({ projectId }: { projectId: string }) {
             if (status === "missing") return [2, 4];
             return null;
           }}
-          cooldownTicks={180}
-          d3AlphaDecay={0.025}
-          d3VelocityDecay={0.24}
+          cooldownTicks={260}
+          d3AlphaDecay={0.018}
+          d3VelocityDecay={0.32}
           enableNodeDrag
           onNodeHover={(node) =>
             setHoveredNodeId(node ? node.id : null)

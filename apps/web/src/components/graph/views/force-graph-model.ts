@@ -30,6 +30,8 @@ export type ForceGraphNode = {
   isHub: boolean;
   x?: number;
   y?: number;
+  layoutX?: number;
+  layoutY?: number;
 };
 
 export type ForceGraphLink = {
@@ -87,6 +89,108 @@ function graphNodeColor(id: string, degree: number): string {
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
+function compareGraphNodes(
+  linkDegrees: Map<string, number>,
+  a: ForceGraphNode,
+  b: ForceGraphNode,
+): number {
+  return (
+    (linkDegrees.get(b.id) ?? 0) - (linkDegrees.get(a.id) ?? 0) ||
+    b.degree - a.degree ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+function buildAdjacency(
+  nodes: ForceGraphNode[],
+  links: ForceGraphLink[],
+): Map<string, Set<string>> {
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const adjacency = new Map(nodes.map((node) => [node.id, new Set<string>()]));
+  for (const link of links) {
+    if (!nodeIds.has(link.source) || !nodeIds.has(link.target)) continue;
+    adjacency.get(link.source)?.add(link.target);
+    adjacency.get(link.target)?.add(link.source);
+  }
+  return adjacency;
+}
+
+function connectedComponents(
+  nodes: ForceGraphNode[],
+  adjacency: Map<string, Set<string>>,
+  linkDegrees: Map<string, number>,
+): ForceGraphNode[][] {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const seen = new Set<string>();
+  const components: ForceGraphNode[][] = [];
+
+  for (const root of [...nodes].sort((a, b) => compareGraphNodes(linkDegrees, a, b))) {
+    if (seen.has(root.id)) continue;
+    const queue = [root.id];
+    const component: ForceGraphNode[] = [];
+    seen.add(root.id);
+    while (queue.length > 0) {
+      const id = queue.shift();
+      if (!id) continue;
+      const node = byId.get(id);
+      if (node) component.push(node);
+      for (const next of adjacency.get(id) ?? []) {
+        if (seen.has(next)) continue;
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+    components.push(component.sort((a, b) => compareGraphNodes(linkDegrees, a, b)));
+  }
+
+  return components.sort(
+    (a, b) =>
+      b.length - a.length ||
+      (linkDegrees.get(b[0]?.id ?? "") ?? 0) -
+        (linkDegrees.get(a[0]?.id ?? "") ?? 0) ||
+      (a[0]?.name ?? "").localeCompare(b[0]?.name ?? ""),
+  );
+}
+
+function orderedPathComponent(
+  component: ForceGraphNode[],
+  adjacency: Map<string, Set<string>>,
+  linkDegrees: Map<string, number>,
+): ForceGraphNode[] {
+  const componentIds = new Set(component.map((node) => node.id));
+  const byId = new Map(component.map((node) => [node.id, node]));
+  const endpoint =
+    [...component]
+      .filter((node) => (adjacency.get(node.id)?.size ?? 0) <= 1)
+      .sort((a, b) => a.name.localeCompare(b.name))[0] ?? component[0];
+  if (!endpoint) return component;
+
+  const ordered: ForceGraphNode[] = [];
+  const seen = new Set<string>([endpoint.id]);
+  const queue = [endpoint.id];
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (!id) continue;
+    const node = byId.get(id);
+    if (node) ordered.push(node);
+    const nextNodes = [...(adjacency.get(id) ?? [])]
+      .filter((next) => componentIds.has(next) && !seen.has(next))
+      .map((next) => byId.get(next))
+      .filter((next): next is ForceGraphNode => Boolean(next))
+      .sort((a, b) => compareGraphNodes(linkDegrees, a, b));
+    for (const next of nextNodes) {
+      seen.add(next.id);
+      queue.push(next.id);
+    }
+  }
+
+  if (ordered.length !== component.length) {
+    const missing = component.filter((node) => !seen.has(node.id));
+    ordered.push(...missing);
+  }
+  return ordered;
+}
+
 function seedForceGraphPositions(
   nodes: ForceGraphNode[],
   links: ForceGraphLink[],
@@ -97,29 +201,79 @@ function seedForceGraphPositions(
     linkDegrees.set(link.source, (linkDegrees.get(link.source) ?? 0) + 1);
     linkDegrees.set(link.target, (linkDegrees.get(link.target) ?? 0) + 1);
   }
-  const ordered = [...nodes].sort(
-    (a, b) =>
-      (linkDegrees.get(b.id) ?? 0) - (linkDegrees.get(a.id) ?? 0) ||
-      b.degree - a.degree ||
-      a.name.localeCompare(b.name),
-  );
+  const adjacency = buildAdjacency(nodes, links);
+  const components = connectedComponents(nodes, adjacency, linkDegrees);
   const positions = new Map<string, { x: number; y: number }>();
-  ordered.forEach((node, index) => {
-    const linkedDegree = linkDegrees.get(node.id) ?? 0;
-    const isIsolated = linkedDegree === 0;
-    const baseRadius = node.isHub ? 48 : isIsolated ? 270 : 110;
-    const radius =
-      index === 0 && node.isHub
+
+  components.forEach((component, componentIndex) => {
+    const componentAngle =
+      componentIndex * GOLDEN_ANGLE +
+      ((hashString(component[0]?.id ?? String(componentIndex)) % 360) * Math.PI) /
+        360;
+    const componentRadius =
+      components.length === 1
         ? 0
-        : baseRadius + Math.sqrt(index + 1) * (isIsolated ? 42 : 34);
-    const angle =
-      index * GOLDEN_ANGLE + ((hashString(node.id) % 360) * Math.PI) / 1800;
-    positions.set(node.id, {
-      x: Math.cos(angle) * radius,
-      y: Math.sin(angle) * radius,
+        : 360 + Math.sqrt(componentIndex + 1) * 95 + Math.sqrt(nodes.length) * 18;
+    const origin = {
+      x: Math.cos(componentAngle) * componentRadius,
+      y: Math.sin(componentAngle) * componentRadius,
+    };
+    const maxLinkedDegree = Math.max(
+      0,
+      ...component.map((node) => linkDegrees.get(node.id) ?? 0),
+    );
+    const edgeCount =
+      component.reduce(
+        (sum, node) =>
+          sum +
+          [...(adjacency.get(node.id) ?? [])].filter((id) =>
+            component.some((candidate) => candidate.id === id),
+          ).length,
+        0,
+      ) / 2;
+    const pathLike =
+      component.length > 3 && maxLinkedDegree <= 2 && edgeCount <= component.length;
+
+    if (pathLike) {
+      const ordered = orderedPathComponent(component, adjacency, linkDegrees);
+      const span = Math.PI * 1.55;
+      const baseAngle = -span / 2 + componentAngle * 0.18;
+      const radius = Math.max(175, 105 + component.length * 13);
+      ordered.forEach((node, index) => {
+        const progress = ordered.length === 1 ? 0.5 : index / (ordered.length - 1);
+        const angle = baseAngle + progress * span;
+        const wobble = ((hashString(node.id) % 37) - 18) * 1.5;
+        positions.set(node.id, {
+          x: origin.x + Math.cos(angle) * radius + wobble,
+          y: origin.y + Math.sin(angle) * radius * 0.72 - radius * 0.16,
+        });
+      });
+      return;
+    }
+
+    component.forEach((node, index) => {
+      const linkedDegree = linkDegrees.get(node.id) ?? 0;
+      const isIsolated = linkedDegree === 0;
+      const central = index === 0 && (node.isHub || linkedDegree >= 3);
+      const ringIndex = central ? 0 : Math.max(1, index);
+      const baseRadius = node.kind === "note" ? 82 : isIsolated ? 250 : 132;
+      const radius = central
+        ? 0
+        : baseRadius + Math.floor((ringIndex - 1) / 9) * 112 + (ringIndex % 3) * 14;
+      const angle =
+        ringIndex * GOLDEN_ANGLE +
+        ((hashString(node.id) % 360) * Math.PI) / 180;
+      positions.set(node.id, {
+        x: origin.x + Math.cos(angle) * radius,
+        y: origin.y + Math.sin(angle) * radius,
+      });
     });
   });
-  return nodes.map((node) => ({ ...node, ...positions.get(node.id) }));
+  return nodes.map((node) => {
+    const position = positions.get(node.id);
+    if (!position) return node;
+    return { ...node, x: position.x, y: position.y, layoutX: position.x, layoutY: position.y };
+  });
 }
 
 export function buildForceGraphData(

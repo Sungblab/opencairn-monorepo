@@ -173,6 +173,43 @@ describe("force graph model", () => {
       ((b?.x ?? 0) - (a?.x ?? 0)) * ((c?.y ?? 0) - (a?.y ?? 0)) -
       ((b?.y ?? 0) - (a?.y ?? 0)) * ((c?.x ?? 0) - (a?.x ?? 0));
     expect(Math.abs(area)).toBeGreaterThan(1);
+    expect(positioned.every((node) => node.layoutX === node.x)).toBe(true);
+    expect(positioned.every((node) => node.layoutY === node.y)).toBe(true);
+  });
+
+  it("seeds path-like concept chains as an arc instead of a straight line", () => {
+    const chainNodes = Array.from({ length: 12 }, (_, index) => ({
+      id: `chain-${index}`,
+      name: `Chain ${index}`,
+      description: "",
+      degree: index === 0 || index === 11 ? 1 : 2,
+      noteCount: 0,
+      firstNoteId: null,
+    }));
+    const chain: GroundedGraphResponse = {
+      viewType: "graph",
+      layout: "fcose",
+      rootId: null,
+      truncated: false,
+      totalConcepts: chainNodes.length,
+      nodes: chainNodes,
+      edges: chainNodes.slice(1).map((node, index) => ({
+        id: `chain-edge-${index}`,
+        sourceId: chainNodes[index]!.id,
+        targetId: node.id,
+        relationType: "related",
+        weight: 1,
+      })),
+    };
+
+    const graph = buildForceGraphData(chain);
+    const ys = graph.nodes.map((node) => node.y ?? 0);
+    const xs = graph.nodes.map((node) => node.x ?? 0);
+    const ySpread = Math.max(...ys) - Math.min(...ys);
+    const xSpread = Math.max(...xs) - Math.min(...xs);
+
+    expect(ySpread).toBeGreaterThan(120);
+    expect(xSpread).toBeGreaterThan(220);
   });
 
   it("truncates labels before drawing them on canvas", () => {
