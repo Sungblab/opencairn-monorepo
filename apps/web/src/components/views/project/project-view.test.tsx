@@ -17,6 +17,10 @@ vi.mock("next-intl", () => ({
     ns ? `${ns}.${key}` : key,
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("@/hooks/useWorkspaceId", () => ({
   useWorkspaceId: () => "workspace-1",
 }));
@@ -30,6 +34,10 @@ vi.mock("@/lib/api-client", () => ({
       latestPageUpdatedAt: "2026-05-13T00:00:00.000Z",
       totals: { pages: 3, wikiLinks: 2, orphanPages: 1 },
       pages: [],
+    })),
+    update: vi.fn(async (_id: string, body: { name?: string }) => ({
+      id: "p1",
+      name: body.name ?? "Project One",
     })),
   },
 }));
@@ -88,7 +96,7 @@ describe("ProjectView", () => {
       screen.getByRole("button", {
         name: /project\.starter\.actions\.timetable\.title/,
       }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
   it("does not show starter actions after notes exist", () => {

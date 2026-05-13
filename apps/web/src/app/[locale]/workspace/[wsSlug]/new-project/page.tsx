@@ -27,6 +27,18 @@ export default async function NewProject({
     title: t("title"),
     description: t("description"),
     galleryLabel: t("galleryLabel"),
+    quickCreate: {
+      label: t("quickCreate.label"),
+      placeholder: t("quickCreate.placeholder"),
+      button: t("quickCreate.button"),
+    },
+    imageCreate: {
+      title: t("imageCreate.title"),
+      description: t("imageCreate.description"),
+      pick: t("imageCreate.pick"),
+      change: t("imageCreate.change"),
+      button: t("imageCreate.button"),
+    },
     error: t("error"),
     templates: Object.fromEntries(
       projectTemplates.map((template) => [
@@ -34,7 +46,10 @@ export default async function NewProject({
         {
           title: t(`templates.${template.id}.title`),
           description: t(`templates.${template.id}.description`),
-          projectCount: t("projectCount", { count: template.projects.length }),
+          projectCount:
+            template.id === "empty_project"
+              ? t("blankProjectCount")
+              : t("projectCount", { count: template.projects.length }),
         },
       ]),
     ) as ProjectTemplateClientLabels["templates"],

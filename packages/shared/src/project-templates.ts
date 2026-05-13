@@ -2,14 +2,11 @@ import { z } from "zod";
 
 export const projectTemplateIdSchema = z.enum([
   "empty_project",
-  "school_subjects",
-  "korean",
-  "math",
-  "english",
-  "science",
   "research",
+  "source_library",
   "meeting",
   "personal_knowledge",
+  "team_project",
 ]);
 
 export type ProjectTemplateId = z.infer<typeof projectTemplateIdSchema>;
@@ -62,39 +59,6 @@ export type ResolvedProjectTemplateDefinition = {
   projects: ProjectTemplateProject[];
 };
 
-const studyNoteDefinitions: ProjectTemplateNoteDefinition[] = [
-  {
-    id: "materials",
-    titleKey: "study.notes.materials.title",
-    contentTextKey: "study.notes.materials.contentText",
-  },
-  {
-    id: "concepts",
-    titleKey: "study.notes.concepts.title",
-    contentTextKey: "study.notes.concepts.contentText",
-  },
-  {
-    id: "questions",
-    titleKey: "study.notes.questions.title",
-    contentTextKey: "study.notes.questions.contentText",
-  },
-  {
-    id: "schedule",
-    titleKey: "study.notes.schedule.title",
-    contentTextKey: "study.notes.schedule.contentText",
-  },
-];
-
-const studyProject = (
-  id: "korean" | "math" | "english" | "science",
-): ProjectTemplateProjectDefinition => ({
-  id,
-  nameKey: `subjects.${id}.name`,
-  descriptionKey: "study.project.description",
-  params: { subject: `subjects.${id}.name` },
-  notes: studyNoteDefinitions,
-});
-
 export const projectTemplates: ProjectTemplateDefinition[] = [
   {
     id: "empty_project",
@@ -107,36 +71,6 @@ export const projectTemplates: ProjectTemplateDefinition[] = [
         notes: [],
       },
     ],
-  },
-  {
-    id: "school_subjects",
-    category: "study",
-    projects: [
-      studyProject("korean"),
-      studyProject("math"),
-      studyProject("english"),
-      studyProject("science"),
-    ],
-  },
-  {
-    id: "korean",
-    category: "study",
-    projects: [studyProject("korean")],
-  },
-  {
-    id: "math",
-    category: "study",
-    projects: [studyProject("math")],
-  },
-  {
-    id: "english",
-    category: "study",
-    projects: [studyProject("english")],
-  },
-  {
-    id: "science",
-    category: "study",
-    projects: [studyProject("science")],
   },
   {
     id: "research",
@@ -161,6 +95,34 @@ export const projectTemplates: ProjectTemplateDefinition[] = [
             id: "draft",
             titleKey: "research.notes.draft.title",
             contentTextKey: "research.notes.draft.contentText",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "source_library",
+    category: "research",
+    projects: [
+      {
+        id: "sourceLibrary",
+        nameKey: "sourceLibrary.project.name",
+        descriptionKey: "sourceLibrary.project.description",
+        notes: [
+          {
+            id: "inbox",
+            titleKey: "sourceLibrary.notes.inbox.title",
+            contentTextKey: "sourceLibrary.notes.inbox.contentText",
+          },
+          {
+            id: "claims",
+            titleKey: "sourceLibrary.notes.claims.title",
+            contentTextKey: "sourceLibrary.notes.claims.contentText",
+          },
+          {
+            id: "openQuestions",
+            titleKey: "sourceLibrary.notes.openQuestions.title",
+            contentTextKey: "sourceLibrary.notes.openQuestions.contentText",
           },
         ],
       },
@@ -212,29 +174,42 @@ export const projectTemplates: ProjectTemplateDefinition[] = [
       },
     ],
   },
+  {
+    id: "team_project",
+    category: "work",
+    projects: [
+      {
+        id: "teamProject",
+        nameKey: "teamProject.project.name",
+        descriptionKey: "teamProject.project.description",
+        notes: [
+          {
+            id: "brief",
+            titleKey: "teamProject.notes.brief.title",
+            contentTextKey: "teamProject.notes.brief.contentText",
+          },
+          {
+            id: "decisions",
+            titleKey: "teamProject.notes.decisions.title",
+            contentTextKey: "teamProject.notes.decisions.contentText",
+          },
+          {
+            id: "risks",
+            titleKey: "teamProject.notes.risks.title",
+            contentTextKey: "teamProject.notes.risks.contentText",
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 export const projectTemplateCopy: Record<ProjectTemplateLocale, Record<string, string>> = {
   ko: {
-    "emptyProject.name": "내 첫 프로젝트",
-    "emptyProject.description": "처음부터 직접 채워 나가는 빈 프로젝트입니다.",
-    "subjects.korean.name": "국어",
-    "subjects.math.name": "수학",
-    "subjects.english.name": "영어",
-    "subjects.science.name": "과학",
-    "study.project.description": "{subject} 공부 자료와 노트를 한곳에 모읍니다.",
-    "study.notes.materials.title": "{subject} 자료 모음",
-    "study.notes.materials.contentText": "{subject} 수업 자료, 프린트, 링크를 모아두는 노트입니다.",
-    "study.notes.concepts.title": "{subject} 핵심 개념",
-    "study.notes.concepts.contentText":
-      "{subject}에서 반복해서 봐야 할 정의, 공식, 작품, 개념을 정리합니다.",
-    "study.notes.questions.title": "{subject} 질문과 오답",
-    "study.notes.questions.contentText":
-      "{subject} 문제 풀이 중 헷갈린 부분과 다시 풀어야 할 오답을 기록합니다.",
-    "study.notes.schedule.title": "{subject} 시험 일정",
-    "study.notes.schedule.contentText": "{subject} 수행평가, 과제, 시험 범위와 마감일을 적어둡니다.",
+    "emptyProject.name": "새 프로젝트",
+    "emptyProject.description": "이름만 정하고 바로 시작하는 빈 프로젝트입니다.",
     "research.project.name": "리서치 프로젝트",
-    "research.project.description": "질문, 자료, 근거, 결론을 분리해 쌓는 조사 템플릿입니다.",
+    "research.project.description": "질문, 자료, 근거, 결론을 분리해 쌓는 조사 프로젝트입니다.",
     "research.notes.question.title": "리서치 질문",
     "research.notes.question.contentText": "이번 리서치에서 답해야 할 핵심 질문을 적습니다.",
     "research.notes.sources.title": "자료와 출처",
@@ -242,6 +217,14 @@ export const projectTemplateCopy: Record<ProjectTemplateLocale, Record<string, s
     "research.notes.draft.title": "결론 초안",
     "research.notes.draft.contentText":
       "자료를 바탕으로 현재까지의 결론과 남은 불확실성을 정리합니다.",
+    "sourceLibrary.project.name": "자료 분석 프로젝트",
+    "sourceLibrary.project.description": "PDF, 웹 문서, 메모에서 근거와 쟁점을 뽑아 정리합니다.",
+    "sourceLibrary.notes.inbox.title": "자료 인박스",
+    "sourceLibrary.notes.inbox.contentText": "읽어야 할 파일, 링크, 원문 메모를 모읍니다.",
+    "sourceLibrary.notes.claims.title": "핵심 주장과 근거",
+    "sourceLibrary.notes.claims.contentText": "자료별 핵심 주장, 근거, 인용할 문장을 정리합니다.",
+    "sourceLibrary.notes.openQuestions.title": "확인할 질문",
+    "sourceLibrary.notes.openQuestions.contentText": "아직 검증하지 못한 주장과 추가로 찾아볼 자료를 적습니다.",
     "meeting.project.name": "회의 노트",
     "meeting.project.description": "회의 안건, 결정사항, 후속 작업을 관리합니다.",
     "meeting.notes.weekly.title": "이번 주 회의",
@@ -254,25 +237,18 @@ export const projectTemplateCopy: Record<ProjectTemplateLocale, Record<string, s
     "personalKnowledge.notes.reading.contentText": "글, 책, 영상에서 남기고 싶은 내용을 기록합니다.",
     "personalKnowledge.notes.ideas.title": "아이디어",
     "personalKnowledge.notes.ideas.contentText": "나중에 확장하고 싶은 생각과 연결할 자료를 적습니다.",
+    "teamProject.project.name": "팀 프로젝트",
+    "teamProject.project.description": "목표, 결정사항, 리스크를 한 프로젝트에서 맞춰 봅니다.",
+    "teamProject.notes.brief.title": "프로젝트 브리프",
+    "teamProject.notes.brief.contentText": "목표, 범위, 성공 기준, 주요 이해관계자를 정리합니다.",
+    "teamProject.notes.decisions.title": "결정 로그",
+    "teamProject.notes.decisions.contentText": "결정한 내용, 이유, 되돌아볼 조건을 기록합니다.",
+    "teamProject.notes.risks.title": "리스크와 다음 액션",
+    "teamProject.notes.risks.contentText": "막힌 점, 책임자, 다음 액션, 마감일을 관리합니다.",
   },
   en: {
-    "emptyProject.name": "My First Project",
-    "emptyProject.description": "A blank project you can shape from scratch.",
-    "subjects.korean.name": "Korean",
-    "subjects.math.name": "Math",
-    "subjects.english.name": "English",
-    "subjects.science.name": "Science",
-    "study.project.description": "Collect {subject} study materials and notes in one place.",
-    "study.notes.materials.title": "{subject} Materials",
-    "study.notes.materials.contentText": "Collect {subject} handouts, links, and class materials here.",
-    "study.notes.concepts.title": "{subject} Core Concepts",
-    "study.notes.concepts.contentText":
-      "Summarize the definitions, formulas, works, and concepts you need to revisit.",
-    "study.notes.questions.title": "{subject} Questions and Mistakes",
-    "study.notes.questions.contentText":
-      "Track confusing problems, wrong answers, and parts you should solve again.",
-    "study.notes.schedule.title": "{subject} Exam Schedule",
-    "study.notes.schedule.contentText": "Record assignments, performance tasks, exam scope, and due dates.",
+    "emptyProject.name": "New project",
+    "emptyProject.description": "A blank project you can name and start immediately.",
     "research.project.name": "Research Project",
     "research.project.description": "Separate questions, sources, evidence, and conclusions as you research.",
     "research.notes.question.title": "Research Question",
@@ -283,6 +259,14 @@ export const projectTemplateCopy: Record<ProjectTemplateLocale, Record<string, s
     "research.notes.draft.title": "Draft Conclusion",
     "research.notes.draft.contentText":
       "Summarize the current conclusion and remaining uncertainty from the evidence.",
+    "sourceLibrary.project.name": "Source analysis project",
+    "sourceLibrary.project.description": "Extract claims, evidence, and open questions from source material.",
+    "sourceLibrary.notes.inbox.title": "Source inbox",
+    "sourceLibrary.notes.inbox.contentText": "Collect files, links, and raw notes to review.",
+    "sourceLibrary.notes.claims.title": "Claims and evidence",
+    "sourceLibrary.notes.claims.contentText": "Track key claims, supporting evidence, and quotable passages.",
+    "sourceLibrary.notes.openQuestions.title": "Open questions",
+    "sourceLibrary.notes.openQuestions.contentText": "List unverified claims and sources to find next.",
     "meeting.project.name": "Meeting Notes",
     "meeting.project.description": "Manage agendas, decisions, and follow-up work.",
     "meeting.notes.weekly.title": "This Week's Meeting",
@@ -295,6 +279,14 @@ export const projectTemplateCopy: Record<ProjectTemplateLocale, Record<string, s
     "personalKnowledge.notes.reading.contentText": "Record useful ideas from articles, books, and videos.",
     "personalKnowledge.notes.ideas.title": "Ideas",
     "personalKnowledge.notes.ideas.contentText": "Capture thoughts and related materials to expand later.",
+    "teamProject.project.name": "Team project",
+    "teamProject.project.description": "Align goals, decisions, risks, and next actions in one project.",
+    "teamProject.notes.brief.title": "Project brief",
+    "teamProject.notes.brief.contentText": "Define goals, scope, success criteria, and stakeholders.",
+    "teamProject.notes.decisions.title": "Decision log",
+    "teamProject.notes.decisions.contentText": "Record decisions, rationale, and revisit conditions.",
+    "teamProject.notes.risks.title": "Risks and next actions",
+    "teamProject.notes.risks.contentText": "Track blockers, owners, next actions, and due dates.",
   },
 };
 

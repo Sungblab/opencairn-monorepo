@@ -2,7 +2,11 @@
   "metaRow": {
     "pageCount": "{n} documents",
     "lastActivity": "Last active {at}",
-    "lastActivityNever": "No activity yet"
+    "lastActivityNever": "No activity yet",
+    "rename": "Rename project",
+    "renameInput": "Project name",
+    "renameSave": "Save name",
+    "renameCancel": "Cancel rename"
   },
   "actions": {
     "newDoc": "New document",
@@ -170,17 +174,17 @@
         "description": "Add PDFs, images, audio, and other files to this project."
       },
       "templates": {
-        "title": "Add templates",
-        "description": "Create subject, research, or meeting projects with starter notes."
+        "title": "Project templates",
+        "description": "Add research, source analysis, meeting, or team project structures."
       },
       "import": {
         "title": "Add text or links",
         "description": "Import pasted text and web links as project material."
       },
       "timetable": {
-        "title": "Analyze timetable image",
-        "description": "Read a timetable image and create subject projects and schedule items.",
-        "badge": "Planned"
+        "title": "Add from photo",
+        "description": "Add a timetable, whiteboard, or handout photo as project material.",
+        "badge": ""
       }
     }
   },

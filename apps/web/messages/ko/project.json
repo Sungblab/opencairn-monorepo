@@ -2,7 +2,11 @@
   "metaRow": {
     "pageCount": "{n}개 문서",
     "lastActivity": "마지막 활동 {at}",
-    "lastActivityNever": "활동 없음"
+    "lastActivityNever": "활동 없음",
+    "rename": "프로젝트 이름 바꾸기",
+    "renameInput": "프로젝트 이름",
+    "renameSave": "이름 저장",
+    "renameCancel": "이름 변경 취소"
   },
   "actions": {
     "newDoc": "새 문서",
@@ -170,17 +174,17 @@
         "description": "PDF, 이미지, 오디오 같은 자료를 현재 프로젝트에 넣습니다."
       },
       "templates": {
-        "title": "템플릿 추가",
-        "description": "과목, 리서치, 회의 프로젝트를 기본 노트와 함께 더 만듭니다."
+        "title": "프로젝트 템플릿",
+        "description": "리서치, 자료 분석, 회의, 팀 프로젝트 구조를 추가합니다."
       },
       "import": {
         "title": "텍스트나 링크 넣기",
         "description": "붙여넣은 텍스트와 웹 링크를 자료로 추가합니다."
       },
       "timetable": {
-        "title": "시간표 이미지 분석",
-        "description": "시간표 이미지를 읽어 과목 프로젝트와 일정을 만드는 흐름입니다.",
-        "badge": "준비 중"
+        "title": "사진으로 추가",
+        "description": "시간표, 화이트보드, 프린트 사진을 현재 프로젝트 자료로 넣습니다.",
+        "badge": ""
       }
     }
   },

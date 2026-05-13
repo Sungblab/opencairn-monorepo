@@ -746,8 +746,19 @@ export interface ProjectWikiIndex {
   recentLogs: ProjectWikiIndexLog[];
   pages: ProjectWikiIndexPage[];
 }
+
 export const projectsApi = {
   get: (id: string) => apiClient<ProjectMeta>(`/projects/${id}`),
+  create: (workspaceId: string, body: { name: string; description?: string }) =>
+    apiClient<ProjectMeta>(`/workspaces/${workspaceId}/projects`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  update: (id: string, body: { name?: string; description?: string }) =>
+    apiClient<ProjectMeta>(`/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   notes: (id: string, filter: "all" | ProjectNoteKind = "all") =>
     apiClient<{ notes: ProjectNoteRow[] }>(
       `/projects/${id}/notes?filter=${filter}`,

@@ -1,7 +1,15 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTabKeyboard } from "./use-tab-keyboard";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
+
+const replace = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace }),
+  usePathname: () => "/ko/workspace/acme/note/n",
+  useParams: () => ({ locale: "ko", wsSlug: "acme" }),
+}));
 
 const mk = (p: Partial<Tab> = {}): Tab => ({
   id: "x",
@@ -47,6 +55,7 @@ describe("useTabKeyboard", () => {
     localStorage.clear();
     useTabsStore.setState(useTabsStore.getInitialState(), true);
     useTabsStore.getState().setWorkspace("ws-kb");
+    replace.mockClear();
   });
 
   it("⌘1 activates the first tab", () => {
@@ -73,6 +82,15 @@ describe("useTabKeyboard", () => {
     expect(useTabsStore.getState().tabs.map((t) => t.id)).toEqual(["b"]);
   });
 
+  it("⌘W routes to the next active route-backed tab after close", () => {
+    useTabsStore.getState().addTab(mk({ id: "a", targetId: "n-a" }));
+    useTabsStore.getState().addTab(mk({ id: "b", targetId: "n-b" }));
+    renderHook(() => useTabKeyboard());
+    useTabsStore.getState().setActive("a");
+    act(() => press("w"));
+    expect(replace).toHaveBeenCalledWith("/ko/workspace/acme/note/n-b");
+  });
+
   it("⌘W is a no-op on a pinned active tab", () => {
     useTabsStore.getState().addTab(mk({ id: "a", pinned: true }));
     useTabsStore.getState().addTab(mk({ id: "b" }));
@@ -88,6 +106,7 @@ describe("useTabKeyboard", () => {
     useTabsStore.getState().setActive("a");
     act(() => press("ArrowRight"));
     expect(useTabsStore.getState().activeId).toBe("b");
+    expect(replace).toHaveBeenCalledWith("/ko/workspace/acme/note/n");
   });
 
   it("⌘→ wraps from the last tab to the first", () => {

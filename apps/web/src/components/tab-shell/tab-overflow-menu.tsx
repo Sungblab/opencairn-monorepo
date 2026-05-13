@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
-import { useTabNavigate } from "@/hooks/use-tab-navigate";
+import { useTabActions } from "@/hooks/use-tab-actions";
 import { useResolvedTabTitle } from "@/lib/resolve-tab-title";
 import { cn } from "@/lib/utils";
 
@@ -64,7 +64,7 @@ export function TabOverflowMenu({
 }) {
   const tabs = useTabsStore((s) => s.tabs);
   const activeId = useTabsStore((s) => s.activeId);
-  const navigateToTab = useTabNavigate();
+  const tabActions = useTabActions();
   const t = useTranslations("appShell.tabs.bar");
   const menuWidth = useMemo(() => {
     const longestTitle = Math.max(
@@ -106,12 +106,7 @@ export function TabOverflowMenu({
               key={tab.id}
               tab={tab}
               active={tab.id === activeId}
-              onSelect={() =>
-                navigateToTab(
-                  { kind: tab.kind, targetId: tab.targetId, mode: tab.mode },
-                  { mode: "replace" },
-                )
-              }
+              onSelect={() => tabActions.activateTab(tab)}
             />
           ))}
         </div>

@@ -1,13 +1,31 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NewProjectTemplateClient } from "./NewProjectTemplateClient";
 
 const push = vi.fn();
+const refresh = vi.fn();
+const mocks = vi.hoisted(() => ({
+  upload: vi.fn(),
+  openOriginalFileTab: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, refresh }),
+}));
+
+vi.mock("@/hooks/use-ingest-upload", () => ({
+  useIngestUpload: () => ({
+    upload: mocks.upload,
+    isUploading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("@/components/ingest/open-original-file-tab", () => ({
+  openOriginalFileTab: mocks.openOriginalFileTab,
 }));
 
 const labels = {
@@ -15,40 +33,32 @@ const labels = {
   description: "템플릿 설명",
   galleryLabel: "프로젝트 템플릿",
   error: "템플릿 실패",
+  quickCreate: {
+    label: "프로젝트 이름",
+    placeholder: "프로젝트 이름 입력",
+    button: "프로젝트 만들기",
+  },
+  imageCreate: {
+    title: "파일이나 이미지로 시작",
+    description: "시간표 사진을 추가합니다",
+    pick: "파일 선택",
+    change: "파일 바꾸기",
+    button: "프로젝트 만들고 자료 추가",
+  },
   templates: {
     empty_project: {
-      title: "내 첫 프로젝트",
+      title: "빈 프로젝트",
       description: "빈 프로젝트",
-      projectCount: "1개 프로젝트",
-    },
-    school_subjects: {
-      title: "국어 · 수학 · 영어 · 과학",
-      description: "과목 템플릿",
-      projectCount: "4개 프로젝트",
-    },
-    korean: {
-      title: "국어",
-      description: "국어 템플릿",
-      projectCount: "1개 프로젝트",
-    },
-    math: {
-      title: "수학",
-      description: "수학 템플릿",
-      projectCount: "1개 프로젝트",
-    },
-    english: {
-      title: "영어",
-      description: "영어 템플릿",
-      projectCount: "1개 프로젝트",
-    },
-    science: {
-      title: "과학",
-      description: "과학 템플릿",
-      projectCount: "1개 프로젝트",
+      projectCount: "빈 프로젝트",
     },
     research: {
       title: "리서치 프로젝트",
       description: "리서치 템플릿",
+      projectCount: "1개 프로젝트",
+    },
+    source_library: {
+      title: "자료 분석 프로젝트",
+      description: "자료 분석 템플릿",
       projectCount: "1개 프로젝트",
     },
     meeting: {
@@ -61,36 +71,66 @@ const labels = {
       description: "개인 지식 템플릿",
       projectCount: "1개 프로젝트",
     },
+    team_project: {
+      title: "팀 프로젝트",
+      description: "팀 프로젝트 템플릿",
+      projectCount: "1개 프로젝트",
+    },
   },
 };
 
 describe("NewProjectTemplateClient", () => {
   beforeEach(() => {
     push.mockClear();
+    refresh.mockClear();
+    mocks.upload.mockReset();
+    mocks.openOriginalFileTab.mockReset();
+    mocks.upload.mockResolvedValue({
+      workflowId: "ingest-1",
+      objectKey: "uploads/image.png",
+      sourceBundleNodeId: null,
+      originalFileId: "file-1",
+    });
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        Response.json(
-          { projects: [{ id: "project-1", name: "국어", notes: [] }] },
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/api/workspaces/workspace-1/projects")) {
+          return Response.json(
+            { id: "project-1", name: "논문 리서치", workspaceId: "workspace-1" },
+            { status: 201 },
+          );
+        }
+        return Response.json(
+          { projects: [{ id: "project-1", name: "리서치 프로젝트", notes: [] }] },
           { status: 201 },
-        ),
-      ),
+        );
+      }),
     );
   });
 
-  it("applies the selected template and opens the first created project", async () => {
-    render(
-      <NewProjectTemplateClient
-        locale="ko"
-        wsSlug="acme"
-        workspaceId="workspace-1"
-        labels={labels}
-      />,
+  function renderClient() {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <NewProjectTemplateClient
+          locale="ko"
+          wsSlug="acme"
+          workspaceId="workspace-1"
+          labels={labels}
+        />
+      </QueryClientProvider>,
     );
+  }
+
+  it("applies the selected template and opens the first created project", async () => {
+    renderClient();
 
     await userEvent.click(
       screen.getByRole("button", {
-        name: /국어 · 수학 · 영어 · 과학/,
+        name: /리서치 프로젝트/,
       }),
     );
 
@@ -99,9 +139,50 @@ describe("NewProjectTemplateClient", () => {
         "/api/workspaces/workspace-1/project-templates/apply",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ templateId: "school_subjects" }),
+          body: JSON.stringify({ templateId: "research" }),
         }),
       );
+      expect(push).toHaveBeenCalledWith("/ko/workspace/acme/project/project-1");
+    });
+  });
+
+  it("creates a named blank project directly", async () => {
+    renderClient();
+
+    await userEvent.type(screen.getByLabelText("프로젝트 이름"), "논문 리서치");
+    await userEvent.click(screen.getByRole("button", { name: "프로젝트 만들기" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/workspaces/workspace-1/projects",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ name: "논문 리서치" }),
+        }),
+      );
+      expect(push).toHaveBeenCalledWith("/ko/workspace/acme/project/project-1");
+    });
+  });
+
+  it("creates a project from a selected image and uploads it", async () => {
+    renderClient();
+
+    const file = new File(["image"], "시간표.png", { type: "image/png" });
+    await userEvent.upload(screen.getByLabelText("파일 선택"), file);
+    await userEvent.click(
+      screen.getByRole("button", { name: "프로젝트 만들고 자료 추가" }),
+    );
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/workspaces/workspace-1/projects",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ name: "시간표" }),
+        }),
+      );
+      expect(mocks.upload).toHaveBeenCalledWith(file, "project-1");
+      expect(mocks.openOriginalFileTab).toHaveBeenCalledWith("file-1", "시간표.png");
       expect(push).toHaveBeenCalledWith("/ko/workspace/acme/project/project-1");
     });
   });

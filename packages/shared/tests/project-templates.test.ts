@@ -12,33 +12,20 @@ describe("project templates", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("defines a school bundle with the core subject projects", () => {
-    const template = getProjectTemplate("school_subjects");
+  it("defines focused knowledge-work templates", () => {
+    const template = getProjectTemplate("source_library");
 
     expect(template?.projects.map((project) => project.nameKey)).toEqual([
-      "subjects.korean.name",
-      "subjects.math.name",
-      "subjects.english.name",
-      "subjects.science.name",
+      "sourceLibrary.project.name",
     ]);
   });
 
   it("resolves project copy by locale", () => {
-    const ko = getResolvedProjectTemplate("school_subjects", "ko");
-    const en = getResolvedProjectTemplate("school_subjects", "en-US,en;q=0.9");
+    const ko = getResolvedProjectTemplate("source_library", "ko");
+    const en = getResolvedProjectTemplate("source_library", "en-US,en;q=0.9");
 
-    expect(ko?.projects.map((project) => project.name)).toEqual([
-      "국어",
-      "수학",
-      "영어",
-      "과학",
-    ]);
-    expect(en?.projects.map((project) => project.name)).toEqual([
-      "Korean",
-      "Math",
-      "English",
-      "Science",
-    ]);
+    expect(ko?.projects.map((project) => project.name)).toEqual(["자료 분석 프로젝트"]);
+    expect(en?.projects.map((project) => project.name)).toEqual(["Source analysis project"]);
   });
 
   it("only ships starter notes with usable titles", () => {

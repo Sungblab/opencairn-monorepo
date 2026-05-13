@@ -3,9 +3,10 @@
 import { urls } from "@/lib/urls";
 import { useMemo, useState, type ComponentType } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, FilePlus, GitBranch, Layers3, LayoutTemplate, Network, UploadCloud } from "lucide-react";
+import { FilePlus, GitBranch, ImagePlus, Layers3, LayoutTemplate, Network, UploadCloud } from "lucide-react";
 import {
   projectsApi,
   type ProjectNoteRow,
@@ -39,6 +40,8 @@ export function ProjectView({
   projectId: string;
 }) {
   const locale = useLocale();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const t = useTranslations("project");
   const workspaceId = useWorkspaceId(wsSlug);
   const requestDocumentGenerationPreset = useAgentWorkbenchStore(
@@ -53,6 +56,17 @@ export function ProjectView({
   const { data: wikiIndex } = useQuery({
     queryKey: ["project-wiki-index", projectId],
     queryFn: () => projectsApi.wikiIndex(projectId),
+  });
+  const renameMutation = useMutation({
+    mutationFn: (name: string) => projectsApi.update(projectId, { name }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["project-meta", projectId] }),
+        queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
+        queryClient.invalidateQueries({ queryKey: ["projects"] }),
+      ]);
+      router.refresh();
+    },
   });
   // Page count + last activity are derived from the unfiltered notes list to
   // avoid a third endpoint just for two scalars. The notes table publishes
@@ -182,6 +196,8 @@ export function ProjectView({
           name={meta?.name ?? ""}
           pageCount={counts.all}
           lastActivityIso={lastActivityIso}
+          onRename={meta ? (name) => renameMutation.mutate(name) : undefined}
+          renamePending={renameMutation.isPending}
         />
       </header>
       <GraphDiscoveryPanel
@@ -191,27 +207,27 @@ export function ProjectView({
         cardsLabel={t("graphDiscovery.actions.cards")}
         mindmapLabel={t("graphDiscovery.actions.mindmap")}
         indexLabel={t("graphDiscovery.index.label")}
-        indexStats={formatWikiIndexStats(wikiIndex, {
-          pages: t("graphDiscovery.index.pages", {
-            count: wikiIndex?.totals.pages ?? 0,
-          }),
-          links: t("graphDiscovery.index.links", {
-            count: wikiIndex?.totals.wikiLinks ?? 0,
-          }),
-          orphans: t("graphDiscovery.index.orphans", {
-            count: wikiIndex?.totals.orphanPages ?? 0,
-          }),
-          latest: wikiIndex?.latestPageUpdatedAt
-            ? t("graphDiscovery.index.latest", {
-                date: new Intl.DateTimeFormat(locale, {
-                  month: "short",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }).format(new Date(wikiIndex.latestPageUpdatedAt)),
-              })
-            : undefined,
-        })}
+          indexStats={formatWikiIndexStats(wikiIndex, {
+            pages: t("graphDiscovery.index.pages", {
+              count: wikiIndex?.totals.pages ?? 0,
+            }),
+            links: t("graphDiscovery.index.links", {
+              count: wikiIndex?.totals.wikiLinks ?? 0,
+            }),
+            orphans: t("graphDiscovery.index.orphans", {
+              count: wikiIndex?.totals.orphanPages ?? 0,
+            }),
+            latest: wikiIndex?.latestPageUpdatedAt
+              ? t("graphDiscovery.index.latest", {
+                  date: new Intl.DateTimeFormat(locale, {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }).format(new Date(wikiIndex.latestPageUpdatedAt)),
+                })
+              : undefined,
+          })}
         mapHref={projectGraphHref()}
         cardsHref={projectGraphHref("cards")}
         mindmapHref={projectGraphHref("mindmap")}
@@ -348,18 +364,17 @@ function ProjectStarterPanel({
             description={importDescription}
           />
         </Link>
-        <button
-          type="button"
-          disabled
-          className="flex min-h-28 items-start gap-3 rounded-[var(--radius-control)] border border-dashed border-border bg-muted/30 p-3 text-left text-muted-foreground"
+        <SourceUploadButton
+          projectId={projectId}
+          className="flex min-h-28 w-full items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40"
         >
           <StarterActionContent
-            Icon={CalendarDays}
+            Icon={ImagePlus}
             title={timetableTitle}
             description={timetableDescription}
             badge={timetableBadge}
           />
-        </button>
+        </SourceUploadButton>
       </div>
     </section>
   );

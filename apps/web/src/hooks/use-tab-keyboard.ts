@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { useTabsStore } from "@/stores/tabs-store";
+import { useTabActions } from "@/hooks/use-tab-actions";
 
 function isMac(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -22,6 +23,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
 // separate keydown handlers for ⌘1…⌘9. Non-mod presses fall through to the
 // editor so typing "w" inside Plate stays responsive.
 export function useTabKeyboard() {
+  const { activateTab, closeTab, closeActiveSplitPane } = useTabActions();
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = isMac() ? e.metaKey : e.ctrlKey;
@@ -35,7 +38,7 @@ export function useTabKeyboard() {
         const target = s.tabs[idx];
         if (target) {
           e.preventDefault();
-          s.setActive(target.id);
+          activateTab(target);
         }
         return;
       }
@@ -44,7 +47,7 @@ export function useTabKeyboard() {
       if (!e.shiftKey && !e.altKey && e.key.toLowerCase() === "w") {
         if (s.activeId) {
           e.preventDefault();
-          s.closeTab(s.activeId);
+          closeTab(s.activeId);
         }
         return;
       }
@@ -55,7 +58,7 @@ export function useTabKeyboard() {
       if (e.shiftKey && !e.altKey && e.key.toLowerCase() === "w") {
         if (s.split) {
           e.preventDefault();
-          s.closeActiveSplitPane();
+          closeActiveSplitPane();
         }
         return;
       }
@@ -81,7 +84,7 @@ export function useTabKeyboard() {
         const target = s.tabs[nextIdx];
         if (target) {
           e.preventDefault();
-          s.setActive(target.id);
+          activateTab(target);
         }
         return;
       }
@@ -121,7 +124,7 @@ export function useTabKeyboard() {
         const next = s.tabs[(idx + 1) % s.tabs.length];
         if (next) {
           e.preventDefault();
-          s.setActive(next.id);
+          activateTab(next);
         }
         return;
       }
@@ -139,12 +142,12 @@ export function useTabKeyboard() {
         const prev = s.tabs[prevIdx];
         if (prev) {
           e.preventDefault();
-          s.setActive(prev.id);
+          activateTab(prev);
         }
         return;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [activateTab, closeTab, closeActiveSplitPane]);
 }

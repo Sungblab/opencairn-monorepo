@@ -78,10 +78,25 @@ describe("TabShell", () => {
   it("uses the app shell scrollbar style for the route scroller", () => {
     act(() => useTabsStore.getState().addTab(mk({ mode: "plate" })));
     wrap(<div data-testid="route-child" />);
-    const routeScroller = screen.getByTestId("route-child").parentElement?.parentElement;
+    const routeScroller = screen.getByTestId("route-child").parentElement;
 
     expect(routeScroller?.className).toContain("app-scrollbar-thin");
     expect(routeScroller?.className).toContain("overflow-auto");
+  });
+
+  it("keeps routed viewers inside a non-scrolling full-height slot", () => {
+    act(() =>
+      useTabsStore
+        .getState()
+        .addTab(mk({ id: "s", mode: "source" })),
+    );
+    wrap(<div data-testid="route-child" />);
+    const viewerSlot = screen.getByTestId("router-source").parentElement;
+    const shellBody = viewerSlot?.parentElement;
+
+    expect(viewerSlot?.className).toContain("h-full");
+    expect(viewerSlot?.className).toContain("overflow-hidden");
+    expect(shellBody?.className).toContain("overflow-hidden");
   });
 
   it("renders TabModeRouter when active tab is non-plate (reading)", () => {

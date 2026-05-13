@@ -16,6 +16,7 @@ export interface ProjectTreeCtxValue {
   ): void;
   onCreateFolder(parentId: string | null): void;
   onCreateNote(parentId: string | null): void;
+  onOpenAnalysisGroup?(parentId: string, label: string): void;
   onDelete(
     id: string,
     kind: TreeNode["kind"],

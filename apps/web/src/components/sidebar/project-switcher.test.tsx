@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectSwitcher } from "./project-switcher";
 
 const push = vi.fn();
+const refresh = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, refresh }),
   useParams: () => ({ wsSlug: "acme" }),
   usePathname: () => "/ko/workspace/acme/project/p-1",
 }));
@@ -45,6 +46,7 @@ function renderSwitcher() {
 describe("ProjectSwitcher", () => {
   beforeEach(() => {
     push.mockClear();
+    refresh.mockClear();
   });
 
   it("resolves wsSlug to id and lists projects under that workspace", async () => {
@@ -90,6 +92,37 @@ describe("ProjectSwitcher", () => {
     fireEvent.click(newBtn);
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith("/ko/workspace/acme/new-project");
+    });
+  });
+
+  it("renames a project from the switcher row", async () => {
+    mockFetch({
+      "by-slug/acme": { id: "ws-1", slug: "acme", name: "ACME" },
+      "/workspaces/ws-1/projects": [{ id: "p-1", name: "Roadmap" }],
+      "/projects/p-1": { id: "p-1", name: "Renamed" },
+    });
+
+    renderSwitcher();
+
+    await screen.findByText("Roadmap");
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.project.rename" }),
+    );
+    const input = screen.getByLabelText("sidebar.project.rename_input");
+    fireEvent.change(input, { target: { value: "Renamed" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.project.rename_save" }),
+    );
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/projects/p-1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ name: "Renamed" }),
+        }),
+      );
+      expect(refresh).toHaveBeenCalled();
     });
   });
 });

@@ -9,6 +9,7 @@ import { useShellLabels } from "@/components/shell/shell-labels";
 import { newTab } from "@/lib/tab-factory";
 import { usePanelStore } from "@/stores/panel-store";
 import { useTabsStore } from "@/stores/tabs-store";
+import { useTabActions } from "@/hooks/use-tab-actions";
 
 export function ShellKeyboardShortcuts() {
   useTabKeyboard();
@@ -22,6 +23,7 @@ export function ShellKeyboardShortcuts() {
     (s) => s.toggleCompactAgentPanel,
   );
   const { tabs: labels } = useShellLabels();
+  const { restoreClosed } = useTabActions();
 
   const onSidebarShortcut = useCallback(
     (e: KeyboardEvent) => {
@@ -57,8 +59,8 @@ export function ShellKeyboardShortcuts() {
   );
   const onRestoreClosedShortcut = useCallback((e: KeyboardEvent) => {
     e.preventDefault();
-    useTabsStore.getState().restoreClosed();
-  }, []);
+    restoreClosed();
+  }, [restoreClosed]);
 
   useKeyboardShortcut("mod+\\", onSidebarShortcut);
   useKeyboardShortcut("mod+j", onAgentPanelShortcut);

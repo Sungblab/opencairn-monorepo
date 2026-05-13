@@ -93,7 +93,11 @@
     "loading": "프로젝트를 불러오는 중…",
     "new": "새 프로젝트",
     "switch_aria": "프로젝트 전환",
-    "create_cta": "+ 프로젝트 만들기"
+    "create_cta": "+ 프로젝트 만들기",
+    "rename": "프로젝트 이름 바꾸기",
+    "rename_input": "프로젝트 이름",
+    "rename_save": "이름 저장",
+    "rename_cancel": "이름 변경 취소"
   },
   "footer": {
     "notifications_aria": "알림",

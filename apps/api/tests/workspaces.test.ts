@@ -202,7 +202,7 @@ describe("POST /api/workspaces slug auto-generation", () => {
     expect(res.status).toBe(409);
   });
 
-  it("creates the first project with a project-specific default name", async () => {
+  it("creates the first project with a neutral default name", async () => {
     const { res } = await authedPost("/api/workspaces", {
       name: "성빈's workspace",
       slug: "sungbin-auto-project",
@@ -216,7 +216,7 @@ describe("POST /api/workspaces slug auto-generation", () => {
       .from(projects)
       .where(eq(projects.workspaceId, workspace.id));
 
-    expect(project?.name).toBe("내 첫 프로젝트");
+    expect(project?.name).toBe("새 프로젝트");
   });
 });
 
@@ -237,30 +237,25 @@ describe("POST /api/workspaces/:workspaceId/project-templates/apply", () => {
     });
   }
 
-  it("creates the four core school subject projects with starter notes", async () => {
+  it("creates a source analysis project with starter notes", async () => {
     const u = await createUser();
     createdUserIds.add(u.id);
     const { workspaceId } = await seedMembership(u.id);
 
-    const res = await authedTemplatePost(workspaceId, u.id, "school_subjects");
+    const res = await authedTemplatePost(workspaceId, u.id, "source_library");
 
     expect(res.status).toBe(201);
     const body = (await res.json()) as {
       projects: Array<{ name: string; notes: Array<{ title: string }> }>;
     };
-    expect(body.projects.map((project) => project.name)).toEqual([
-      "국어",
-      "수학",
-      "영어",
-      "과학",
-    ]);
+    expect(body.projects.map((project) => project.name)).toEqual(["자료 분석 프로젝트"]);
     expect(body.projects.every((project) => project.notes.length > 0)).toBe(true);
 
     const rows = await db
       .select({ title: notes.title })
       .from(notes)
       .where(eq(notes.workspaceId, workspaceId));
-    expect(rows).toHaveLength(16);
+    expect(rows).toHaveLength(3);
   });
 
   it("creates template projects with the requested locale copy", async () => {
@@ -268,7 +263,7 @@ describe("POST /api/workspaces/:workspaceId/project-templates/apply", () => {
     createdUserIds.add(u.id);
     const { workspaceId } = await seedMembership(u.id);
 
-    const res = await authedTemplatePost(workspaceId, u.id, "korean", {
+    const res = await authedTemplatePost(workspaceId, u.id, "research", {
       "accept-language": "en-US,en;q=0.9",
     });
 
@@ -278,9 +273,9 @@ describe("POST /api/workspaces/:workspaceId/project-templates/apply", () => {
     };
     expect(body.projects).toEqual([
       expect.objectContaining({
-        name: "Korean",
+        name: "Research Project",
         notes: expect.arrayContaining([
-          expect.objectContaining({ title: "Korean Materials" }),
+          expect.objectContaining({ title: "Research Question" }),
         ]),
       }),
     ]);
@@ -298,7 +293,7 @@ describe("POST /api/workspaces/:workspaceId/project-templates/apply", () => {
       projects: Array<{ name: string; notes: Array<{ title: string }> }>;
     };
     expect(body.projects).toEqual([
-      expect.objectContaining({ name: "내 첫 프로젝트", notes: [] }),
+      expect.objectContaining({ name: "새 프로젝트", notes: [] }),
     ]);
   });
 

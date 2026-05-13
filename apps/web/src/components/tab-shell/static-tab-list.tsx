@@ -1,8 +1,8 @@
 "use client";
 
 import type { CSSProperties, HTMLAttributes, Ref } from "react";
-import { useTabsStore, type Tab } from "@/stores/tabs-store";
-import { useTabNavigate } from "@/hooks/use-tab-navigate";
+import type { Tab } from "@/stores/tabs-store";
+import { useTabActions } from "@/hooks/use-tab-actions";
 import { TabItem } from "./tab-item";
 import type { TabListProps } from "./tab-list-types";
 
@@ -21,31 +21,15 @@ export function TabListItem({
   containerStyle,
   containerProps,
 }: TabListItemProps) {
-  const navigateToTab = useTabNavigate();
-  const closeTab = useTabsStore((s) => s.closeTab);
-  const setActive = useTabsStore((s) => s.setActive);
-  const isTransient =
-    tab.kind === "ingest" ||
-    tab.kind === "lit_search" ||
-    tab.kind === "agent_file" ||
-    tab.kind === "code_workspace";
+  const tabActions = useTabActions();
 
   return (
     <div {...containerProps} ref={containerRef} style={containerStyle}>
       <TabItem
         tab={tab}
         active={active}
-        onClick={() => {
-          if (isTransient) {
-            setActive(tab.id);
-            return;
-          }
-          navigateToTab(
-            { kind: tab.kind, targetId: tab.targetId, mode: tab.mode },
-            { mode: "replace" },
-          );
-        }}
-        onClose={() => closeTab(tab.id)}
+        onClick={() => tabActions.activateTab(tab)}
+        onClose={() => tabActions.closeTab(tab.id)}
       />
     </div>
   );

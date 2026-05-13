@@ -34,7 +34,7 @@ export function TabShell({ children }: { children: React.ReactNode }) {
       className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background"
     >
       <TabBar />
-      <div className="app-scrollbar-thin flex min-h-0 flex-1 overflow-auto">
+      <div className="app-scrollbar-thin flex min-h-0 flex-1 overflow-hidden">
         {split && primary && secondary ? (
           <SplitWorkspace
             primary={primary}
@@ -44,11 +44,13 @@ export function TabShell({ children }: { children: React.ReactNode }) {
             {children}
           </SplitWorkspace>
         ) : active && isRoutedByTabModeRouter(active) ? (
-          <div className="min-w-0 flex-1 w-full">
+          <div className="h-full min-h-0 min-w-0 w-full flex-1 overflow-hidden">
             <TabModeRouterLoader tab={active} />
           </div>
         ) : (
-          <div className="min-w-0 flex-1 w-full">{children}</div>
+          <div className="app-scrollbar-thin min-w-0 w-full flex-1 overflow-auto">
+            {children}
+          </div>
         )}
       </div>
     </main>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
-import { useTabNavigate } from "@/hooks/use-tab-navigate";
+import { useTabActions } from "@/hooks/use-tab-actions";
 import { useShellLabels } from "@/components/shell/shell-labels";
 import { useResolvedTabTitle } from "@/lib/resolve-tab-title";
 import type { TabListProps } from "./tab-list-types";
@@ -9,9 +9,7 @@ import type { TabListProps } from "./tab-list-types";
 function FallbackTabItem({ tab, active }: { tab: Tab; active: boolean }) {
   const { tabs: labels } = useShellLabels();
   const title = useResolvedTabTitle(tab);
-  const navigateToTab = useTabNavigate();
-  const closeTab = useTabsStore((s) => s.closeTab);
-  const setActive = useTabsStore((s) => s.setActive);
+  const tabActions = useTabActions();
   const splitRole = useTabsStore((s) =>
     s.split?.primaryTabId === tab.id
       ? "primary"
@@ -19,31 +17,17 @@ function FallbackTabItem({ tab, active }: { tab: Tab; active: boolean }) {
         ? "secondary"
         : null,
   );
-  const isTransient =
-    tab.kind === "ingest" ||
-    tab.kind === "lit_search" ||
-    tab.kind === "agent_file" ||
-    tab.kind === "code_workspace";
 
   return (
     <div
       role="tab"
       aria-selected={active}
       data-testid={`tab-${tab.id}`}
-      onClick={() => {
-        if (isTransient) {
-          setActive(tab.id);
-          return;
-        }
-        navigateToTab(
-          { kind: tab.kind, targetId: tab.targetId, mode: tab.mode },
-          { mode: "replace" },
-        );
-      }}
+      onClick={() => tabActions.activateTab(tab)}
       onMouseDown={(e) => {
         if (e.button === 1 && !tab.pinned) {
           e.preventDefault();
-          closeTab(tab.id);
+          tabActions.closeTab(tab.id);
         }
       }}
       className={`group flex h-full min-w-[120px] max-w-[220px] shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-2 text-xs transition-colors ${
@@ -85,7 +69,7 @@ function FallbackTabItem({ tab, active }: { tab: Tab; active: boolean }) {
           aria-label={labels.item.close}
           onClick={(e) => {
             e.stopPropagation();
-            closeTab(tab.id);
+            tabActions.closeTab(tab.id);
           }}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded opacity-0 transition-colors hover:bg-muted hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
         >

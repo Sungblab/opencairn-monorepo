@@ -1,37 +1,34 @@
 {
   "title": "Create project",
-  "description": "Start blank or choose a subject, research, or meeting template that creates starter notes with the project.",
+  "description": "Name a project and start immediately, or choose a knowledge-work template with starter notes.",
   "galleryLabel": "Project templates",
+  "quickCreate": {
+    "label": "Project name",
+    "placeholder": "e.g. AI paper research, product strategy, meeting archive",
+    "button": "Create project"
+  },
+  "imageCreate": {
+    "title": "Start from file or image",
+    "description": "Add a timetable photo, whiteboard, PDF, document, or other existing material as the first source.",
+    "pick": "Choose file",
+    "change": "Change file",
+    "button": "Create project and add source"
+  },
   "projectCount": "{count, plural, one {# project} other {# projects}}",
+  "blankProjectCount": "Blank project",
   "error": "Could not apply the template. Try again in a moment.",
   "templates": {
     "empty_project": {
-      "title": "My first project",
-      "description": "A blank project you can fill from scratch."
-    },
-    "school_subjects": {
-      "title": "Korean, Math, English, Science",
-      "description": "Creates four subject projects with source, concept, mistake, and exam schedule notes."
-    },
-    "korean": {
-      "title": "Korean",
-      "description": "Organize literature, concepts, assignments, and class material."
-    },
-    "math": {
-      "title": "Math",
-      "description": "Collect formulas, concepts, solution steps, and mistakes."
-    },
-    "english": {
-      "title": "English",
-      "description": "Manage passages, vocabulary, grammar, and assignment material."
-    },
-    "science": {
-      "title": "Science",
-      "description": "Organize concepts, experiments, problem solving, and exam scope."
+      "title": "Blank project",
+      "description": "Start without starter notes and shape the structure yourself."
     },
     "research": {
       "title": "Research project",
-      "description": "Structure a research flow around questions, sources, and draft conclusions."
+      "description": "Structure research around questions, sources, evidence, and draft conclusions."
+    },
+    "source_library": {
+      "title": "Source analysis project",
+      "description": "Extract claims and evidence from PDFs, web pages, and notes."
     },
     "meeting": {
       "title": "Meeting notes",
@@ -40,6 +37,10 @@
     "personal_knowledge": {
       "title": "Personal knowledge base",
       "description": "Build a long-term space for readings and ideas."
+    },
+    "team_project": {
+      "title": "Team project",
+      "description": "Manage goals, decisions, risks, and next actions in one place."
     }
   }
 }

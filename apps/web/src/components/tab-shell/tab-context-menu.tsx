@@ -5,6 +5,7 @@ import {
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
+import { useTabActions } from "@/hooks/use-tab-actions";
 import { newTab } from "@/lib/tab-factory";
 import { tabToUrl } from "@/lib/tab-url";
 import { TabModeSubmenu } from "./tab-mode-submenu";
@@ -22,11 +23,9 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
   const t = useTranslations("appShell.tabs.menu");
   const locale = useLocale();
   const togglePin = useTabsStore((s) => s.togglePin);
-  const closeTab = useTabsStore((s) => s.closeTab);
-  const closeOthers = useTabsStore((s) => s.closeOthers);
-  const closeRight = useTabsStore((s) => s.closeRight);
   const addTab = useTabsStore((s) => s.addTab);
   const openTabToRight = useTabsStore((s) => s.openTabToRight);
+  const tabActions = useTabActions();
 
   const duplicate = () =>
     addTab(
@@ -79,13 +78,16 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
       <ContextMenuSeparator />
       <TabModeSubmenu tab={tab} />
       <ContextMenuSeparator />
-      <ContextMenuItem onClick={() => closeTab(tab.id)} disabled={tab.pinned}>
+      <ContextMenuItem
+        onClick={() => tabActions.closeTab(tab.id)}
+        disabled={tab.pinned}
+      >
         {t("close")}
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => closeOthers(tab.id)}>
+      <ContextMenuItem onClick={() => tabActions.closeOthers(tab.id)}>
         {t("closeOthers")}
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => closeRight(tab.id)}>
+      <ContextMenuItem onClick={() => tabActions.closeRight(tab.id)}>
         {t("closeRight")}
       </ContextMenuItem>
       <ContextMenuSeparator />

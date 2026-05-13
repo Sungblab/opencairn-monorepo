@@ -387,6 +387,35 @@ export function ProjectTree({
     [projectId, workspaceSlug, locale, router, qc, loadChildren, tToast],
   );
 
+  const handleOpenAnalysisGroup = useCallback(
+    (parentId: string, label: string) => {
+      void (async () => {
+        try {
+          if (!useSidebarStore.getState().isExpanded(parentId)) {
+            useSidebarStore.getState().toggleExpanded(parentId);
+          }
+          const children = await loadChildren(parentId);
+          setTreeRefresh((v) => v + 1);
+          const note = children.find((child) => child.kind === "note");
+          if (!note) return;
+          const targetId = note.target_id ?? note.id;
+          const title = note.label?.trim() || label;
+          const tabs = useTabsStore.getState();
+          const existing = tabs.findTabByTarget("note", targetId);
+          if (existing) {
+            if (existing.title !== title) tabs.updateTab(existing.id, { title });
+            tabs.setActive(existing.id);
+          }
+          router.push(urls.workspace.note(locale, workspaceSlug, targetId));
+        } catch (err) {
+          console.error("project tree analysis open failed", err);
+          toast.error(tToast("create_note_failed"));
+        }
+      })();
+    },
+    [loadChildren, locale, router, tToast, workspaceSlug],
+  );
+
   const startUpload = useCallback(
     async (file: File | null) => {
       if (!file) return;
@@ -420,6 +449,7 @@ export function ProjectTree({
       onCommitRename: handleCommitRename,
       onCreateFolder: handleCreateFolder,
       onCreateNote: handleCreateNote,
+      onOpenAnalysisGroup: handleOpenAnalysisGroup,
       onDelete: handleDelete,
     }),
     [
@@ -428,6 +458,7 @@ export function ProjectTree({
       handleCommitRename,
       handleCreateFolder,
       handleCreateNote,
+      handleOpenAnalysisGroup,
       handleDelete,
     ],
   );

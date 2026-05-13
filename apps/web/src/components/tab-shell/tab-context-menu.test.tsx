@@ -13,6 +13,14 @@ vi.mock("next-intl", () => ({
   useLocale: () => "ko",
 }));
 
+const replace = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace }),
+  usePathname: () => "/ko/workspace/acme/note/n1",
+  useParams: () => ({ locale: "ko", wsSlug: "acme" }),
+}));
+
 // Base UI's MenuItem requires an enclosing MenuRoot context. We wrap in a
 // real (but permanently open) ContextMenu so click handlers inside the
 // items execute against the right provider. Content renders via Portal so
@@ -46,6 +54,7 @@ describe("TabContextMenuItems", () => {
     localStorage.clear();
     useTabsStore.setState(useTabsStore.getInitialState(), true);
     useTabsStore.getState().setWorkspace("ws-ctx");
+    replace.mockClear();
   });
 
   it("pin → togglePin flips pinned", () => {
@@ -143,6 +152,22 @@ describe("TabContextMenuItems", () => {
     );
     fireEvent.click(screen.getByText("close"));
     expect(useTabsStore.getState().tabs.map((t) => t.id)).toEqual(["b"]);
+  });
+
+  it("close on the active tab routes to the next active tab", () => {
+    useTabsStore.getState().addTab(mk({ id: "a", targetId: "n1" }));
+    useTabsStore.getState().addTab(mk({ id: "b", targetId: "n2" }));
+    useTabsStore.getState().setActive("a");
+    render(
+      <Harness>
+        <TabContextMenuItems
+          tab={mk({ id: "a", targetId: "n1" })}
+          wsSlug="acme"
+        />
+      </Harness>,
+    );
+    fireEvent.click(screen.getByText("close"));
+    expect(replace).toHaveBeenCalledWith("/ko/workspace/acme/note/n2");
   });
 
   it("close is disabled for pinned tabs", () => {
