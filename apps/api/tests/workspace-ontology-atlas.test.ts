@@ -313,6 +313,101 @@ describe("GET /api/workspaces/:workspaceId/ontology-atlas", () => {
     }
   });
 
+  it("does not expose project-tree source nodes that only materialize unreadable notes", async () => {
+    const multi = await seedMultiRoleWorkspace();
+    try {
+      const visibleBundleNodeId = randomUUID();
+      const visibleNoteTreeNodeId = randomUUID();
+      const privateBundleNodeId = randomUUID();
+      const privateArtifactNodeId = randomUUID();
+      const privateNoteTreeNodeId = randomUUID();
+      const privateBundleLabel =
+        `private-source-${privateBundleNodeId.slice(0, 8)}.pdf`;
+      const privateArtifactLabel =
+        `private-parsed-${privateArtifactNodeId.slice(0, 8)}.md`;
+      const visibleBundlePath = labelFromId(visibleBundleNodeId);
+      const privateBundlePath = labelFromId(privateBundleNodeId);
+      const privateArtifactPath =
+        `${privateBundlePath}.${labelFromId(privateArtifactNodeId)}`;
+      await db.insert(projectTreeNodes).values([
+        {
+          id: visibleBundleNodeId,
+          workspaceId: multi.workspaceId,
+          projectId: multi.projectId,
+          parentId: null,
+          kind: "source_bundle",
+          label: "visible-source.pdf",
+          icon: "file-pdf",
+          path: visibleBundlePath,
+          metadata: {},
+        },
+        {
+          id: visibleNoteTreeNodeId,
+          workspaceId: multi.workspaceId,
+          projectId: multi.projectId,
+          parentId: visibleBundleNodeId,
+          kind: "note",
+          targetTable: "notes",
+          targetId: multi.noteId,
+          label: "visible-source-note",
+          icon: "file-text",
+          path: `${visibleBundlePath}.${labelFromId(visibleNoteTreeNodeId)}`,
+          metadata: {},
+        },
+        {
+          id: privateBundleNodeId,
+          workspaceId: multi.workspaceId,
+          projectId: multi.projectId,
+          parentId: null,
+          kind: "source_bundle",
+          label: privateBundleLabel,
+          icon: "file-pdf",
+          path: privateBundlePath,
+          metadata: {},
+        },
+        {
+          id: privateArtifactNodeId,
+          workspaceId: multi.workspaceId,
+          projectId: multi.projectId,
+          parentId: privateBundleNodeId,
+          kind: "artifact",
+          label: privateArtifactLabel,
+          icon: "file-text",
+          path: privateArtifactPath,
+          metadata: {},
+        },
+        {
+          id: privateNoteTreeNodeId,
+          workspaceId: multi.workspaceId,
+          projectId: multi.projectId,
+          parentId: privateArtifactNodeId,
+          kind: "note",
+          targetTable: "notes",
+          targetId: multi.privateNoteId,
+          label: "private-source-note",
+          icon: "file-text",
+          path: `${privateArtifactPath}.${labelFromId(privateNoteTreeNodeId)}`,
+          metadata: {},
+        },
+      ]);
+
+      const res = await app.request(
+        `/api/workspaces/${multi.workspaceId}/ontology-atlas`,
+        { headers: { cookie: await signSessionCookie(multi.viewerUserId) } },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const serialized = JSON.stringify(body);
+      expect(serialized).toContain("visible-source.pdf");
+      expect(serialized).not.toContain(privateBundleLabel);
+      expect(serialized).not.toContain(privateArtifactLabel);
+      expect(serialized).not.toContain(multi.privateNoteId);
+    } finally {
+      await multi.cleanup();
+    }
+  });
+
   it("uses compiler extraction evidence as the concept freshness boundary", async () => {
     ctx = await seedWorkspace({ role: "editor" });
     const conceptId = randomUUID();

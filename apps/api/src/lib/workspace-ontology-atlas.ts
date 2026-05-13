@@ -814,7 +814,27 @@ function buildTreeNodesAndEdges(rows: TreeNodeRow[], selectedNoteIds: Set<string
   nodes: WorkspaceAtlasNode[];
   edges: WorkspaceAtlasEdge[];
 } {
-  const materializedRows = rows.filter((row) => row.kind !== "note");
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+  const readableAncestorIds = new Set<string>();
+  for (const row of rows) {
+    if (
+      row.kind !== "note" ||
+      row.target_table !== "notes" ||
+      !row.target_id ||
+      !selectedNoteIds.has(row.target_id)
+    ) {
+      continue;
+    }
+    let parentId = row.parent_id;
+    while (parentId) {
+      if (readableAncestorIds.has(parentId)) break;
+      readableAncestorIds.add(parentId);
+      parentId = rowById.get(parentId)?.parent_id ?? null;
+    }
+  }
+  const materializedRows = rows.filter(
+    (row) => row.kind !== "note" && readableAncestorIds.has(row.id),
+  );
   const nodeIds = new Set(materializedRows.map((row) => treeNodeId(row.id)));
   const nodes = materializedRows.map((row) => ({
     id: treeNodeId(row.id),
@@ -848,7 +868,8 @@ function buildTreeNodesAndEdges(rows: TreeNodeRow[], selectedNoteIds: Set<string
       if (
         row.target_table !== "notes" ||
         !row.target_id ||
-        !selectedNoteIds.has(row.target_id)
+        !selectedNoteIds.has(row.target_id) ||
+        !nodeIds.has(parentId)
       ) {
         return [];
       }
@@ -868,6 +889,7 @@ function buildTreeNodesAndEdges(rows: TreeNodeRow[], selectedNoteIds: Set<string
       }];
     }
     const childId = treeNodeId(row.id);
+    if (!nodeIds.has(childId)) return [];
     return [{
       id: `tree:${row.parent_id}->${row.id}`,
       sourceId: parentId,
