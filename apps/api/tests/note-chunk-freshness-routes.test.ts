@@ -114,6 +114,39 @@ describe("note chunk freshness route wiring", () => {
     );
   });
 
+  it("indexes agent-created markdown wiki notes after create", async () => {
+    const res = await authedFetch(`/api/projects/${ctx.projectId}/agent-actions`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        requestId: randomUUID(),
+        kind: "note.create_from_markdown",
+        risk: "write",
+        input: {
+          title: "Agent wiki note",
+          folderId: null,
+          bodyMarkdown: "# Agent wiki note\n\nThis page should be indexed.",
+        },
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await res.json() as {
+      action: { status: string; result: { note: { id: string } } };
+    };
+    expect(body.action.status).toBe("completed");
+    expect(mocks.refreshNoteChunkIndexBestEffort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: body.action.result.note.id,
+        workspaceId: ctx.workspaceId,
+        projectId: ctx.projectId,
+        title: "Agent wiki note",
+        contentText: "# Agent wiki note\n\nThis page should be indexed.",
+        deletedAt: null,
+      }),
+    );
+  });
+
   it("marks the original uploaded agent file completed when the worker creates its source note", async () => {
     const [file] = await db
       .insert(agentFiles)

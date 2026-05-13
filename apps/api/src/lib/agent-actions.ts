@@ -2647,9 +2647,12 @@ async function createNoteFromAction(
     })
     .returning({
       id: notes.id,
+      workspaceId: notes.workspaceId,
       projectId: notes.projectId,
       folderId: notes.folderId,
       title: notes.title,
+      contentText: notes.contentText,
+      deletedAt: notes.deletedAt,
     });
   if (!note) throw new AgentActionError("note_create_failed", 409);
   await conn.insert(wikiLogs).values({
@@ -2667,6 +2670,7 @@ async function createNoteFromAction(
     label: note.title,
     at: new Date().toISOString(),
   });
+  await refreshNoteChunkIndexBestEffort(note);
   return { ok: true, note };
 }
 
@@ -2703,10 +2707,12 @@ async function createNoteFromMarkdownAction(
       })
       .returning({
         id: notes.id,
+        workspaceId: notes.workspaceId,
         projectId: notes.projectId,
         folderId: notes.folderId,
         title: notes.title,
         contentText: notes.contentText,
+        deletedAt: notes.deletedAt,
       });
     if (!created) throw new AgentActionError("note_create_failed", 409);
     await syncWikiLinks(
@@ -2732,6 +2738,7 @@ async function createNoteFromMarkdownAction(
     label: note.title,
     at: new Date().toISOString(),
   });
+  await refreshNoteChunkIndexBestEffort(note);
   return { ok: true, note };
 }
 
