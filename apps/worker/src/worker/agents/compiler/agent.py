@@ -884,7 +884,10 @@ def _append_compiler_source_evidence(
         node.copy()
         if isinstance(node, dict)
         else {"type": "p", "children": [{"text": str(node)}]}
-        for node in current
+        for node in _without_compiler_source_evidence(
+            current=current,
+            source_note_id=source_note_id,
+        )
     ]
     evidence_text = description or f"Compiler linked this page to {source_title}."
     appended.extend(
@@ -911,6 +914,51 @@ def _append_compiler_source_evidence(
         ]
     )
     return appended
+
+
+def _without_compiler_source_evidence(
+    *,
+    current: list[Any],
+    source_note_id: str,
+) -> list[Any]:
+    kept: list[Any] = []
+    index = 0
+    while index < len(current):
+        node = current[index]
+        if _node_text(node).casefold() == "source evidence":
+            block = current[index:index + 4]
+            if _block_has_source_note_id(block, source_note_id):
+                index += len(block)
+                continue
+        kept.append(node)
+        index += 1
+    return kept
+
+
+def _block_has_source_note_id(block: list[Any], source_note_id: str) -> bool:
+    return any(_node_has_wiki_link_target(node, source_note_id) for node in block)
+
+
+def _node_has_wiki_link_target(node: Any, source_note_id: str) -> bool:
+    if not isinstance(node, dict):
+        return False
+    if node.get("type") == "wiki-link" and node.get("targetId") == source_note_id:
+        return True
+    children = node.get("children")
+    if not isinstance(children, list):
+        return False
+    return any(_node_has_wiki_link_target(child, source_note_id) for child in children)
+
+
+def _node_text(node: Any) -> str:
+    if not isinstance(node, dict):
+        return ""
+    if isinstance(node.get("text"), str):
+        return str(node["text"])
+    children = node.get("children")
+    if not isinstance(children, list):
+        return ""
+    return "".join(_node_text(child) for child in children).strip()
 
 
 _JSON_BLOCK = re.compile(r"```(?:json)?\s*(.+?)```", re.DOTALL)

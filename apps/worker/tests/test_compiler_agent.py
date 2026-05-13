@@ -21,6 +21,7 @@ from runtime.tools import ToolContext
 from worker.agents.compiler.agent import (
     MERGE_SIMILARITY_THRESHOLD,
     CompilerAgent,
+    _append_compiler_source_evidence,
     _parse_extraction,
     _pick_merge_target,
 )
@@ -90,6 +91,44 @@ def test_pick_merge_target_none_below_threshold() -> None:
     below = MERGE_SIMILARITY_THRESHOLD - 0.01
     existing = [{"id": "c1", "name": "other", "similarity": below}]
     assert _pick_merge_target("query", existing) is None
+
+
+def test_append_compiler_source_evidence_replaces_same_source_block() -> None:
+    current = [
+        {"type": "p", "children": [{"text": "Existing overview."}]},
+        {"type": "h2", "children": [{"text": "Source evidence"}]},
+        {"type": "p", "children": [{"text": "Old source summary."}]},
+        {
+            "type": "p",
+            "children": [
+                {"text": "Source: "},
+                {
+                    "type": "wiki-link",
+                    "targetId": "note-1",
+                    "children": [{"text": "Deep Learning Basics"}],
+                },
+            ],
+        },
+        {
+            "type": "p",
+            "children": [{"text": "Compiler matched this source to Batch Normalization."}],
+        },
+        {"type": "p", "children": [{"text": "Manual note stays."}]},
+    ]
+
+    draft = _append_compiler_source_evidence(
+        current=current,
+        concept_name="Batch Normalization",
+        description="New source summary.",
+        source_note_id="note-1",
+        source_title="Deep Learning Basics",
+    )
+    draft_text = json.dumps(draft, ensure_ascii=False)
+
+    assert "Old source summary." not in draft_text
+    assert "New source summary." in draft_text
+    assert "Manual note stays." in draft_text
+    assert draft_text.count("Source evidence") == 1
 
 
 # ---------------------------------------------------------------------------
