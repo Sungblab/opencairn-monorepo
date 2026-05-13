@@ -12,6 +12,7 @@ import {
   wikiLogs,
 } from "@opencairn/db";
 import { canRead } from "./permissions";
+import { computeNoteAnalysisContentHash } from "./note-analysis-jobs";
 
 const DEFAULT_PROMPT_LINK_LIMIT = 24;
 
@@ -59,6 +60,7 @@ export type ProjectWikiIndexHealthIssueKind =
   | "analysis_failed"
   | "analysis_running"
   | "analysis_queued"
+  | "analysis_stale"
   | "unresolved_missing"
   | "unresolved_ambiguous"
   | "orphan_pages";
@@ -227,6 +229,7 @@ export async function buildProjectWikiIndex(opts: {
     ? await db
         .select({
           noteId: noteAnalysisJobs.noteId,
+          contentHash: noteAnalysisJobs.contentHash,
           status: noteAnalysisJobs.status,
         })
         .from(noteAnalysisJobs)
@@ -235,6 +238,12 @@ export async function buildProjectWikiIndex(opts: {
 
   const health = buildProjectWikiHealth({
     analysisRows,
+    currentContentHashById: new Map(
+      visibleNotes.map((note) => [
+        note.id,
+        computeNoteAnalysisContentHash(note),
+      ]),
+    ),
     orphanPages,
     unresolvedLinks,
     titleById,
@@ -367,7 +376,12 @@ export function projectWikiIndexToPrompt(
 }
 
 function buildProjectWikiHealth(opts: {
-  analysisRows: Array<{ noteId: string; status: "queued" | "running" | "completed" | "failed" }>;
+  analysisRows: Array<{
+    noteId: string;
+    contentHash: string;
+    status: "queued" | "running" | "completed" | "failed";
+  }>;
+  currentContentHashById: Map<string, string>;
   orphanPages: ProjectWikiIndexPage[];
   unresolvedLinks: ProjectWikiIndexUnresolvedLink[];
   titleById: Map<string, string>;
@@ -379,6 +393,13 @@ function buildProjectWikiHealth(opts: {
     titles.push(opts.titleById.get(row.noteId) ?? row.noteId);
     analysisByStatus.set(row.status, titles);
   }
+  const staleAnalysisTitles = opts.analysisRows
+    .filter(
+      (row) =>
+        row.status === "completed" &&
+        opts.currentContentHashById.get(row.noteId) !== row.contentHash,
+    )
+    .map((row) => opts.titleById.get(row.noteId) ?? row.noteId);
 
   addHealthIssue(issues, {
     kind: "analysis_failed",
@@ -404,6 +425,11 @@ function buildProjectWikiHealth(opts: {
     kind: "orphan_pages",
     severity: "warning",
     titles: opts.orphanPages.map((page) => page.title),
+  });
+  addHealthIssue(issues, {
+    kind: "analysis_stale",
+    severity: "warning",
+    titles: staleAnalysisTitles,
   });
 
   addHealthIssue(issues, {

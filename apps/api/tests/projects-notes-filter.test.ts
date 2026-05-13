@@ -520,6 +520,12 @@ describe("GET /api/projects/:id/wiki-index", () => {
       title: "Queued analysis note",
       type: "wiki",
     });
+    const staleNoteId = await insertNote({
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      title: "Stale analysis note",
+      type: "wiki",
+    });
     await db.insert(noteAnalysisJobs).values([
       {
         workspaceId: seed.workspaceId,
@@ -537,6 +543,13 @@ describe("GET /api/projects/:id/wiki-index", () => {
         contentHash: "queued-analysis-hash",
         status: "queued",
       },
+      {
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        noteId: staleNoteId,
+        contentHash: "old-completed-analysis-hash",
+        status: "completed",
+      },
     ]);
 
     const res = await authedGet(
@@ -552,6 +565,7 @@ describe("GET /api/projects/:id/wiki-index", () => {
           kind:
             | "analysis_failed"
             | "analysis_queued"
+            | "analysis_stale"
             | "unresolved_missing";
           severity: "blocking" | "warning" | "info";
           count: number;
@@ -573,6 +587,12 @@ describe("GET /api/projects/:id/wiki-index", () => {
           severity: "info",
           count: 1,
           sampleTitles: ["Queued analysis note"],
+        }),
+        expect.objectContaining({
+          kind: "analysis_stale",
+          severity: "warning",
+          count: 1,
+          sampleTitles: ["Stale analysis note"],
         }),
         expect.objectContaining({
           kind: "unresolved_missing",

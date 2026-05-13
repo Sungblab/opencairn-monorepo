@@ -171,6 +171,7 @@
         "analysis_failed": "분석 실패 {count}개",
         "analysis_running": "분석 중 {count}개",
         "analysis_queued": "분석 대기 {count}개",
+        "analysis_stale": "오래된 분석 {count}개",
         "unresolved_missing": "깨진 링크 {count}개",
         "unresolved_ambiguous": "중복 링크 {count}개",
         "orphan_pages": "고립 페이지 {count}개"

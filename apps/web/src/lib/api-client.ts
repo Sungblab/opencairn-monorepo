@@ -742,6 +742,7 @@ export type ProjectWikiIndexHealthIssueKind =
   | "analysis_failed"
   | "analysis_running"
   | "analysis_queued"
+  | "analysis_stale"
   | "unresolved_missing"
   | "unresolved_ambiguous"
   | "orphan_pages";
