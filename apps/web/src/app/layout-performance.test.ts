@@ -126,6 +126,7 @@ describe("root layout performance boundaries", () => {
     expect(workspaceLayout).toContain('"dashboard"');
     expect(workspaceLayout).toContain('"agentPanel"');
     expect(workspaceLayout).toContain('"projectTemplates"');
+    expect(workspaceLayout).toContain('"workspaceAtlas"');
     expect(workspaceLayout).not.toContain('"landing"');
     expect(workspaceLayout).not.toContain('"auth"');
     expect(workspaceLayout).not.toContain('"onboarding"');

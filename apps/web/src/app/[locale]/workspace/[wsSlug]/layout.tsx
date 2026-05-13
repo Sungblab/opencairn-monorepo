@@ -37,6 +37,7 @@ const WORKSPACE_CLIENT_MESSAGE_NAMESPACES = [
   "codeWorkspaces",
   "admin",
   "help",
+  "workspaceAtlas",
 ] as const;
 
 export default async function WorkspaceLayout({
