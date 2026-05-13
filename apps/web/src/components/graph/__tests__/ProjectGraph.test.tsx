@@ -1,13 +1,53 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import { ProjectGraph } from "../ProjectGraph";
 import koGraph from "@/../messages/ko/graph.json";
+import { plan8AgentsApi, projectsApi } from "@/lib/api-client";
 import { useRouter, useSearchParams } from "next/navigation";
 
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(),
   useSearchParams: vi.fn(),
+}));
+
+vi.mock("@/lib/api-client", () => ({
+  projectsApi: {
+    wikiIndex: vi.fn(async () => ({
+      projectId: "p-1",
+      generatedAt: "2026-05-13T01:00:00.000Z",
+      latestPageUpdatedAt: "2026-05-13T01:00:00.000Z",
+      totals: { pages: 4, wikiLinks: 2, orphanPages: 1 },
+      health: {
+        status: "needs_attention",
+        issues: [
+          {
+            kind: "unresolved_missing",
+            severity: "warning",
+            count: 1,
+            sampleTitles: ["Broken source"],
+          },
+        ],
+      },
+      links: [],
+      unresolvedLinks: [],
+      recentLogs: [],
+      pages: [],
+    })),
+    permissions: vi.fn(async () => ({ role: "editor", overrides: {} })),
+    refreshWikiIndex: vi.fn(async () => ({
+      projectId: "p-1",
+      queuedNoteAnalysisJobs: 2,
+      skippedNotes: 0,
+      limit: 100,
+      noteIds: ["n1", "n2"],
+    })),
+  },
+  plan8AgentsApi: {
+    runLibrarian: vi.fn(async () => ({ workflowId: "librarian-workflow" })),
+  },
 }));
 
 vi.mock("../ViewSwitcher", () => ({
@@ -28,10 +68,15 @@ vi.mock("../ai/VisualizeDialog", () => ({
 }));
 
 function wrap(ui: React.ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <NextIntlClientProvider locale="ko" messages={{ graph: koGraph }}>
-      {ui}
-    </NextIntlClientProvider>,
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale="ko" messages={{ graph: koGraph }}>
+        {ui}
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -56,5 +101,21 @@ describe("ProjectGraph (assembled)", () => {
     expect(screen.queryByTestId("dialog")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("switcher-ai"));
     expect(await screen.findByTestId("dialog")).toBeInTheDocument();
+  });
+
+  it("surfaces wiki health recovery controls in the graph workspace", async () => {
+    wrap(<ProjectGraph projectId="p-1" />);
+
+    expect(await screen.findByTestId("project-graph-wiki-health")).toHaveTextContent(
+      koGraph.health.status.needs_attention,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: koGraph.health.refresh }),
+    );
+    expect(projectsApi.refreshWikiIndex).toHaveBeenCalledWith("p-1");
+    await userEvent.click(
+      screen.getByRole("button", { name: koGraph.health.runLibrarian }),
+    );
+    expect(plan8AgentsApi.runLibrarian).toHaveBeenCalledWith({ projectId: "p-1" });
   });
 });

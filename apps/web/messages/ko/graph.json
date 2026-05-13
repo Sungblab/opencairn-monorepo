@@ -3,6 +3,27 @@
     "title": "그래프",
     "missing": "그래프를 표시할 프로젝트가 선택되지 않았습니다."
   },
+  "health": {
+    "label": "인덱스 상태",
+    "status": {
+      "healthy": "정상",
+      "updating": "갱신 중",
+      "needs_attention": "확인 필요",
+      "blocked": "복구 필요"
+    },
+    "issues": {
+      "analysis_failed": "분석 실패 {count}개",
+      "analysis_running": "분석 중 {count}개",
+      "analysis_queued": "대기 중 {count}개",
+      "unresolved_missing": "끊긴 위키링크 {count}개",
+      "unresolved_ambiguous": "모호한 위키링크 {count}개",
+      "orphan_pages": "고립 노트 {count}개"
+    },
+    "refresh": "인덱스 갱신",
+    "refreshing": "갱신 요청 중",
+    "runLibrarian": "정리 에이전트 실행",
+    "runningLibrarian": "실행 요청 중"
+  },
   "filters": {
     "searchPlaceholder": "개념 이름으로 검색…",
     "relationLabel": "관계",
