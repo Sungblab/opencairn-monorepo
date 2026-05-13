@@ -22,6 +22,7 @@
     },
     "refresh": "Refresh index",
     "refreshing": "Queuing refresh",
+    "recentActivity": "Recent activity",
     "runLibrarian": "Run Librarian",
     "runningLibrarian": "Starting Librarian"
   },

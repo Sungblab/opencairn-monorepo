@@ -22,6 +22,7 @@
     },
     "refresh": "인덱스 갱신",
     "refreshing": "갱신 요청 중",
+    "recentActivity": "최근 활동",
     "runLibrarian": "정리 에이전트 실행",
     "runningLibrarian": "실행 요청 중"
   },

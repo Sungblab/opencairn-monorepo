@@ -88,6 +88,13 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
   const healthIssueSummary = formatWikiHealthIssueSummary(wikiIndex, (kind, count) =>
     t(`health.issues.${kind}`, { count }),
   );
+  const recentWikiActivitySummary = formatRecentWikiActivitySummary(
+    wikiIndex,
+    t("health.recentActivity"),
+  );
+  const healthSummary =
+    [healthIssueSummary, recentWikiActivitySummary].filter(Boolean).join(" · ") ||
+    null;
 
   useEffect(() => {
     setHydrated(true);
@@ -133,7 +140,7 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
         <ProjectGraphWikiHealth
           label={t("health.label")}
           status={t(`health.status.${wikiIndex.health.status}`)}
-          issueSummary={healthIssueSummary}
+          issueSummary={healthSummary}
           tone={wikiIndex.health.status}
           showRefresh={showRefresh}
           refreshLabel={t("health.refresh")}
@@ -256,6 +263,18 @@ function formatWikiHealthIssueSummary(
     .slice(0, 2)
     .map((issue) => format(issue.kind, issue.count))
     .join(" · ");
+}
+
+function formatRecentWikiActivitySummary(
+  index: ProjectWikiIndex | undefined,
+  label: string,
+): string | null {
+  const log = index?.recentLogs[0];
+  if (!log) return null;
+  const reason = log.reason?.trim();
+  return reason
+    ? `${label}: ${log.noteTitle} - ${reason}`
+    : `${label}: ${log.noteTitle} ${log.action}`;
 }
 
 function getWikiHealthClassName(status: ProjectWikiIndexHealthStatus): string {

@@ -118,4 +118,33 @@ describe("ProjectGraph (assembled)", () => {
     );
     expect(plan8AgentsApi.runLibrarian).toHaveBeenCalledWith({ projectId: "p-1" });
   });
+
+  it("surfaces recent wiki activity in the graph workspace", async () => {
+    (projectsApi.wikiIndex as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      projectId: "p-1",
+      generatedAt: "2026-05-13T01:00:00.000Z",
+      latestPageUpdatedAt: "2026-05-13T01:00:00.000Z",
+      totals: { pages: 4, wikiLinks: 2, orphanPages: 0 },
+      health: { status: "healthy", issues: [] },
+      links: [],
+      unresolvedLinks: [],
+      recentLogs: [
+        {
+          noteId: "n1",
+          noteTitle: "Compiler",
+          agent: "agent-actions",
+          action: "update",
+          reason: "agent note.rename applied",
+          createdAt: "2026-05-13T01:02:00.000Z",
+        },
+      ],
+      pages: [],
+    });
+
+    wrap(<ProjectGraph projectId="p-1" />);
+
+    expect(await screen.findByTestId("project-graph-wiki-health")).toHaveTextContent(
+      `${koGraph.health.recentActivity}: Compiler - agent note.rename applied`,
+    );
+  });
 });
