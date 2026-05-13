@@ -86,6 +86,62 @@ describe("agent action fence", () => {
     });
   });
 
+  it("repairs a missing trailing top-level object brace from model output", () => {
+    const extracted = extractAgentActionFence([
+      "```agent-actions",
+      [
+        "{\"actions\":[{\"kind\":\"note.create_from_markdown\",",
+        "\"risk\":\"write\",",
+        "\"input\":{\"title\":\"PDF 요약 노트\",\"folderId\":null,",
+        "\"bodyMarkdown\":\"# PDF 요약\\n\\n- 핵심 개념\"}}]",
+      ].join(""),
+      "```",
+    ].join("\n"));
+
+    expect(extracted).toEqual({
+      actions: [
+        {
+          kind: "note.create_from_markdown",
+          risk: "write",
+          approvalMode: "auto_safe",
+          input: {
+            title: "PDF 요약 노트",
+            folderId: null,
+            bodyMarkdown: "# PDF 요약\n\n- 핵심 개념",
+          },
+        },
+      ],
+    });
+  });
+
+  it("repairs a missing trailing actions array bracket from model output", () => {
+    const extracted = extractAgentActionFence([
+      "```agent-actions",
+      [
+        "{\"actions\":[{\"kind\":\"note.create_from_markdown\",",
+        "\"risk\":\"write\",",
+        "\"input\":{\"title\":\"PDF 요약 노트\",\"folderId\":null,",
+        "\"bodyMarkdown\":\"# PDF 요약\\n\\n- 핵심 개념\"}}}",
+      ].join(""),
+      "```",
+    ].join("\n"));
+
+    expect(extracted).toEqual({
+      actions: [
+        {
+          kind: "note.create_from_markdown",
+          risk: "write",
+          approvalMode: "auto_safe",
+          input: {
+            title: "PDF 요약 노트",
+            folderId: null,
+            bodyMarkdown: "# PDF 요약\n\n- 핵심 개념",
+          },
+        },
+      ],
+    });
+  });
+
   it("handles unterminated fences in linear time without regex backtracking", () => {
     const extracted = extractAgentActionFence(
       "```agent-actions\n" + "\n\t".repeat(10_000),

@@ -112,6 +112,63 @@ describe("runChat agent action fences", () => {
     expect(provider.calls?.[0]?.maxOutputTokens).toBeGreaterThanOrEqual(4096);
   });
 
+  it("emits generated-note actions when the model omits the final top-level brace", async () => {
+    const provider = providerWithText(
+      [
+        "새 노트로 만들겠습니다.",
+        "```agent-actions",
+        [
+          "{\"actions\":[{\"kind\":\"note.create_from_markdown\",",
+          "\"risk\":\"write\",",
+          "\"input\":{\"title\":\"PDF 요약 노트\",\"folderId\":null,",
+          "\"bodyMarkdown\":\"# PDF 요약\\n\\n- 운영체제 종류\"}}]",
+        ].join(""),
+        "```",
+      ].join("\n"),
+    );
+
+    const chunks = [];
+    for await (const chunk of runChat({
+      workspaceId: "00000000-0000-4000-8000-000000000001",
+      userId: "user-1",
+      scope: {
+        type: "workspace",
+        workspaceId: "00000000-0000-4000-8000-000000000001",
+      },
+      ragMode: "off",
+      chips: [],
+      history: [],
+      userMessage: "이 PDF를 요약해서 새 노트로 만들어줘",
+      provider,
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toContainEqual({
+      type: "agent_action",
+      payload: {
+        actions: [
+          {
+            kind: "note.create_from_markdown",
+            risk: "write",
+            approvalMode: "auto_safe",
+            input: {
+              title: "PDF 요약 노트",
+              folderId: null,
+              bodyMarkdown: "# PDF 요약\n\n- 운영체제 종류",
+            },
+          },
+        ],
+      },
+    });
+    expect(chunks).not.toContainEqual(
+      expect.objectContaining({
+        type: "error",
+        payload: expect.objectContaining({ code: "artifact_action_required" }),
+      }),
+    );
+  });
+
   it("fails closed when a creation request has no executable artifact fence", async () => {
     const provider = providerWithText("새 노트를 생성했습니다.");
 
