@@ -1,6 +1,7 @@
 import {
   and,
   conceptEdgeEvidence,
+  conceptNotes,
   concepts,
   count,
   db,
@@ -8,7 +9,9 @@ import {
   eq,
   evidenceBundleChunks,
   inArray,
+  isNull,
   knowledgeClaims,
+  notes,
   or,
   sql,
 } from "@opencairn/db";
@@ -497,6 +500,163 @@ function mergeSurfaceEdges(
   return merged;
 }
 
+function noteIdsForReadableEvidence(
+  noteLinks: KnowledgeSurfaceNoteLink[],
+  edges: KnowledgeSurfaceEdge[],
+  conceptNoteIds: Map<string, string[]>,
+): string[] {
+  const ids = new Set<string>();
+  for (const noteIds of conceptNoteIds.values()) {
+    for (const id of noteIds) ids.add(id);
+  }
+  for (const link of noteLinks) {
+    ids.add(link.sourceNoteId);
+    ids.add(link.targetNoteId);
+  }
+  for (const edge of edges) {
+    for (const id of edge.sourceNoteIds ?? []) ids.add(id);
+    for (const note of edge.sourceNotes ?? []) ids.add(note.id);
+    for (const context of edge.sourceContexts ?? []) ids.add(context.noteId);
+    for (const link of edge.sourceNoteLinks ?? []) {
+      ids.add(link.sourceNoteId);
+      ids.add(link.targetNoteId);
+    }
+  }
+  return [...ids];
+}
+
+async function selectConceptNoteIds(
+  conceptIds: string[],
+): Promise<Map<string, string[]>> {
+  if (conceptIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      conceptId: conceptNotes.conceptId,
+      noteId: conceptNotes.noteId,
+    })
+    .from(conceptNotes)
+    .innerJoin(notes, eq(notes.id, conceptNotes.noteId))
+    .where(and(inArray(conceptNotes.conceptId, conceptIds), isNull(notes.deletedAt)));
+  const byConcept = new Map<string, string[]>();
+  for (const row of rows) {
+    const noteIds = byConcept.get(row.conceptId) ?? [];
+    noteIds.push(row.noteId);
+    byConcept.set(row.conceptId, noteIds);
+  }
+  return byConcept;
+}
+
+async function readableNoteIdsForUser(
+  userId: string,
+  noteIds: string[],
+): Promise<Set<string>> {
+  const uniqueIds = [...new Set(noteIds)];
+  if (uniqueIds.length === 0) return new Set();
+  const rows = await db
+    .select({ id: notes.id, inheritParent: notes.inheritParent })
+    .from(notes)
+    .where(and(inArray(notes.id, uniqueIds), isNull(notes.deletedAt)));
+  const readable = new Set<string>();
+  for (const row of rows) {
+    if (row.inheritParent !== false) {
+      readable.add(row.id);
+      continue;
+    }
+    if (await canRead(userId, { type: "note", id: row.id })) {
+      readable.add(row.id);
+    }
+  }
+  return readable;
+}
+
+function filterNoteLinksByReadableNotes(
+  noteLinks: KnowledgeSurfaceNoteLink[],
+  readableNoteIds: Set<string>,
+): KnowledgeSurfaceNoteLink[] {
+  return noteLinks.filter(
+    (link) =>
+      readableNoteIds.has(link.sourceNoteId) &&
+      readableNoteIds.has(link.targetNoteId),
+  );
+}
+
+function filterNodesByReadableConceptNotes(
+  nodes: GraphNode[],
+  conceptNoteIds: Map<string, string[]>,
+  readableNoteIds: Set<string>,
+): GraphNode[] {
+  return nodes.flatMap((node) => {
+    const noteIds = conceptNoteIds.get(node.id);
+    if (!noteIds || noteIds.length === 0) return [node];
+    const readableIds = noteIds.filter((id) => readableNoteIds.has(id));
+    if (readableIds.length === 0) return [];
+    return [
+      {
+        ...node,
+        noteCount: readableIds.length,
+        firstNoteId:
+          node.firstNoteId && readableNoteIds.has(node.firstNoteId)
+            ? node.firstNoteId
+            : readableIds[0] ?? null,
+      },
+    ];
+  });
+}
+
+function filterEdgeByReadableNotes(
+  edge: KnowledgeSurfaceEdge,
+  readableNoteIds: Set<string>,
+): KnowledgeSurfaceEdge | null {
+  const sourceNoteLinks = (edge.sourceNoteLinks ?? []).filter(
+    (link) =>
+      readableNoteIds.has(link.sourceNoteId) &&
+      readableNoteIds.has(link.targetNoteId),
+  );
+  const allowedWikiNoteIds = new Set(
+    sourceNoteLinks.flatMap((link) => [link.sourceNoteId, link.targetNoteId]),
+  );
+  const sourceNoteIds = (edge.sourceNoteIds ?? []).filter((id) =>
+    edge.surfaceType === "wiki_link"
+      ? allowedWikiNoteIds.has(id)
+      : readableNoteIds.has(id),
+  );
+  const sourceNotes = (edge.sourceNotes ?? []).filter((note) =>
+    edge.surfaceType === "wiki_link"
+      ? allowedWikiNoteIds.has(note.id)
+      : readableNoteIds.has(note.id),
+  );
+  const sourceContexts = (edge.sourceContexts ?? []).filter((context) =>
+    readableNoteIds.has(context.noteId),
+  );
+  const filtered: KnowledgeSurfaceEdge = {
+    ...edge,
+    sourceNoteIds,
+    sourceNotes,
+    sourceContexts,
+    sourceNoteLinks,
+  };
+  if (!filtered.displayOnly) return filtered;
+  if (filtered.surfaceType === "wiki_link") {
+    return sourceNoteLinks.length > 0 ? filtered : null;
+  }
+  if (filtered.surfaceType === "source_membership") {
+    return sourceContexts.length > 0 ? filtered : null;
+  }
+  if (filtered.surfaceType === "co_mention") {
+    return sourceNoteIds.length > 0 || sourceNotes.length > 0 ? filtered : null;
+  }
+  return filtered;
+}
+
+function filterEdgesByReadableNotes(
+  edges: KnowledgeSurfaceEdge[],
+  readableNoteIds: Set<string>,
+): KnowledgeSurfaceEdge[] {
+  return edges
+    .map((edge) => filterEdgeByReadableNotes(edge, readableNoteIds))
+    .filter((edge): edge is KnowledgeSurfaceEdge => edge !== null);
+}
+
 function claimStatusToSupportStatus(status: string): KnowledgeSurfaceSupportStatus {
   if (status === "stale" || status === "retracted") return "stale";
   if (status === "disputed") return "disputed";
@@ -822,17 +982,34 @@ export async function getKnowledgeSurfaceForUser(
     displayEdgesPromise,
     selectProjectWikiNoteLinks(projectId, opts.query),
   ]);
-  const edges = mergeSurfaceEdges(semanticEdges, displayEdges);
-  const cards = opts.view === "cards" ? await selectCards(base.nodes) : undefined;
+  const mergedEdges = mergeSurfaceEdges(semanticEdges, displayEdges);
+  const conceptNoteIds = await selectConceptNoteIds(base.nodes.map((node) => node.id));
+  const readableNoteIds = await readableNoteIdsForUser(
+    userId,
+    noteIdsForReadableEvidence(noteLinks, mergedEdges, conceptNoteIds),
+  );
+  const nodes = filterNodesByReadableConceptNotes(
+    base.nodes,
+    conceptNoteIds,
+    readableNoteIds,
+  );
+  const visibleConceptIds = new Set(nodes.map((node) => node.id));
+  const edges = filterEdgesByReadableNotes(mergedEdges, readableNoteIds).filter(
+    (edge) =>
+      visibleConceptIds.has(edge.sourceId) && visibleConceptIds.has(edge.targetId),
+  );
+  const readableNoteLinks = filterNoteLinksByReadableNotes(noteLinks, readableNoteIds);
+  const cards = opts.view === "cards" ? await selectCards(nodes) : undefined;
+  const filteredConcepts = nodes.length !== base.nodes.length;
 
   const response: KnowledgeSurfaceResponse = {
     viewType: opts.view,
     rootId: base.rootId,
-    nodes: base.nodes,
+    nodes,
     edges,
-    noteLinks,
-    truncated: base.truncated,
-    totalConcepts: base.totalConcepts,
+    noteLinks: readableNoteLinks,
+    truncated: filteredConcepts ? false : base.truncated,
+    totalConcepts: filteredConcepts ? nodes.length : base.totalConcepts,
     layout: base.layout,
     ...(cards ? { cards } : {}),
   };

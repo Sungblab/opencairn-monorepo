@@ -17,7 +17,12 @@ import {
   wikiLinks,
 } from "@opencairn/db";
 import { createApp } from "../src/app.js";
-import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
+import {
+  seedMultiRoleWorkspace,
+  seedWorkspace,
+  type SeedMultiRoleResult,
+  type SeedResult,
+} from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
 const app = createApp();
@@ -443,6 +448,79 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
         targetTitle: "Linked target",
       },
     ]);
+  });
+
+  it("does not expose private note links or display edge evidence to project viewers", async () => {
+    const multi: SeedMultiRoleResult = await seedMultiRoleWorkspace();
+    try {
+      const [sourceConcept] = await db
+        .insert(concepts)
+        .values({
+          projectId: multi.projectId,
+          name: `Visible concept ${randomUUID()}`,
+          description: "visible source",
+        })
+        .returning({ id: concepts.id });
+      const [privateConcept] = await db
+        .insert(concepts)
+        .values({
+          projectId: multi.projectId,
+          name: `Private concept ${randomUUID()}`,
+          description: "private target",
+        })
+        .returning({ id: concepts.id });
+      await db.insert(conceptNotes).values([
+        { conceptId: sourceConcept.id, noteId: multi.noteId },
+        { conceptId: privateConcept.id, noteId: multi.privateNoteId },
+      ]);
+      await db.insert(wikiLinks).values({
+        workspaceId: multi.workspaceId,
+        sourceNoteId: multi.noteId,
+        targetNoteId: multi.privateNoteId,
+      });
+
+      const res = await app.request(
+        `/api/projects/${multi.projectId}/knowledge-surface?view=graph`,
+        { headers: { cookie: await signSessionCookie(multi.viewerUserId) } },
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        noteLinks?: Array<{
+          sourceNoteId: string;
+          targetNoteId: string;
+          targetTitle: string;
+        }>;
+        edges: Array<{
+          sourceNoteIds?: string[];
+          sourceNoteLinks?: Array<{
+            sourceNoteId: string;
+            targetNoteId: string;
+            targetTitle: string;
+          }>;
+        }>;
+      };
+      expect(body.noteLinks ?? []).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            targetNoteId: multi.privateNoteId,
+          }),
+        ]),
+      );
+      for (const edge of body.edges) {
+        expect(edge.sourceNoteIds ?? []).not.toContain(multi.privateNoteId);
+        expect(edge.sourceNoteLinks ?? []).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              targetNoteId: multi.privateNoteId,
+            }),
+          ]),
+        );
+      }
+      expect(JSON.stringify(body)).not.toContain(multi.privateNoteId);
+    } finally {
+      await multi.cleanup();
+    }
   });
 
   it("projects same-chunk source proximity into knowledge surface edges", async () => {
