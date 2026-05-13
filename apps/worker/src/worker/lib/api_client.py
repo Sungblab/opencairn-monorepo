@@ -100,6 +100,14 @@ class AgentApiClient:
         """
         return await get_internal(f"/api/internal/notes/{note_id}")
 
+    async def get_note_draft_state(self, note_id: str) -> dict[str, Any]:
+        """Fetch the current Plate/Yjs draft state for agent note.update proposals.
+
+        ``hasYjsDocument=false`` means the note can be read for context, but
+        the Yjs-backed ``note.update`` action would not be previewable yet.
+        """
+        return await get_internal(f"/api/internal/notes/{note_id}/draft-state")
+
     async def list_note_chunks(
         self,
         *,

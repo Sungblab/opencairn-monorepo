@@ -59,6 +59,7 @@ logger = logging.getLogger(__name__)
 MERGE_SIMILARITY_THRESHOLD = 0.88
 MAX_COMPILER_WIKI_PAGE_ACTIONS = 5
 WIKI_PAGE_REQUEST_NAMESPACE = uuid.UUID("dd8d8cc6-7f4b-42d0-8f2c-c8d3fe89da8f")
+WIKI_PAGE_UPDATE_REQUEST_NAMESPACE = uuid.UUID("61009c8c-2759-43fc-b398-97e36d433184")
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,7 @@ class CompilerOutput:
     linked_count: int
     concept_ids: list[str]
     wiki_page_actions_created: int = 0
+    wiki_page_update_actions_created: int = 0
 
 
 class CompilerAgent(Agent):
@@ -180,6 +182,7 @@ class CompilerAgent(Agent):
                         linked_count=0,
                         concept_ids=[],
                         wiki_page_actions_created=0,
+                        wiki_page_update_actions_created=0,
                     ).__dict__,
                     duration_ms=int((time.time() - t0) * 1000),
                 )
@@ -214,6 +217,7 @@ class CompilerAgent(Agent):
             linked = 0
             concept_ids: list[str] = []
             created_concepts: list[dict[str, str]] = []
+            existing_concepts: list[dict[str, str]] = []
             for candidate, embedding in zip(extracted, embed_vectors, strict=False):
                 result = await self._process_concept(
                     candidate=candidate,
@@ -237,6 +241,13 @@ class CompilerAgent(Agent):
                     )
                 else:
                     merged += 1
+                    existing_concepts.append(
+                        {
+                            "concept_id": result.concept_id,
+                            "name": result.display_name or candidate["name"].strip(),
+                            "description": candidate.get("description", "").strip(),
+                        }
+                    )
                 if result.was_linked:
                     linked += 1
 
@@ -258,6 +269,24 @@ class CompilerAgent(Agent):
                     payload={"count": wiki_page_actions_created},
                 )
 
+            wiki_page_update_actions_created = await self._create_wiki_page_update_actions(
+                input=validated,
+                ctx=ctx,
+                source_title=title,
+                concepts=existing_concepts,
+            )
+            if wiki_page_update_actions_created > 0:
+                yield CustomEvent(
+                    run_id=ctx.run_id,
+                    workspace_id=ctx.workspace_id,
+                    agent_name=self.name,
+                    seq=seq.next(),
+                    ts=time.time(),
+                    type="custom",
+                    label="compiler.wiki_page_update_actions_created",
+                    payload={"count": wiki_page_update_actions_created},
+                )
+
             out = CompilerOutput(
                 note_id=validated.note_id,
                 extracted_count=len(extracted),
@@ -266,6 +295,7 @@ class CompilerAgent(Agent):
                 linked_count=linked,
                 concept_ids=concept_ids,
                 wiki_page_actions_created=wiki_page_actions_created,
+                wiki_page_update_actions_created=wiki_page_update_actions_created,
             )
             yield AgentEnd(
                 run_id=ctx.run_id,
@@ -399,6 +429,7 @@ class CompilerAgent(Agent):
                 concept_id=None,
                 was_created=False,
                 was_linked=False,
+                display_name=None,
                 events=_aiter([]),
             )
 
@@ -412,6 +443,7 @@ class CompilerAgent(Agent):
                 concept_id=None,
                 was_created=False,
                 was_linked=False,
+                display_name=None,
                 events=_aiter([]),
             )
 
@@ -569,6 +601,7 @@ class CompilerAgent(Agent):
             concept_id=concept_id,
             was_created=created,
             was_linked=True,
+            display_name=merge_target["name"] if merge_target else name,
             events=_aiter(events),
         )
 
@@ -655,6 +688,111 @@ class CompilerAgent(Agent):
 
         return created
 
+    async def _create_wiki_page_update_actions(
+        self,
+        *,
+        input: CompilerInput,
+        ctx: ToolContext,
+        source_title: str,
+        concepts: list[dict[str, str]],
+    ) -> int:
+        if not concepts:
+            return 0
+        try:
+            index = await self.api.get_project_wiki_index(input.project_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Compiler: failed to fetch wiki index for page update proposals: %s",
+                exc,
+            )
+            return 0
+
+        pages_by_title: dict[str, dict[str, Any]] = {}
+        for page in index.get("pages", []):
+            if not isinstance(page, dict):
+                continue
+            title = str(page.get("title") or "").strip()
+            page_id = str(page.get("id") or "").strip()
+            if title and page_id:
+                pages_by_title.setdefault(title.casefold(), page)
+
+        created = 0
+        seen_page_ids: set[str] = set()
+        for concept in concepts:
+            name = concept.get("name", "").strip()
+            if not name:
+                continue
+            page = pages_by_title.get(name.casefold())
+            page_id = str(page.get("id") or "").strip() if page else ""
+            if not page_id or page_id in seen_page_ids:
+                continue
+            seen_page_ids.add(page_id)
+            if created >= MAX_COMPILER_WIKI_PAGE_ACTIONS:
+                break
+
+            try:
+                draft_state = await self.api.get_note_draft_state(page_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Compiler: failed to fetch wiki page draft state for %s: %s",
+                    name,
+                    exc,
+                )
+                continue
+            if not draft_state.get("hasYjsDocument"):
+                continue
+            current_content = draft_state.get("content")
+            if not isinstance(current_content, list) or not current_content:
+                continue
+
+            description = concept.get("description", "").strip()
+            draft_content = _append_compiler_source_evidence(
+                current=current_content,
+                concept_name=name,
+                description=description,
+                source_note_id=input.note_id,
+                source_title=source_title,
+            )
+            request_id = str(
+                uuid.uuid5(
+                    WIKI_PAGE_UPDATE_REQUEST_NAMESPACE,
+                    f"{input.project_id}:{input.note_id}:{page_id}",
+                )
+            )
+            try:
+                result = await self.api.create_agent_action(
+                    project_id=input.project_id,
+                    user_id=input.user_id,
+                    request={
+                        "requestId": request_id,
+                        "sourceRunId": ctx.run_id,
+                        "kind": "note.update",
+                        "risk": "write",
+                        "approvalMode": "require",
+                        "input": {
+                            "noteId": page_id,
+                            "draft": {
+                                "format": "plate_value_v1",
+                                "content": draft_content,
+                            },
+                            "reason": (
+                                f"Compiler linked {source_title} "
+                                "as new source evidence."
+                            ),
+                        },
+                    },
+                )
+                if not result.get("idempotent"):
+                    created += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Compiler: failed to create wiki page update action for %s: %s",
+                    name,
+                    exc,
+                )
+
+        return created
+
 
 # ---------------------------------------------------------------------------
 # Helpers (module-private)
@@ -683,6 +821,7 @@ class _ConceptProcessed:
     concept_id: str | None
     was_created: bool
     was_linked: bool
+    display_name: str | None
     events: AsyncGenerator[AgentEvent, None]
 
 
@@ -716,6 +855,47 @@ def _build_wiki_page_stub(
         "Review the source note, expand this into a grounded wiki page, "
         "or reject the action."
     )
+
+
+def _append_compiler_source_evidence(
+    *,
+    current: list[Any],
+    concept_name: str,
+    description: str,
+    source_note_id: str,
+    source_title: str,
+) -> list[dict[str, Any]]:
+    appended: list[dict[str, Any]] = [
+        node.copy()
+        if isinstance(node, dict)
+        else {"type": "p", "children": [{"text": str(node)}]}
+        for node in current
+    ]
+    evidence_text = description or f"Compiler linked this page to {source_title}."
+    appended.extend(
+        [
+            {"type": "h2", "children": [{"text": "Source evidence"}]},
+            {"type": "p", "children": [{"text": evidence_text}]},
+            {
+                "type": "p",
+                "children": [
+                    {"text": "Source: "},
+                    {
+                        "type": "wiki-link",
+                        "targetId": source_note_id,
+                        "children": [{"text": source_title}],
+                    },
+                ],
+            },
+            {
+                "type": "p",
+                "children": [
+                    {"text": f"Compiler matched this source to {concept_name}."}
+                ],
+            },
+        ]
+    )
+    return appended
 
 
 _JSON_BLOCK = re.compile(r"```(?:json)?\s*(.+?)```", re.DOTALL)

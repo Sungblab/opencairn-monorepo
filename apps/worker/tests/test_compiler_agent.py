@@ -146,6 +146,7 @@ def _make_api(*, existing: list[dict[str, Any]] | None = None) -> MagicMock:
     api.get_project_wiki_index = AsyncMock(
         return_value={"pages": [{"title": "Batch Normalization"}]}
     )
+    api.get_note_draft_state = AsyncMock()
     api.create_agent_action = AsyncMock(
         return_value={
             "action": {"id": "action-1", "status": "approval_required"},
@@ -307,6 +308,96 @@ async def test_compiler_does_not_count_idempotent_wiki_page_actions() -> None:
         and e.label == "compiler.wiki_page_actions_created"
     ]
     assert customs == []
+
+
+@pytest.mark.asyncio
+async def test_compiler_proposes_wiki_updates_for_existing_concept_pages() -> None:
+    page_id = "11111111-1111-1111-1111-111111111111"
+    extraction = json.dumps(
+        {
+            "concepts": [
+                {
+                    "name": "Batch Normalization",
+                    "description": "New source explains training stability.",
+                }
+            ]
+        }
+    )
+    provider = _make_provider(extraction)
+    api = _make_api(
+        existing=[
+            {
+                "id": "concept-abc",
+                "name": "Batch Normalization",
+                "similarity": 0.99,
+            }
+        ]
+    )
+    api.upsert_concept = AsyncMock(return_value=("concept-abc", False))
+    api.get_project_wiki_index = AsyncMock(
+        return_value={
+            "pages": [
+                {
+                    "id": page_id,
+                    "title": "Batch Normalization",
+                    "summary": "Existing overview.",
+                }
+            ]
+        }
+    )
+    api.get_note_draft_state = AsyncMock(
+        return_value={
+            "id": page_id,
+            "title": "Batch Normalization",
+            "hasYjsDocument": True,
+            "content": [
+                {"type": "p", "children": [{"text": "Existing overview."}]}
+            ],
+        }
+    )
+    agent = CompilerAgent(provider=provider, api=api)
+
+    events = []
+    async for ev in agent.run(
+        {
+            "note_id": "note-1",
+            "project_id": "proj-1",
+            "workspace_id": "ws-1",
+            "user_id": "user-1",
+        },
+        _make_ctx(),
+    ):
+        events.append(ev)
+
+    api.create_agent_action.assert_awaited_once()
+    action_kwargs = api.create_agent_action.await_args.kwargs
+    assert action_kwargs["project_id"] == "proj-1"
+    assert action_kwargs["user_id"] == "user-1"
+    request = action_kwargs["request"]
+    assert request["kind"] == "note.update"
+    assert request["risk"] == "write"
+    assert request["approvalMode"] == "require"
+    assert request["input"]["noteId"] == page_id
+    assert request["input"]["reason"] == (
+        "Compiler linked Deep Learning Basics as new source evidence."
+    )
+    draft = request["input"]["draft"]["content"]
+    assert draft[0]["children"][0]["text"] == "Existing overview."
+    draft_text = json.dumps(draft, ensure_ascii=False)
+    assert "New source explains training stability." in draft_text
+    assert "Deep Learning Basics" in draft_text
+
+    end = events[-1]
+    assert end.output["wiki_page_actions_created"] == 0
+    assert end.output["wiki_page_update_actions_created"] == 1
+    customs = [
+        e
+        for e in events
+        if e.type == "custom"
+        and e.label == "compiler.wiki_page_update_actions_created"
+    ]
+    assert customs
+    assert customs[0].payload == {"count": 1}
 
 
 @pytest.mark.asyncio

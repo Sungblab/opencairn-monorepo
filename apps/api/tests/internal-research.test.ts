@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
+import * as Y from "yjs";
 import { createApp } from "../src/app.js";
 import {
   and,
@@ -10,8 +11,10 @@ import {
   researchRuns,
   researchRunArtifacts,
   wikiLinks,
+  yjsDocuments,
 } from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
+import { transformYjsStateWithPlateValue } from "../src/lib/yjs-plate-transform.js";
 
 const SECRET = "test-internal-secret-abc";
 process.env.INTERNAL_API_SECRET = SECRET;
@@ -267,6 +270,52 @@ describe("GET /api/internal/projects/:id/wiki-index", () => {
         expect.objectContaining({ id: ctx.noteId, title: "test" }),
       ]),
     );
+  });
+});
+
+describe("GET /api/internal/notes/:id/draft-state", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("returns the current Yjs-backed Plate draft for worker note.update proposals", async () => {
+    const draft = [
+      { type: "p", children: [{ text: "Existing wiki page." }] },
+    ];
+    const empty = new Y.Doc();
+    const transformed = transformYjsStateWithPlateValue({
+      currentState: Y.encodeStateAsUpdate(empty),
+      draft,
+    });
+    await db.insert(yjsDocuments).values({
+      name: `page:${ctx.noteId}`,
+      state: transformed.state,
+      stateVector: transformed.stateVector,
+      sizeBytes: transformed.state.byteLength,
+    });
+
+    const res = await internalFetch(
+      `/api/internal/notes/${ctx.noteId}/draft-state`,
+      { method: "GET" },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      id: string;
+      title: string;
+      hasYjsDocument: boolean;
+      content: unknown[];
+      yjsStateVectorBase64: string | null;
+    };
+    expect(body.id).toBe(ctx.noteId);
+    expect(body.title).toBe("test");
+    expect(body.hasYjsDocument).toBe(true);
+    expect(body.content).toEqual(draft);
+    expect(body.yjsStateVectorBase64).toBe(Buffer.from(transformed.stateVector).toString("base64"));
   });
 });
 

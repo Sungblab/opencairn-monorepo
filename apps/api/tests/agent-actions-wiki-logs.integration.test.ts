@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
-import { db, eq, folders, wikiLogs } from "@opencairn/db";
+import { db, eq, folders, wikiLogs, yjsDocuments } from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 import { labelFromId } from "../src/lib/tree-queries.js";
+import { yjsStateToPlateValue } from "../src/lib/yjs-plate-transform.js";
 
 const app = createApp();
 
@@ -106,6 +107,18 @@ describe("agent action wiki logs", () => {
         reason: "agent note.create_from_markdown applied",
       },
     ]);
+
+    const [doc] = await db
+      .select({ state: yjsDocuments.state })
+      .from(yjsDocuments)
+      .where(eq(yjsDocuments.name, `page:${body.action.result.note.id}`));
+    expect(doc).toBeDefined();
+    expect(yjsStateToPlateValue(doc!.state)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "h1" }),
+        expect.objectContaining({ type: "p" }),
+      ]),
+    );
   });
 
   it("records wiki logs for agent note rename, move, delete, and restore", async () => {

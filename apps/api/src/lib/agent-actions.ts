@@ -17,6 +17,7 @@ import {
   syncWikiLinks,
   type AgentActionRow,
   type DB,
+  type Tx,
   wikiLogs,
   yjsDocuments,
 } from "@opencairn/db";
@@ -71,6 +72,7 @@ import type {
   InteractionChoiceRespondRequest,
 } from "@opencairn/shared";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import * as Y from "yjs";
 import {
   createCodeWorkspaceDraft,
   createDrizzleCodeWorkspaceRepository,
@@ -115,6 +117,38 @@ export class AgentActionError extends Error {
 }
 
 const MAX_CODE_REPAIR_ATTEMPTS = 3;
+
+function createYjsStateFromPlateValue(content: PlateValue): {
+  state: Uint8Array;
+  stateVector: Uint8Array;
+} {
+  const empty = new Y.Doc();
+  const transformed = transformYjsStateWithPlateValue({
+    currentState: Y.encodeStateAsUpdate(empty),
+    draft: content,
+  });
+  return {
+    state: transformed.state,
+    stateVector: transformed.stateVector,
+  };
+}
+
+async function seedYjsDocumentForNote(
+  tx: Tx,
+  noteId: string,
+  content: PlateValue,
+): Promise<void> {
+  const yjs = createYjsStateFromPlateValue(content);
+  await tx
+    .insert(yjsDocuments)
+    .values({
+      name: `page:${noteId}`,
+      state: yjs.state,
+      stateVector: yjs.stateVector,
+      sizeBytes: yjs.state.byteLength,
+    })
+    .onConflictDoNothing({ target: yjsDocuments.name });
+}
 
 export interface AgentActionRepository {
   findProjectScope(projectId: string): Promise<{ workspaceId: string } | null>;
@@ -2721,6 +2755,7 @@ async function createNoteFromMarkdownAction(
       extractWikiLinkTargets(content),
       input.workspaceId,
     );
+    await seedYjsDocumentForNote(tx, created.id, content);
     await tx.insert(wikiLogs).values({
       noteId: created.id,
       agent: "agent-actions",

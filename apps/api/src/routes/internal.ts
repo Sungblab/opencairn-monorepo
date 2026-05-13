@@ -47,6 +47,7 @@ import {
   inArray,
   asc,
   desc,
+  yjsDocuments,
 } from "@opencairn/db";
 import {
   agentFileKindSchema,
@@ -98,6 +99,7 @@ import {
 } from "../lib/agent-files";
 import { createTreeNode } from "../lib/project-tree-service";
 import { markdownToPlateValue } from "../lib/plate-doc";
+import { yjsStateToPlateValue } from "../lib/yjs-plate-transform";
 import {
   cleanupExpiredCodeProjectPreviews,
   completeCodeProjectInstallActionFromWorker,
@@ -1690,6 +1692,53 @@ internal.post(
 // GET /internal/notes/:id — worker fetches note body + scope metadata so the
 // Compiler agent can operate without shipping the note payload in the
 // workflow input (keeps Temporal history small; content can be MBs).
+internal.get("/notes/:id/draft-state", async (c) => {
+  const id = c.req.param("id");
+  if (!z.string().uuid().safeParse(id).success) {
+    return c.json({ error: "Invalid note id" }, 400);
+  }
+  const [row] = await db
+    .select({
+      id: notes.id,
+      projectId: notes.projectId,
+      workspaceId: notes.workspaceId,
+      title: notes.title,
+      content: notes.content,
+      contentText: notes.contentText,
+      sourceType: notes.sourceType,
+      sourceUrl: notes.sourceUrl,
+      type: notes.type,
+    })
+    .from(notes)
+    .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
+  if (!row) return c.json({ error: "Not found" }, 404);
+
+  const [doc] = await db
+    .select({
+      state: yjsDocuments.state,
+      stateVector: yjsDocuments.stateVector,
+    })
+    .from(yjsDocuments)
+    .where(eq(yjsDocuments.name, `page:${id}`))
+    .limit(1);
+
+  const content = doc
+    ? yjsStateToPlateValue(doc.state)
+    : Array.isArray(row.content)
+      ? row.content
+      : markdownToPlateValue(row.contentText ?? "");
+
+  return c.json({
+    ...row,
+    content,
+    contentText: plateValueToText(content),
+    hasYjsDocument: Boolean(doc),
+    yjsStateVectorBase64: doc
+      ? Buffer.from(doc.stateVector).toString("base64")
+      : null,
+  });
+});
+
 internal.get("/notes/:id", async (c) => {
   const id = c.req.param("id");
   if (!z.string().uuid().safeParse(id).success) {
