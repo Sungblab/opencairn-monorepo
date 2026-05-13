@@ -19,6 +19,7 @@ vi.mock("next/dynamic", () => ({
       data-testid="cy"
       data-elements={JSON.stringify(props.elements)}
       data-layout={props.layout?.name}
+      data-layout-json={JSON.stringify(props.layout)}
       data-stylesheet={JSON.stringify(props.stylesheet)}
     />
   ),
@@ -74,7 +75,7 @@ describe("MindmapView", () => {
     expect(screen.getByText(koGraph.views.needsRoot)).toBeInTheDocument();
   });
 
-  it("renders cytoscape with layout=dagre when nodes exist", () => {
+  it("renders cytoscape with root-centered breadthfirst layout when nodes exist", () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
         viewType: "mindmap",
@@ -97,7 +98,14 @@ describe("MindmapView", () => {
       />,
     );
     expect(screen.getByTestId("cy").getAttribute("data-layout")).toBe(
-      "dagre",
+      "breadthfirst",
+    );
+    const layout = JSON.parse(
+      screen.getByTestId("cy").getAttribute("data-layout-json") ?? "{}",
+    ) as { circle?: boolean; roots?: string };
+    expect(layout.circle).toBe(true);
+    expect(layout.roots).toBe(
+      '[id = "11111111-1111-4111-8111-111111111111"]',
     );
   });
 

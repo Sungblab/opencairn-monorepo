@@ -2,7 +2,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import cytoscape from "cytoscape";
-import dagre from "cytoscape-dagre";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { urls } from "@/lib/urls";
@@ -20,13 +19,6 @@ const CytoscapeComponent = dynamic(() => import("react-cytoscapejs"), {
   ssr: false,
 });
 
-// Register dagre layout once on the client. Repeated calls during HMR are
-// harmless — cytoscape no-ops duplicate registrations. The window guard keeps
-// the registration off the SSR path.
-if (typeof window !== "undefined") {
-  cytoscape.use(dagre);
-}
-
 interface Props {
   projectId: string;
   root?: string;
@@ -34,6 +26,20 @@ interface Props {
 
 function edgeElementId(edge: GroundedEdge) {
   return edge.id ?? `${edge.sourceId}->${edge.targetId}:${edge.relationType}`;
+}
+
+function mindmapLayout(rootId: string | null | undefined): cytoscape.LayoutOptions {
+  return {
+    name: "breadthfirst",
+    directed: false,
+    circle: true,
+    roots: rootId ? `[id = "${rootId}"]` : undefined,
+    spacingFactor: 1.45,
+    padding: 48,
+    avoidOverlap: true,
+    nodeDimensionsIncludeLabels: true,
+    animate: false,
+  } as cytoscape.LayoutOptions;
 }
 
 export default function MindmapView({ projectId, root }: Props) {
@@ -229,17 +235,7 @@ export default function MindmapView({ projectId, root }: Props) {
     <div className="relative h-full">
       <CytoscapeComponent
       elements={elements as cytoscape.ElementDefinition[]}
-      layout={
-        {
-          name: "dagre",
-          rankDir: "LR",
-          spacingFactor: 1.75,
-          nodeSep: 80,
-          rankSep: 120,
-          fit: true,
-          padding: 30,
-        } as cytoscape.LayoutOptions
-      }
+      layout={mindmapLayout(data.rootId)}
       stylesheet={
         [
           {
