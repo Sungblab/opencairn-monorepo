@@ -350,11 +350,16 @@ describe("GET /api/internal/notes/:id/draft-state", () => {
     expect(body.yjsStateVectorBase64).toEqual(expect.any(String));
 
     const [stored] = await db
-      .select({ state: yjsDocuments.state })
+      .select({
+        state: yjsDocuments.state,
+        loadedAt: notes.yjsStateLoadedAt,
+      })
       .from(yjsDocuments)
+      .innerJoin(notes, eq(notes.id, ctx.noteId))
       .where(eq(yjsDocuments.name, `page:${ctx.noteId}`));
     expect(stored).toBeDefined();
     expect(yjsStateToPlateValue(stored!.state)).toEqual(draft);
+    expect(stored!.loadedAt).toBeInstanceOf(Date);
   });
 });
 

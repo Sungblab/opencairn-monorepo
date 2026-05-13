@@ -1733,19 +1733,26 @@ internal.get("/notes/:id/draft-state", async (c) => {
       : markdownToPlateValue(row.contentText ?? "");
   if (!doc) {
     const yjs = plateValueToYjsState(content as PlateValue);
-    const [inserted] = await db
-      .insert(yjsDocuments)
-      .values({
-        name: `page:${id}`,
-        state: yjs.state,
-        stateVector: yjs.stateVector,
-        sizeBytes: yjs.state.byteLength,
-      })
-      .onConflictDoNothing({ target: yjsDocuments.name })
-      .returning({
-        state: yjsDocuments.state,
-        stateVector: yjsDocuments.stateVector,
-      });
+    const inserted = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(yjsDocuments)
+        .values({
+          name: `page:${id}`,
+          state: yjs.state,
+          stateVector: yjs.stateVector,
+          sizeBytes: yjs.state.byteLength,
+        })
+        .onConflictDoNothing({ target: yjsDocuments.name })
+        .returning({
+          state: yjsDocuments.state,
+          stateVector: yjsDocuments.stateVector,
+        });
+      await tx
+        .update(notes)
+        .set({ yjsStateLoadedAt: new Date() })
+        .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
+      return created;
+    });
     if (inserted) {
       doc = inserted;
     } else {
