@@ -39,7 +39,7 @@ const GEMINI_RATES: Record<string, Partial<Record<PricingTier, ModelRate>>> = {
       searchUsdPer1K: GEMINI_SEARCH_USD_PER_1K,
     },
   },
-  "gemini-3.1-flash-lite-preview": {
+  "gemini-3.1-flash-lite": {
     standard: {
       inputUsdPer1M: 0.25,
       outputUsdPer1M: 1.5,

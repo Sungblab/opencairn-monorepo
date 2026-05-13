@@ -402,8 +402,8 @@ describe("Threads messages — happy path", () => {
       tokensOut: 1_000_000,
       sourceType: "chat_run",
     });
-    expect(Number(event!.costUsd)).toBe(0.375);
-    expect(Number(event!.costKrw)).toBe(618.75);
+    expect(Number(event!.costUsd)).toBe(3.5);
+    expect(Number(event!.costKrw)).toBe(5775);
 
     await db.delete(llmUsageEvents).where(eq(llmUsageEvents.sourceId, runId));
   });

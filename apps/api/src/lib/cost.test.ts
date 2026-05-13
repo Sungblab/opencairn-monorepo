@@ -46,6 +46,19 @@ describe("estimateTokenCost", () => {
     expect(batch.inputUsdPer1M).toBe(0.075);
   });
 
+  it("uses stable Gemini 3.1 Flash-Lite pricing", () => {
+    const cost = estimateTokenCost({
+      provider: "gemini",
+      model: "gemini-3.1-flash-lite",
+      tokensIn: 1_000_000,
+      tokensOut: 1_000_000,
+    });
+
+    expect(cost.costUsd).toBe(1.75);
+    expect(cost.inputUsdPer1M).toBe(0.25);
+    expect(cost.outputUsdPer1M).toBe(1.5);
+  });
+
   it("charges cached Gemini 3 Flash input tokens at the cache rate", () => {
     const cost = estimateTokenCost({
       provider: "gemini",
