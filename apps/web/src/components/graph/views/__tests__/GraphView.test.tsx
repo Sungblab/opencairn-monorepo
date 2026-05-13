@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import koGraph from "@/../messages/ko/graph.json";
@@ -128,6 +128,58 @@ describe("GraphView", () => {
     await waitFor(() => {
       expect(forceGraphMock.handle.zoomToFit).toHaveBeenCalledWith(500, 56);
     });
+  });
+
+  it("exposes Obsidian-style canvas controls for fitting, zooming, and reset", async () => {
+    renderWith({
+      nodes: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "A",
+          description: "",
+          degree: 1,
+          noteCount: 0,
+          firstNoteId: null,
+        },
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          name: "B",
+          description: "",
+          degree: 1,
+          noteCount: 0,
+          firstNoteId: null,
+        },
+      ],
+      edges: [
+        {
+          id: "33333333-3333-4333-8333-333333333333",
+          sourceId: "11111111-1111-4111-8111-111111111111",
+          targetId: "22222222-2222-4222-8222-222222222222",
+          relationType: "supports",
+          weight: 1,
+        },
+      ],
+      truncated: false,
+      totalConcepts: 2,
+    });
+
+    expect(await screen.findByTestId("force-graph-mount")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(forceGraphMock.handle.zoomToFit).toHaveBeenCalled();
+    });
+    forceGraphMock.handle.zoomToFit.mockClear();
+    forceGraphMock.handle.zoom.mockClear();
+    forceGraphMock.handle.centerAt.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: koGraph.controls.fit }));
+    expect(forceGraphMock.handle.zoomToFit).toHaveBeenCalledWith(500, 56);
+
+    fireEvent.click(screen.getByRole("button", { name: koGraph.controls.zoomIn }));
+    expect(forceGraphMock.handle.zoom).toHaveBeenCalledWith(1.2, 220);
+
+    fireEvent.click(screen.getByRole("button", { name: koGraph.controls.reset }));
+    expect(forceGraphMock.handle.centerAt).toHaveBeenCalledWith(0, 0, 350);
+    expect(forceGraphMock.handle.zoom).toHaveBeenCalledWith(1, 350);
   });
 
   it("filters explicit note links with the graph search", () => {

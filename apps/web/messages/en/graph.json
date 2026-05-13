@@ -75,6 +75,12 @@
     "degree": "{count} connections",
     "noteCount": "{count} sources"
   },
+  "controls": {
+    "fit": "Fit graph",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Reset view"
+  },
   "cards": {
     "title": "Concept cards",
     "description": "Scan {count} concepts as cards, then open sources, ask, or review.",

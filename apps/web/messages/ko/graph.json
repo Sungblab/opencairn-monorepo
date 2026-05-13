@@ -75,6 +75,12 @@
     "degree": "연결 {count}개",
     "noteCount": "출처 {count}개"
   },
+  "controls": {
+    "fit": "그래프 맞춤",
+    "zoomIn": "확대",
+    "zoomOut": "축소",
+    "reset": "보기 초기화"
+  },
   "cards": {
     "title": "개념 카드",
     "description": "개념 {count}개를 카드로 훑고 출처, 질문, 복습으로 이어갑니다.",

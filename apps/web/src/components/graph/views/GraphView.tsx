@@ -4,7 +4,15 @@ import dynamic from "next/dynamic";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
-import { FileText, HelpCircle, Sparkles } from "lucide-react";
+import {
+  FileText,
+  HelpCircle,
+  LocateFixed,
+  Minus,
+  Plus,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import { urls } from "@/lib/urls";
 import { useTabsStore } from "@/stores/tabs-store";
 import { useProjectGraph } from "../useProjectGraph";
@@ -115,6 +123,8 @@ type SimulationForce = ((alpha: number) => void) & {
 const GRAPH_AUTO_FIT_PADDING = 56;
 const GRAPH_AUTO_FIT_DELAY_MS = 80;
 const GRAPH_AUTO_FIT_DURATION_MS = 500;
+const GRAPH_CONTROL_ZOOM_DURATION_MS = 220;
+const GRAPH_CONTROL_RESET_DURATION_MS = 350;
 
 const ForceGraph2D = dynamic(
   async () => {
@@ -656,6 +666,27 @@ export default function GraphView({ projectId }: { projectId: string }) {
     graph.zoom(Math.max(1.15, graph.zoom()), 450);
   }, []);
 
+  const fitGraph = useCallback(() => {
+    graphRef.current?.zoomToFit?.(
+      GRAPH_AUTO_FIT_DURATION_MS,
+      GRAPH_AUTO_FIT_PADDING,
+    );
+  }, []);
+
+  const zoomGraphBy = useCallback((factor: number) => {
+    const graph = graphRef.current;
+    if (!graph) return;
+    const nextZoom = Math.max(0.25, Math.min(4, graph.zoom() * factor));
+    graph.zoom(nextZoom, GRAPH_CONTROL_ZOOM_DURATION_MS);
+  }, []);
+
+  const resetGraphView = useCallback(() => {
+    const graph = graphRef.current;
+    if (!graph) return;
+    graph.centerAt(0, 0, GRAPH_CONTROL_RESET_DURATION_MS);
+    graph.zoom(1, GRAPH_CONTROL_RESET_DURATION_MS);
+  }, []);
+
   const drawNode = useCallback(
     (
       node: ForceGraphNodeObject,
@@ -909,6 +940,12 @@ export default function GraphView({ projectId }: { projectId: string }) {
           }}
           showPointerCursor
         />
+        <GraphCanvasControls
+          onFit={fitGraph}
+          onZoomIn={() => zoomGraphBy(1.2)}
+          onZoomOut={() => zoomGraphBy(1 / 1.2)}
+          onReset={resetGraphView}
+        />
         {selectedNode && (
           <ConceptInspector
             name={selectedNode.name}
@@ -949,6 +986,43 @@ export default function GraphView({ projectId }: { projectId: string }) {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+function GraphCanvasControls({
+  onFit,
+  onZoomIn,
+  onZoomOut,
+  onReset,
+}: {
+  onFit: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+}) {
+  const t = useTranslations("graph.controls");
+  const buttons = [
+    { label: t("fit"), icon: LocateFixed, onClick: onFit },
+    { label: t("zoomIn"), icon: Plus, onClick: onZoomIn },
+    { label: t("zoomOut"), icon: Minus, onClick: onZoomOut },
+    { label: t("reset"), icon: RotateCcw, onClick: onReset },
+  ];
+
+  return (
+    <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-lg border border-border bg-background/90 p-1 shadow-sm backdrop-blur">
+      {buttons.map(({ label, icon: Icon, onClick }) => (
+        <button
+          key={label}
+          type="button"
+          aria-label={label}
+          title={label}
+          onClick={onClick}
+          className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
+        >
+          <Icon aria-hidden className="size-4" />
+        </button>
+      ))}
     </div>
   );
 }
