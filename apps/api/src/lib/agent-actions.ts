@@ -2763,6 +2763,12 @@ async function renameNoteFromAction(
       deletedAt: notes.deletedAt,
     });
   if (!note) throw new AgentActionError("note_not_found", 404);
+  await conn.insert(wikiLogs).values({
+    noteId: note.id,
+    agent: "agent-actions",
+    action: "update",
+    reason: "agent note.rename applied",
+  });
 
   emitTreeEvent({
     kind: "tree.note_renamed",
@@ -2803,6 +2809,12 @@ async function moveNoteFromAction(
       folderId: notes.folderId,
     });
   if (!note) throw new AgentActionError("note_not_found", 404);
+  await conn.insert(wikiLogs).values({
+    noteId: note.id,
+    agent: "agent-actions",
+    action: "update",
+    reason: "agent note.move applied",
+  });
 
   emitTreeEvent({
     kind: "tree.note_moved",
@@ -2833,6 +2845,12 @@ async function deleteNoteFromAction(
       deletedAt: notes.deletedAt,
     });
   if (!note) throw new AgentActionError("note_not_found", 404);
+  await conn.insert(wikiLogs).values({
+    noteId: note.id,
+    agent: "agent-actions",
+    action: "update",
+    reason: "agent note.delete applied",
+  });
 
   emitTreeEvent({
     kind: "tree.note_deleted",
@@ -2882,6 +2900,12 @@ async function restoreNoteFromAction(
       title: notes.title,
     });
   if (!note) throw new AgentActionError("note_not_found", 404);
+  await conn.insert(wikiLogs).values({
+    noteId: note.id,
+    agent: "agent-actions",
+    action: "update",
+    reason: "agent note.restore applied",
+  });
 
   emitTreeEvent({
     kind: "tree.note_restored",

@@ -114,7 +114,10 @@ describe("note agent actions", () => {
       risk: "destructive",
       input: { noteId: seed.noteId },
     });
-    expect(deleted.action.status).toBe("completed");
+    expect(deleted.action.status).toBe("approval_required");
+
+    const appliedDelete = await applyAction(seed, deleted.action.id);
+    expect(appliedDelete.action.status).toBe("completed");
 
     const restored = await postAction(seed, {
       requestId: randomUUID(),
@@ -139,12 +142,25 @@ async function postAction(
     risk: "write" | "destructive";
     input: Record<string, unknown>;
   },
-): Promise<{ action: { status: string } }> {
+): Promise<{ action: { id: string; status: string } }> {
   const res = await authedFetch(`/api/projects/${seed.projectId}/agent-actions`, {
     method: "POST",
     userId: seed.userId,
     body: JSON.stringify(body),
   });
   expect(res.status).toBe(201);
+  return await res.json() as { action: { id: string; status: string } };
+}
+
+async function applyAction(
+  seed: SeedResult,
+  actionId: string,
+): Promise<{ action: { status: string } }> {
+  const res = await authedFetch(`/api/agent-actions/${actionId}/apply`, {
+    method: "POST",
+    userId: seed.userId,
+    body: JSON.stringify({}),
+  });
+  expect(res.status).toBe(200);
   return await res.json() as { action: { status: string } };
 }

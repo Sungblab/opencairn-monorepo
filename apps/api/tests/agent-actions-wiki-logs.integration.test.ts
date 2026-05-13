@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
-import { db, eq, wikiLogs } from "@opencairn/db";
+import { db, eq, folders, wikiLogs } from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
+import { labelFromId } from "../src/lib/tree-queries.js";
 
 const app = createApp();
 
@@ -105,5 +106,108 @@ describe("agent action wiki logs", () => {
         reason: "agent note.create_from_markdown applied",
       },
     ]);
+  });
+
+  it("records wiki logs for agent note rename, move, delete, and restore", async () => {
+    const folderId = randomUUID();
+    await db.insert(folders).values({
+      id: folderId,
+      projectId: seed.projectId,
+      parentId: null,
+      name: "Agent target",
+      path: labelFromId(folderId),
+    });
+
+    const rename = await authedFetch(`/api/projects/${seed.projectId}/agent-actions`, {
+      method: "POST",
+      userId: seed.userId,
+      body: JSON.stringify({
+        requestId: randomUUID(),
+        kind: "note.rename",
+        risk: "write",
+        input: { noteId: seed.noteId, title: "Agent renamed" },
+      }),
+    });
+    expect(rename.status).toBe(201);
+
+    const move = await authedFetch(`/api/projects/${seed.projectId}/agent-actions`, {
+      method: "POST",
+      userId: seed.userId,
+      body: JSON.stringify({
+        requestId: randomUUID(),
+        kind: "note.move",
+        risk: "write",
+        input: { noteId: seed.noteId, folderId },
+      }),
+    });
+    expect(move.status).toBe(201);
+
+    const deleteCreate = await authedFetch(`/api/projects/${seed.projectId}/agent-actions`, {
+      method: "POST",
+      userId: seed.userId,
+      body: JSON.stringify({
+        requestId: randomUUID(),
+        kind: "note.delete",
+        risk: "destructive",
+        input: { noteId: seed.noteId },
+      }),
+    });
+    expect(deleteCreate.status).toBe(201);
+    const deleteBody = await deleteCreate.json() as {
+      action: { id: string; status: string };
+    };
+    expect(deleteBody.action.status).toBe("approval_required");
+
+    const deleteApply = await authedFetch(`/api/agent-actions/${deleteBody.action.id}/apply`, {
+      method: "POST",
+      userId: seed.userId,
+      body: JSON.stringify({}),
+    });
+    expect(deleteApply.status).toBe(200);
+
+    const restore = await authedFetch(`/api/projects/${seed.projectId}/agent-actions`, {
+      method: "POST",
+      userId: seed.userId,
+      body: JSON.stringify({
+        requestId: randomUUID(),
+        kind: "note.restore",
+        risk: "write",
+        input: { noteId: seed.noteId },
+      }),
+    });
+    expect(restore.status).toBe(201);
+
+    const logs = await db
+      .select({
+        agent: wikiLogs.agent,
+        action: wikiLogs.action,
+        reason: wikiLogs.reason,
+      })
+      .from(wikiLogs)
+      .where(eq(wikiLogs.noteId, seed.noteId));
+
+    expect(logs).toHaveLength(4);
+    expect(logs).toEqual(expect.arrayContaining([
+      {
+        agent: "agent-actions",
+        action: "update",
+        reason: "agent note.rename applied",
+      },
+      {
+        agent: "agent-actions",
+        action: "update",
+        reason: "agent note.move applied",
+      },
+      {
+        agent: "agent-actions",
+        action: "update",
+        reason: "agent note.delete applied",
+      },
+      {
+        agent: "agent-actions",
+        action: "update",
+        reason: "agent note.restore applied",
+      },
+    ]));
   });
 });
