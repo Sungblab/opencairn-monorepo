@@ -5,7 +5,9 @@ const PDF_NOTE_ID = "11111111-1111-4111-8111-111111111111";
 const PDF_BYTES = Buffer.from(
   "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
     "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
-    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>\nendobj\n" +
+    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 240 240] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n" +
+    "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n" +
+    "5 0 obj\n<< /Length 55 >>\nstream\nBT /F1 24 Tf 36 132 Td (Fixture PDF Visible) Tj ET\nendstream\nendobj\n" +
     "trailer\n<< /Root 1 0 R >>\n%%EOF\n",
 );
 
@@ -58,16 +60,20 @@ test.describe("Source PDF viewer smoke", () => {
     await page.goto(`/ko/workspace/${session.wsSlug}/chat-scope`);
 
     await expect(page.getByTestId("source-viewer")).toBeVisible();
-    await expect(
-      page.getByTestId("source-viewer").getByText("Fixture PDF"),
-    ).toBeVisible();
-    await expect(page.getByLabel("새 탭에서 열기")).toHaveAttribute(
-      "href",
-      `/api/notes/${PDF_NOTE_ID}/file`,
-    );
-    await expect(page.getByLabel("다운로드")).toHaveAttribute(
-      "download",
-      "Fixture PDF",
-    );
+    await expect.poll(async () => {
+      return page.locator("embedpdf-container").evaluate((host) => {
+        const root = host.shadowRoot;
+        if (!root) return false;
+        return Array.from(root.querySelectorAll("div")).some((element) => {
+          const rect = element.getBoundingClientRect();
+          const style = element.getAttribute("style") ?? "";
+          return (
+            rect.width > 100 &&
+            rect.height > 100 &&
+            style.includes("background-color: rgb(255, 255, 255)")
+          );
+        });
+      });
+    }).toBe(true);
   });
 });

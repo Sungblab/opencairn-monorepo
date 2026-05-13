@@ -5,6 +5,17 @@ export interface StreamedObject {
   stream: ReadableStream<Uint8Array>;
   contentType: string;
   contentLength: number;
+  totalLength: number;
+}
+
+export interface ObjectByteRange {
+  start: number;
+  end: number;
+}
+
+export interface StoredObjectInfo {
+  contentType: string;
+  contentLength: number;
 }
 
 /**
@@ -16,13 +27,30 @@ export interface StreamedObject {
  * `statObject.metaData` keys are lowercased by the minio client, so we look
  * up `content-type` rather than `Content-Type`.
  */
-export async function streamObject(key: string): Promise<StreamedObject> {
+export async function streamObject(
+  key: string,
+  range?: ObjectByteRange,
+): Promise<StreamedObject> {
+  const client = getS3Client();
+  const bucket = getBucket();
+  const info = await statObject(key);
+  const contentLength = range ? range.end - range.start + 1 : info.contentLength;
+  const nodeStream = (range
+    ? await client.getPartialObject(bucket, key, range.start, contentLength)
+    : await client.getObject(bucket, key)) as Readable;
+  return {
+    stream: nodeStreamToWebStream(nodeStream),
+    contentType: info.contentType,
+    contentLength,
+    totalLength: info.contentLength,
+  };
+}
+
+export async function statObject(key: string): Promise<StoredObjectInfo> {
   const client = getS3Client();
   const bucket = getBucket();
   const stat = await client.statObject(bucket, key);
-  const nodeStream = (await client.getObject(bucket, key)) as Readable;
   return {
-    stream: nodeStreamToWebStream(nodeStream),
     contentType: stat.metaData?.["content-type"] ?? "application/octet-stream",
     contentLength: stat.size,
   };

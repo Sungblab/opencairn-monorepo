@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { BacklinksResponse } from "@opencairn/shared";
 import {
   Activity,
   AlertCircle,
@@ -11,13 +12,16 @@ import {
   ListChecks,
   Loader2,
   Mic2,
+  Network,
   Play,
   Quote,
   Sparkles,
   Square,
+  Workflow,
   X,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 
 import { NoteUpdateActionReviewList } from "@/components/agent-panel/note-update-action-review";
 import { WorkbenchActivityStack } from "@/components/agent-panel/workbench-activity-stack";
@@ -26,13 +30,16 @@ import {
   WorkbenchCommandButton,
   WorkbenchContextButton,
 } from "@/components/agent-panel/workbench-trigger-button";
+import type { GroundedGraphResponse } from "@/components/graph/grounded-types";
 import { studySessionsApi, type SessionRecording } from "@/lib/api-client";
+import { urls } from "@/lib/urls";
 
-type SourceRailTab = "analysis" | "study" | "activity";
+type SourceRailTab = "analysis" | "wiki" | "study" | "activity";
 
 interface SourceContextRailProps {
   noteId: string;
   projectId: string | null;
+  wsSlug: string | null;
   sourceTitle: string;
   viewerElementId: string;
 }
@@ -40,6 +47,7 @@ interface SourceContextRailProps {
 export function SourceContextRail({
   noteId,
   projectId,
+  wsSlug,
   sourceTitle,
   viewerElementId,
 }: SourceContextRailProps) {
@@ -93,6 +101,13 @@ export function SourceContextRail({
           <Activity aria-hidden className="h-4 w-4" />
         </RailButton>
         <RailButton
+          active={active === "wiki"}
+          label={t("wiki")}
+          onClick={() => openTab("wiki")}
+        >
+          <Network aria-hidden className="h-4 w-4" />
+        </RailButton>
+        <RailButton
           active={active === "study"}
           label={t("study")}
           onClick={() => openTab("study")}
@@ -123,6 +138,13 @@ export function SourceContextRail({
           >
             {active === "analysis" ? (
               <SourceRailAnalysis selectedText={selectedText} />
+            ) : null}
+            {active === "wiki" ? (
+              <SourceRailWiki
+                noteId={noteId}
+                projectId={projectId}
+                wsSlug={wsSlug}
+              />
             ) : null}
             {active === "study" ? (
               <SourceRailStudy
@@ -166,6 +188,132 @@ function RailButton({
     >
       {children}
     </button>
+  );
+}
+
+function SourceRailWiki({
+  noteId,
+  projectId,
+  wsSlug,
+}: {
+  noteId: string;
+  projectId: string | null;
+  wsSlug: string | null;
+}) {
+  const t = useTranslations("appShell.viewers.source.rail");
+  const locale = useLocale();
+  const backlinksQuery = useQuery<BacklinksResponse>({
+    queryKey: ["source-rail-backlinks", noteId],
+    enabled: Boolean(noteId),
+    staleTime: 30_000,
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`/api/notes/${noteId}/backlinks`, {
+        credentials: "include",
+        signal,
+      });
+      if (!res.ok) throw new Error(`backlinks ${res.status}`);
+      return (await res.json()) as BacklinksResponse;
+    },
+  });
+  const graphQuery = useQuery<GroundedGraphResponse>({
+    queryKey: ["source-rail-graph", projectId],
+    enabled: Boolean(projectId),
+    staleTime: 30_000,
+    queryFn: async ({ signal }) => {
+      const res = await fetch(
+        `/api/projects/${projectId}/knowledge-surface?view=cards&includeEvidence=true`,
+        { credentials: "include", signal },
+      );
+      if (!res.ok) throw new Error(`graph ${res.status}`);
+      return (await res.json()) as GroundedGraphResponse;
+    },
+  });
+  const backlinks = backlinksQuery.data?.data ?? [];
+  const graph = graphQuery.data;
+  const topConcepts = graph?.nodes.slice(0, 5) ?? [];
+  const graphHref =
+    projectId && wsSlug
+      ? `${urls.workspace.projectGraph(locale, wsSlug, projectId)}?view=cards`
+      : null;
+
+  return (
+    <div className="space-y-3 p-3">
+      <p className="text-xs leading-5 text-muted-foreground">
+        {t("wikiDescription")}
+      </p>
+      <section className="space-y-2 rounded-[var(--radius-card)] border border-border p-2">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-medium">{t("wikiBacklinksTitle")}</h3>
+          <span className="text-[11px] text-muted-foreground">
+            {backlinksQuery.data?.total ?? 0}
+          </span>
+        </div>
+        {backlinks.length === 0 ? (
+          <p className="text-xs leading-5 text-muted-foreground">
+            {t("wikiBacklinksEmpty")}
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {backlinks.slice(0, 5).map((backlink) => (
+              <Link
+                key={backlink.id}
+                href={wsSlug ? urls.workspace.note(locale, wsSlug, backlink.id) : "#"}
+                className="block rounded-[var(--radius-control)] border border-border px-2 py-1.5 text-xs hover:bg-muted/50"
+              >
+                <span className="block truncate font-medium">{backlink.title}</span>
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  {backlink.projectName}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+      <section className="space-y-2 rounded-[var(--radius-card)] border border-border p-2">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-medium">{t("wikiGraphTitle")}</h3>
+          {graphHref ? (
+            <Link
+              href={graphHref}
+              className="inline-flex h-7 items-center gap-1 rounded-[var(--radius-control)] border border-border px-2 text-[11px] hover:bg-muted/50"
+            >
+              <Workflow aria-hidden className="h-3 w-3" />
+              {t("wikiGraphOpen")}
+            </Link>
+          ) : null}
+        </div>
+        <p className="text-xs leading-5 text-muted-foreground">
+          {t("wikiGraphSummary", {
+            count: graph?.totalConcepts ?? 0,
+            edgeCount: graph?.edges.length ?? 0,
+          })}
+        </p>
+        <div className="space-y-1">
+          <div className="text-[10px] font-semibold uppercase text-muted-foreground">
+            {t("wikiConceptsTitle")}
+          </div>
+          {topConcepts.length === 0 ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              {t("wikiConceptsEmpty")}
+            </p>
+          ) : (
+            topConcepts.map((node) => (
+              <div
+                key={node.id}
+                className="rounded-[var(--radius-control)] bg-muted/35 px-2 py-1.5"
+              >
+                <div className="truncate text-xs font-medium">{node.name}</div>
+                {node.description ? (
+                  <div className="line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+                    {node.description}
+                  </div>
+                ) : null}
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 

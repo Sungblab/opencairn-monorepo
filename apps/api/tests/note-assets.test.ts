@@ -7,15 +7,20 @@ import { signSessionCookie } from "./helpers/session.js";
 // MUST match the module specifier used by the route (`../src/lib/s3-get` in
 // note-assets.ts). Vitest resolves .ts/.js interchangeably here.
 vi.mock("../src/lib/s3-get.js", () => ({
-  streamObject: vi.fn(async () => ({
+  statObject: vi.fn(async () => ({
+    contentType: "application/pdf",
+    contentLength: 9,
+  })),
+  streamObject: vi.fn(async (_key: string, range?: { start: number; end: number }) => ({
     stream: new ReadableStream({
       start(c) {
-        c.enqueue(new TextEncoder().encode("PDF-BYTES"));
+        c.enqueue(new TextEncoder().encode(range ? "PDF" : "PDF-BYTES"));
         c.close();
       },
     }),
     contentType: "application/pdf",
-    contentLength: 9,
+    contentLength: range ? range.end - range.start + 1 : 9,
+    totalLength: 9,
   })),
 }));
 
@@ -28,6 +33,15 @@ const app = createApp();
 async function authedGet(path: string, userId: string): Promise<Response> {
   const cookie = await signSessionCookie(userId);
   return app.request(path, { headers: { cookie } });
+}
+
+async function authedGetWithHeaders(
+  path: string,
+  userId: string,
+  headers: Record<string, string>,
+): Promise<Response> {
+  const cookie = await signSessionCookie(userId);
+  return app.request(path, { headers: { ...headers, cookie } });
 }
 
 describe("GET /api/notes/:id/file", () => {
@@ -50,6 +64,23 @@ describe("GET /api/notes/:id/file", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/pdf");
     expect(await res.text()).toBe("PDF-BYTES");
+  });
+
+  it("supports byte ranges for PDF viewers", async () => {
+    await db
+      .update(notes)
+      .set({ sourceFileKey: "uploads/test.pdf", sourceType: "pdf" })
+      .where(eq(notes.id, ctx.noteId));
+    const res = await authedGetWithHeaders(
+      `/api/notes/${ctx.noteId}/file`,
+      ctx.userId,
+      { range: "bytes=0-2" },
+    );
+    expect(res.status).toBe(206);
+    expect(res.headers.get("accept-ranges")).toBe("bytes");
+    expect(res.headers.get("content-range")).toBe("bytes 0-2/9");
+    expect(res.headers.get("content-length")).toBe("3");
+    expect(await res.text()).toBe("PDF");
   });
 
   it("percent-encodes RFC 5987 reserved chars in filename* so single quotes don't break the header", async () => {

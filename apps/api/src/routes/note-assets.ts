@@ -6,7 +6,7 @@ import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import { uploadObject } from "../lib/s3";
-import { streamObject } from "../lib/s3-get";
+import { statObject, streamObject } from "../lib/s3-get";
 import type { AppEnv } from "../lib/types";
 
 // Viewer-mode asset routes for App Shell Phase 3-B. Kept in a separate router
@@ -116,7 +116,15 @@ export const noteAssetRoutes = new Hono<AppEnv>()
     if (!note) return c.json({ error: "Not Found" }, 404);
     if (!note.sourceFileKey) return c.json({ error: "Not Found" }, 404);
 
-    const obj = await streamObject(note.sourceFileKey);
+    const stat = await statObject(note.sourceFileKey);
+    const range = parseByteRange(c.req.header("range"), stat.contentLength);
+    if (range === "unsatisfiable") {
+      return c.body(null, 416, {
+        "Accept-Ranges": "bytes",
+        "Content-Range": `bytes */${stat.contentLength}`,
+      });
+    }
+    const obj = await streamObject(note.sourceFileKey, range ?? undefined);
     // RFC 6266 dual form: `filename=` stays ASCII for legacy clients (Safari,
     // IE), `filename*=UTF-8''` carries the real UTF-8 name for modern browsers.
     // Strip header-breaking chars (\r\n") AND the backslash escape char before
@@ -132,13 +140,17 @@ export const noteAssetRoutes = new Hono<AppEnv>()
       /[!'()*]/g,
       (ch) => "%" + ch.charCodeAt(0).toString(16).toUpperCase(),
     );
-    c.header("Content-Type", obj.contentType);
-    c.header("Content-Length", String(obj.contentLength));
-    c.header(
-      "Content-Disposition",
-      `inline; filename="${asciiName}"; filename*=UTF-8''${starName}`,
-    );
-    return c.body(obj.stream);
+    const headers: Record<string, string> = {
+      "Accept-Ranges": "bytes",
+      "Content-Type": obj.contentType,
+      "Content-Length": String(obj.contentLength),
+      "Content-Disposition": `inline; filename="${asciiName}"; filename*=UTF-8''${starName}`,
+    };
+    if (range) {
+      headers["Content-Range"] =
+        `bytes ${range.start}-${range.end}/${obj.totalLength}`;
+    }
+    return c.body(obj.stream, range ? 206 : 200, headers);
   })
 
   // Returns `{ data: <parsed JSON> | null }` from notes.content_text. Used by
@@ -181,4 +193,42 @@ function imageExtension(contentType: string): string {
     default:
       return "png";
   }
+}
+
+function parseByteRange(
+  header: string | undefined,
+  totalLength: number,
+): { start: number; end: number } | "unsatisfiable" | null {
+  if (!header) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match) return null;
+
+  const [, rawStart, rawEnd] = match;
+  if (!rawStart && !rawEnd) return "unsatisfiable";
+
+  let start: number;
+  let end: number;
+  if (!rawStart) {
+    const suffixLength = Number(rawEnd);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) {
+      return "unsatisfiable";
+    }
+    start = Math.max(totalLength - suffixLength, 0);
+    end = totalLength - 1;
+  } else {
+    start = Number(rawStart);
+    end = rawEnd ? Number(rawEnd) : totalLength - 1;
+  }
+
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(end) ||
+    start < 0 ||
+    end < start ||
+    start >= totalLength
+  ) {
+    return "unsatisfiable";
+  }
+
+  return { start, end: Math.min(end, totalLength - 1) };
 }
