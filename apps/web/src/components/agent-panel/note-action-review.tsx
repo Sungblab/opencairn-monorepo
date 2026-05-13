@@ -9,6 +9,7 @@ import { agentActionsApi } from "@/lib/api-client";
 
 const REVIEWABLE_NOTE_ACTIONS = new Set([
   "note.create",
+  "note.create_from_markdown",
   "note.rename",
   "note.move",
   "note.delete",

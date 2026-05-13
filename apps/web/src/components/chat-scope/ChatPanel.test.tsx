@@ -167,6 +167,32 @@ describe("<ChatPanel>", () => {
     );
   });
 
+  it("maps artifact action SSE errors to the dedicated chat error string", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/api/chat/conversations")) return mkConversationResponse();
+      if (url.endsWith("/api/chat/message")) {
+        return {
+          ok: true,
+          status: 200,
+          body: mkSseBody([
+            'event: error\ndata: {"code":"artifact_action_required","message":"missing action"}\n\n',
+            'event: done\ndata: {}\n\n',
+          ]),
+        };
+      }
+      return { ok: false, status: 404 };
+    });
+
+    render(<ChatPanel />);
+    await submitMessage("create note");
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("chat.errors.artifactActionRequired"),
+      ).toBeInTheDocument(),
+    );
+  });
+
   it("applies the SSE cost event to the streamed assistant message", async () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (url.endsWith("/api/chat/conversations")) return mkConversationResponse();
@@ -217,5 +243,35 @@ describe("<ChatPanel>", () => {
     await waitFor(() =>
       expect(screen.getByText(/Draft note/)).toBeInTheDocument(),
     );
+  });
+
+  it("hides internal directive fences from streamed assistant text", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/api/chat/conversations")) return mkConversationResponse();
+      if (url.endsWith("/api/chat/message")) {
+        return {
+          ok: true,
+          status: 200,
+          body: mkSseBody([
+            'event: delta\ndata: {"delta":"노트로 정리했습니다.\\n\\n```save-suggestion\\n{\\"title\\":\\"Draft note\\",\\"body_markdown\\":\\"# Draft\\"}\\n```\\n\\n```agent-actions\\n{\\"actions\\":[{\\"kind\\":\\"note.create\\",\\"risk\\":\\"write\\",\\"input\\":{\\"title\\":\\"Draft note\\"}}]}\\n```\\n\\n```agent-file\\n{\\"files\\":[{\\"filename\\":\\"draft.md\\",\\"content\\":\\"# Draft\\"}]}\\n```"}\n\n',
+            'event: save_suggestion\ndata: {"title":"Draft note","body_markdown":"# Draft"}\n\n',
+            'event: done\ndata: {}\n\n',
+          ]),
+        };
+      }
+      return { ok: false, status: 404 };
+    });
+
+    render(<ChatPanel />);
+    await submitMessage("save this");
+
+    await waitFor(() =>
+      expect(screen.getByText("노트로 정리했습니다.")).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/Draft note/)).toBeInTheDocument();
+    expect(screen.queryByText(/save-suggestion/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/agent-actions/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/agent-file/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/body_markdown/)).not.toBeInTheDocument();
   });
 });

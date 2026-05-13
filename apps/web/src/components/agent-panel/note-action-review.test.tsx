@@ -42,6 +42,27 @@ describe("NoteActionReviewList", () => {
           createdAt: "2026-05-12T00:00:00.000Z",
           updatedAt: "2026-05-12T00:00:00.000Z",
         },
+        {
+          id: "00000000-0000-4000-8000-000000000012",
+          requestId: "00000000-0000-4000-8000-000000000013",
+          workspaceId: "00000000-0000-4000-8000-000000000001",
+          projectId,
+          actorUserId: "user-1",
+          sourceRunId: "run-1",
+          kind: "note.create_from_markdown",
+          status: "approval_required",
+          risk: "write",
+          input: {
+            title: "PDF 요약 노트",
+            folderId: null,
+            bodyMarkdown: "# PDF 요약",
+          },
+          preview: null,
+          result: null,
+          errorCode: null,
+          createdAt: "2026-05-12T00:00:00.000Z",
+          updatedAt: "2026-05-12T00:00:00.000Z",
+        },
       ],
     });
     vi.mocked(agentActionsApi.apply).mockResolvedValue({
@@ -52,8 +73,10 @@ describe("NoteActionReviewList", () => {
 
     expect(await screen.findByText("note.create")).toBeInTheDocument();
     expect(screen.getByText("Project brief")).toBeInTheDocument();
+    expect(screen.getByText("note.create_from_markdown")).toBeInTheDocument();
+    expect(screen.getByText("PDF 요약 노트")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "apply" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "apply" })[0]);
 
     await waitFor(() => expect(agentActionsApi.apply).toHaveBeenCalledWith(actionId));
   });

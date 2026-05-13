@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { createParser } from "eventsource-parser";
-import type { AttachedChip, SaveSuggestion } from "@opencairn/shared";
+import {
+  stripAgentDirectiveFences,
+  type AttachedChip,
+  type SaveSuggestion,
+} from "@opencairn/shared";
 
 import { useTabsStore } from "@/stores/tabs-store";
 import { useScopeContext } from "@/hooks/useScopeContext";
@@ -52,6 +56,7 @@ export function ChatPanel() {
   const chatErrorT = useTranslations("chat.errors");
   const streamErrorText = chatErrorT("streamFailed");
   const timeoutErrorText = chatErrorT("executionTimeout");
+  const artifactActionRequiredText = chatErrorT("artifactActionRequired");
   const saveT = useTranslations("agentPanel.bubble");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [chips, setChips] = useState<AttachedChip[]>(ctx.initialChips);
@@ -175,6 +180,9 @@ export function ChatPanel() {
     ) {
       return timeoutErrorText;
     }
+    if (code === "ARTIFACT_ACTION_REQUIRED") {
+      return artifactActionRequiredText;
+    }
     return streamErrorText;
   }
 
@@ -214,38 +222,30 @@ export function ChatPanel() {
         apiCreateNote,
         onSuccess: () => toast.success(saveT("save_suggestion_inserted_active")),
         onMissingTarget: () => {
-          toast(saveT("save_suggestion_target_prompt"), {
-            action: {
-              label: saveT("save_suggestion_create_new"),
-              onClick: () => {
-                void (async () => {
-                  try {
-                    const { newTab } = await import("@/lib/tab-factory");
-                    await createNoteFromMarkdown({
-                      title,
-                      markdown: body_markdown,
-                      apiCreateNote,
-                      onCreated: (note) => {
-                        useTabsStore.getState().addTab(
-                          newTab({
-                            kind: "note",
-                            targetId: note.id,
-                            title: note.title,
-                            mode: "plate",
-                          }),
-                        );
-                      },
-                      onError: () =>
-                        toast.error(saveT("save_suggestion_failed")),
-                    });
-                  } catch {
-                    toast.error(saveT("save_suggestion_failed"));
-                  }
-                })();
-              },
-            },
-            cancel: { label: saveT("save_suggestion_cancel"), onClick: () => {} },
-          });
+          void (async () => {
+            try {
+              const { newTab } = await import("@/lib/tab-factory");
+              await createNoteFromMarkdown({
+                title,
+                markdown: body_markdown,
+                apiCreateNote,
+                onCreated: (note) => {
+                  useTabsStore.getState().addTab(
+                    newTab({
+                      kind: "note",
+                      targetId: note.id,
+                      title: note.title,
+                      mode: "plate",
+                    }),
+                  );
+                  toast.success(saveT("save_suggestion_created_new"));
+                },
+                onError: () => toast.error(saveT("save_suggestion_failed")),
+              });
+            } catch {
+              toast.error(saveT("save_suggestion_failed"));
+            }
+          })();
         },
         onCreatedNote: () => {},
         onError: () => toast.error(saveT("save_suggestion_failed")),
@@ -437,7 +437,11 @@ export function ChatPanel() {
             key={m.key}
             className={m.role === "user" ? "text-foreground" : "text-muted-foreground"}
           >
-            <p className="whitespace-pre-wrap">{m.content}</p>
+            <p className="whitespace-pre-wrap">
+              {m.role === "assistant"
+                ? stripAgentDirectiveFences(m.content)
+                : m.content}
+            </p>
             {m.error && (
               <p role="alert" className="mt-1 text-xs text-red-600">
                 {m.error}
