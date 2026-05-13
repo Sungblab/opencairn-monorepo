@@ -214,6 +214,22 @@ describe("agent action schemas", () => {
 
     expect(
       createAgentActionRequestSchema.parse({
+        kind: "note.create_from_markdown",
+        risk: "write",
+        input: {
+          title: "Agent brief",
+          folderId: null,
+          bodyMarkdown: "# Agent brief\n\n[[Related page]]",
+        },
+      }).input,
+    ).toEqual({
+      title: "Agent brief",
+      folderId: null,
+      bodyMarkdown: "# Agent brief\n\n[[Related page]]",
+    });
+
+    expect(
+      createAgentActionRequestSchema.parse({
         kind: "note.rename",
         risk: "write",
         input: {
@@ -402,5 +418,83 @@ describe("agent action schemas", () => {
         },
       }).success,
     ).toBe(false);
+  });
+
+  it("accepts typed project-file action inputs", () => {
+    expect(
+      createAgentActionRequestSchema.parse({
+        kind: "file.create",
+        risk: "write",
+        input: {
+          filename: "brief.md",
+          title: "Brief",
+          content: "# Brief",
+        },
+      }).input,
+    ).toEqual({
+      filename: "brief.md",
+      title: "Brief",
+      content: "# Brief",
+    });
+
+    expect(
+      createAgentActionRequestSchema.parse({
+        kind: "file.update",
+        risk: "write",
+        input: {
+          fileId: "00000000-0000-4000-8000-000000000090",
+          filename: "brief-v2.md",
+          content: "# Brief v2",
+        },
+      }).input,
+    ).toEqual({
+      fileId: "00000000-0000-4000-8000-000000000090",
+      filename: "brief-v2.md",
+      content: "# Brief v2",
+    });
+
+    expect(
+      createAgentActionRequestSchema.parse({
+        kind: "file.delete",
+        risk: "destructive",
+        input: { fileId: "00000000-0000-4000-8000-000000000090" },
+      }).input,
+    ).toEqual({ fileId: "00000000-0000-4000-8000-000000000090" });
+  });
+
+  it("rejects invalid project-file action inputs", () => {
+    expect(
+      createAgentActionRequestSchema.safeParse({
+        kind: "file.create",
+        risk: "write",
+        input: {
+          filename: "../brief.md",
+          content: "# Brief",
+        },
+      }).success,
+    ).toBe(false);
+
+    expect(
+      createAgentActionRequestSchema.safeParse({
+        kind: "file.update",
+        risk: "write",
+        input: {
+          fileId: "00000000-0000-4000-8000-000000000090",
+        },
+      }).success,
+    ).toBe(false);
+
+    const ingestOnly = createAgentActionRequestSchema.safeParse({
+      kind: "file.update",
+      risk: "write",
+      input: {
+        fileId: "00000000-0000-4000-8000-000000000090",
+        startIngest: true,
+      },
+    });
+    expect(ingestOnly.success).toBe(false);
+    expect(ingestOnly.error?.issues.map((issue) => issue.message)).toContain(
+      "start_ingest_requires_new_content",
+    );
   });
 });

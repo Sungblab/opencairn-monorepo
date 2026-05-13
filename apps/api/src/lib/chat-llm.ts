@@ -75,24 +75,20 @@ const SYSTEM_PROMPT = [
   "Never invent citations. If the context does not contain the answer, say so plainly.",
   "Reply in the same language as the user's question (Korean if Korean, English if English).",
   "",
-  "If the user asks you to create, export, download, render, compile, or save a real file,",
-  "append exactly one fenced block at the very end of your reply, in this exact form:",
-  "",
-  "```agent-file",
-  `{"files":[{"filename":"example.md","kind":"markdown","mimeType":"text/markdown","content":"# Example\\n..."}]}`,
-  "```",
-  "",
-  "Use this for Markdown, text, LaTeX, HTML, code, JSON, CSV, PDF/DOCX/PPTX base64, and images.",
-  "Do not invent object keys or URLs. The server stores the bytes, indexes the file, and returns links.",
-  "",
   "If the user asks you to create, update, rename, move, delete, restore, or run project work,",
   "prefer typed agent actions instead of saying you completed the change.",
   "For an empty note, use note.create. For a note with generated markdown content, use note.create_from_markdown.",
-  "Never claim that a project item was created unless your final reply includes the corresponding typed fence.",
+  "For project files, use file.create, file.update, and file.delete. file.update with content creates a new file version.",
+  "Never claim that a project item was created, changed, saved, or deleted unless your final reply includes the corresponding typed fence.",
   "Append exactly one fenced block at the very end of your reply, in this exact form:",
   "",
   "```agent-actions",
-  `{"actions":[{"kind":"note.create_from_markdown","risk":"write","input":{"title":"Example","folderId":null,"bodyMarkdown":"# Example\\n..."}}]}`,
+  `{"actions":[{"kind":"note.create_from_markdown","risk":"write","input":{"title":"Example","folderId":null,"bodyMarkdown":"# Example\\n..."}},{"kind":"file.create","risk":"write","input":{"filename":"example.md","title":"Example","content":"# Example\\n..."}}]}`,
+  "```",
+  "",
+  "Legacy agent-file fences are still accepted for file creation only, but typed file actions are preferred:",
+  "```agent-file",
+  `{"files":[{"filename":"example.md","kind":"markdown","mimeType":"text/markdown","content":"# Example\\n..."}]}`,
   "```",
   "",
   "Do not include workspaceId, projectId, userId, actorUserId, or pageId in action inputs.",
@@ -225,9 +221,7 @@ export async function* runChat(opts: {
     });
     const system: ChatMsg = {
       role: "system",
-      content: [SYSTEM_PROMPT, runtimeContext, wikiIndexBlock, ragBlock]
-        .filter(Boolean)
-        .join("\n\n"),
+      content: [SYSTEM_PROMPT, runtimeContext, wikiIndexBlock, ragBlock].filter(Boolean).join("\n\n"),
     };
 
     const history = truncateHistory(opts.history);
@@ -281,6 +275,22 @@ export async function* runChat(opts: {
     const agentAction = extractAgentActionFence(full);
     if (agentAction) {
       yield { type: "agent_action", payload: agentAction };
+    }
+    if (
+      requiresExecutableArtifactAction(opts.userMessage)
+      && !suggestion
+      && !agentFile
+      && !agentAction
+    ) {
+      yield {
+        type: "error",
+        payload: {
+          code: "artifact_action_required",
+          messageKey: "chat.errors.artifactActionRequired",
+          message: artifactActionRequiredMessage(opts.locale),
+        },
+      };
+      return;
     }
 
     if (usage) yield { type: "usage", payload: usage };
@@ -337,10 +347,7 @@ async function resolveChatWikiIndexProjectId(opts: {
   }
   if (pageChips.length > 1) return null;
 
-  if (
-    opts.scope.type === "project" &&
-    opts.scope.workspaceId === opts.workspaceId
-  ) {
+  if (opts.scope.type === "project" && opts.scope.workspaceId === opts.workspaceId) {
     return projectInChatWorkspace(opts.scope.projectId, opts.workspaceId);
   }
   if (opts.scope.type === "page") {
@@ -356,9 +363,7 @@ async function projectInChatWorkspace(
   const rows = await db
     .select({ id: projects.id })
     .from(projects)
-    .where(
-      and(eq(projects.id, projectId), eq(projects.workspaceId, workspaceId)),
-    )
+    .where(and(eq(projects.id, projectId), eq(projects.workspaceId, workspaceId)))
     .limit(1);
   return rows[0]?.id ?? null;
 }
@@ -453,6 +458,23 @@ function groundingRequiredMessage(locale?: string): string {
     return "This question needs current verified sources, but no grounding source is connected. No answer was generated.";
   }
   return "최신 정보가 필요한 질문이라 확인 가능한 근거가 필요합니다. 현재 연결된 검색 근거가 없어 답변을 생성하지 않았습니다.";
+}
+
+function artifactActionRequiredMessage(locale?: string): string {
+  if (locale === "en") {
+    return "The requested creation task was not turned into an executable action. Please try again.";
+  }
+  return "요청한 생성 작업을 실행 가능한 액션으로 만들지 못했습니다. 다시 시도해 주세요.";
+}
+
+function requiresExecutableArtifactAction(userMessage: string): boolean {
+  const text = userMessage.toLowerCase();
+  const asksForArtifact =
+    /(?:노트|문서|파일|pdf|ppt|pptx|docx|csv|html|코드|캔버스|canvas)/i.test(text)
+    || /\b(?:note|document|file|pdf|pptx?|docx|csv|html|code|canvas)\b/i.test(text);
+  if (!asksForArtifact) return false;
+
+  return /(?:만들어|생성|저장|추가|정리해서\s*새|새\s*노트|노트로|파일로|다운로드|export|create|save|add|generate|make|download)/i.test(text);
 }
 
 function groundedSourcesToCitations(

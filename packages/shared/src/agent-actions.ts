@@ -10,6 +10,10 @@ import {
   codeWorkspacePreviewResultSchema,
   codeWorkspacePreviewRequestSchema,
 } from "./code-project-workspaces";
+import {
+  createAgentFilePayloadSchema,
+  safeFilenameSchema,
+} from "./agent-files";
 
 export const agentActionStatusSchema = z.enum([
   "draft",
@@ -259,6 +263,55 @@ export const noteUpdateApplyResultSchema = z
   })
   .strict();
 
+export const fileCreateActionInputSchema = createAgentFilePayloadSchema;
+
+export const fileUpdateActionInputSchema = z
+  .object({
+    fileId: z.string().uuid(),
+    filename: safeFilenameSchema.optional(),
+    title: z.string().trim().min(1).max(180).optional(),
+    folderId: z.string().uuid().nullable().optional(),
+    content: z.string().max(1024 * 1024).optional(),
+    base64: z.string().max(Math.ceil(1024 * 1024 * 1.4)).optional(),
+    startIngest: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    const hasPatch =
+      value.filename !== undefined
+      || value.title !== undefined
+      || value.folderId !== undefined
+      || value.content !== undefined
+      || value.base64 !== undefined;
+    if (!hasPatch) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "empty_patch",
+      });
+    }
+    const hasContent = value.content !== undefined;
+    const hasBase64 = value.base64 !== undefined;
+    if (hasContent && hasBase64) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["content"],
+        message: "provide_at_most_one_content_source",
+      });
+    }
+    if (value.startIngest !== undefined && !hasContent && !hasBase64) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["startIngest"],
+        message: "start_ingest_requires_new_content",
+      });
+    }
+  });
+
+export const fileDeleteActionInputSchema = z
+  .object({
+    fileId: z.string().uuid(),
+  })
+  .strict();
+
 export const noteActionInputByKind = {
   "note.create": noteCreateActionInputSchema,
   "note.create_from_markdown": noteCreateFromMarkdownActionInputSchema,
@@ -267,6 +320,12 @@ export const noteActionInputByKind = {
   "note.move": noteMoveActionInputSchema,
   "note.delete": noteDeleteActionInputSchema,
   "note.restore": noteRestoreActionInputSchema,
+} as const;
+
+export const fileActionInputByKind = {
+  "file.create": fileCreateActionInputSchema,
+  "file.update": fileUpdateActionInputSchema,
+  "file.delete": fileDeleteActionInputSchema,
 } as const;
 
 export const createAgentActionRequestSchema = z
@@ -304,6 +363,7 @@ export const createAgentActionRequestSchema = z
       });
     }
     validatePhase2ANoteActionInput(value, ctx);
+    validateFileActionInput(value, ctx);
     validateCodeProjectActionInput(value, ctx);
     validateInteractionChoiceActionInput(value, ctx);
   });
@@ -365,6 +425,9 @@ export type NoteUpdateActionInput = z.infer<typeof noteUpdateActionInputSchema>;
 export type NoteUpdatePreview = z.infer<typeof noteUpdatePreviewSchema>;
 export type NoteUpdateApplyRequest = z.infer<typeof noteUpdateApplyRequestSchema>;
 export type NoteUpdateApplyResult = z.infer<typeof noteUpdateApplyResultSchema>;
+export type FileCreateActionInput = z.infer<typeof fileCreateActionInputSchema>;
+export type FileUpdateActionInput = z.infer<typeof fileUpdateActionInputSchema>;
+export type FileDeleteActionInput = z.infer<typeof fileDeleteActionInputSchema>;
 export type Phase2ANoteActionKind = Exclude<
   keyof typeof noteActionInputByKind,
   "note.update"
@@ -376,6 +439,11 @@ export type Phase2ANoteActionInput =
   | NoteMoveActionInput
   | NoteDeleteActionInput
   | NoteRestoreActionInput;
+export type FileActionKind = keyof typeof fileActionInputByKind;
+export type FileActionInput =
+  | FileCreateActionInput
+  | FileUpdateActionInput
+  | FileDeleteActionInput;
 export type CreateAgentActionRequest = z.input<typeof createAgentActionRequestSchema>;
 export type TransitionAgentActionStatusRequest = z.infer<typeof transitionAgentActionStatusRequestSchema>;
 export type AgentAction = z.infer<typeof agentActionSchema>;
@@ -445,6 +513,26 @@ function validatePhase2ANoteActionInput(
   ctx: z.RefinementCtx,
 ): void {
   const schema = noteActionInputByKind[value.kind as Phase2ANoteActionKind];
+  if (!schema) return;
+
+  const parsed = schema.safeParse(value.input ?? {});
+  if (parsed.success) return;
+  for (const issue of parsed.error.issues) {
+    ctx.addIssue({
+      ...issue,
+      path: ["input", ...issue.path],
+    });
+  }
+}
+
+function validateFileActionInput(
+  value: {
+    kind: AgentActionKind;
+    input?: Record<string, unknown>;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  const schema = fileActionInputByKind[value.kind as FileActionKind];
   if (!schema) return;
 
   const parsed = schema.safeParse(value.input ?? {});

@@ -3,6 +3,7 @@ import {
   and,
   asc,
   captureNoteVersion,
+  chatRuns,
   db as defaultDb,
   desc,
   eq,
@@ -19,7 +20,7 @@ import {
   wikiLogs,
   yjsDocuments,
 } from "@opencairn/db";
-import { noteActionInputByKind } from "@opencairn/shared";
+import { fileActionInputByKind, noteActionInputByKind } from "@opencairn/shared";
 import {
   codeWorkspaceCommandRunRequestSchema,
   codeWorkspaceCommandRunResultSchema,
@@ -43,6 +44,11 @@ import type {
   AgentActionRisk,
   AgentActionStatus,
   CreateAgentActionRequest,
+  FileActionInput,
+  FileActionKind,
+  FileCreateActionInput,
+  FileDeleteActionInput,
+  FileUpdateActionInput,
   NoteCreateActionInput,
   NoteCreateFromMarkdownActionInput,
   NoteDeleteActionInput,
@@ -84,8 +90,14 @@ import { streamObject } from "./s3-get";
 import { diffPlateValues } from "./note-version-diff";
 import { plateValueToText } from "./plate-text";
 import { emitTreeEvent } from "./tree-events";
-import { textToPlateValue } from "./plate-doc";
+import { markdownToPlateValue } from "./plate-doc";
 import type { PlateValue } from "./yjs-to-plate";
+import {
+  createAgentFile,
+  createAgentFileVersion,
+  deleteAgentFile,
+  updateAgentFile,
+} from "./agent-files";
 import {
   transformYjsStateWithPlateValue,
   yjsStateToPlateValue,
@@ -157,6 +169,7 @@ export interface AgentActionServiceOptions {
   codeCommandCanceller?: CodeCommandCanceller;
   codeRepairPlanner?: CodeRepairPlanner;
   noteExecutor?: NoteActionExecutor;
+  fileExecutor?: FileActionExecutor;
   noteUpdatePreviewer?: NoteUpdatePreviewer;
   noteUpdateApplier?: NoteUpdateApplier;
   now?: () => Date;
@@ -199,6 +212,19 @@ export interface NoteActionExecutorInput {
 
 export interface NoteActionExecutor {
   execute(input: NoteActionExecutorInput): Promise<Record<string, unknown>>;
+}
+
+export interface FileActionExecutorInput {
+  workspaceId: string;
+  projectId: string;
+  actorUserId: string;
+  sourceRunId?: string | null;
+  kind: FileActionKind;
+  payload: FileActionInput;
+}
+
+export interface FileActionExecutor {
+  execute(input: FileActionExecutorInput): Promise<Record<string, unknown>>;
 }
 
 export interface NoteUpdatePreviewerInput {
@@ -431,11 +457,12 @@ export async function createAgentAction(
   if (existing) return { action: existing, idempotent: true };
 
   const approvalMode = request.approvalMode ?? "auto_safe";
+  const risk = normalizeAgentActionRisk(request.kind, request.risk);
   const placeholder = request.kind === "workflow.placeholder";
   const autoExecutableAction = shouldAutoExecuteAgentAction(
     request.kind,
     approvalMode,
-    request.risk,
+    risk,
   );
   const codePatchAction = request.kind === "code_project.patch";
   const codeInstallAction = request.kind === "code_project.install";
@@ -467,8 +494,8 @@ export async function createAgentAction(
           ? "draft"
           : approvalMode === "require"
             ? "approval_required"
-            : initialStatusForRisk(request.risk),
-    risk: request.risk,
+            : initialStatusForRisk(risk),
+    risk,
     input: request.input ?? {},
     preview: noteUpdatePreview ?? request.preview ?? (
       codeInstallAction
@@ -485,7 +512,11 @@ export async function createAgentAction(
   if (!inserted) return { action, idempotent: true };
   if (autoExecutableAction) {
     return {
-      action: await executeAutoExecutableAgentAction(action, request, options),
+      action: await executeAutoExecutableAgentAction(
+        action,
+        { ...request, risk },
+        options,
+      ),
       idempotent: false,
     };
   }
@@ -1075,8 +1106,72 @@ function initialStatusForRisk(risk: AgentActionRisk): AgentActionStatus {
   return risk === "low" ? "draft" : "approval_required";
 }
 
+const AGENT_ACTION_RISK_ORDER: Record<AgentActionRisk, number> = {
+  low: 0,
+  write: 1,
+  destructive: 2,
+  expensive: 3,
+  external: 4,
+};
+
+function normalizeAgentActionRisk(
+  kind: AgentActionKind,
+  suppliedRisk: AgentActionRisk,
+): AgentActionRisk {
+  const minimumRisk = minimumRiskForAgentActionKind(kind);
+  return AGENT_ACTION_RISK_ORDER[suppliedRisk] >= AGENT_ACTION_RISK_ORDER[minimumRisk]
+    ? suppliedRisk
+    : minimumRisk;
+}
+
+function minimumRiskForAgentActionKind(kind: AgentActionKind): AgentActionRisk {
+  switch (kind) {
+    case "workflow.placeholder":
+    case "interaction.choice":
+      return "low";
+    case "note.create":
+    case "note.create_from_markdown":
+    case "note.update":
+    case "note.rename":
+    case "note.move":
+    case "note.restore":
+    case "note.comment":
+    case "file.create":
+    case "file.update":
+    case "file.compile":
+    case "file.generate":
+    case "import.upload":
+    case "code_project.create":
+    case "code_project.patch":
+    case "code_project.rename":
+    case "code_project.run":
+      return "write";
+    case "note.delete":
+    case "file.delete":
+    case "code_project.delete":
+      return "destructive";
+    case "code_project.install":
+    case "import.literature":
+      return "expensive";
+    case "file.export":
+    case "import.markdown_zip":
+    case "import.drive":
+    case "import.notion":
+    case "import.web":
+    case "export.note":
+    case "export.project":
+    case "export.file":
+    case "export.workspace":
+    case "export.provider":
+    case "code_project.preview":
+    case "code_project.package":
+      return "external";
+  }
+}
+
 type AutoExecutableAgentActionKind =
   | Phase2ANoteActionKind
+  | FileActionKind
   | "code_project.create"
   | "code_project.run";
 
@@ -1084,6 +1179,7 @@ function isApprovedExecutableAgentActionKind(
   kind: AgentActionKind,
 ): kind is AutoExecutableAgentActionKind {
   return isPhase2ANoteAction(kind)
+    || isFileAction(kind)
     || kind === "code_project.create"
     || kind === "code_project.run";
 }
@@ -1117,6 +1213,9 @@ async function executeAutoExecutableAgentAction(
   if (isPhase2ANoteAction(action.kind)) {
     return executePersistedNoteAction(action, request, options);
   }
+  if (isFileAction(action.kind)) {
+    return executePersistedFileAction(action, request, options);
+  }
   if (action.kind === "code_project.create") {
     return executePersistedCodeProjectCreateAction(action, request, options);
   }
@@ -1142,6 +1241,9 @@ async function applyApprovedExecutableAgentAction(
   const request = createAgentActionRequestFromAction(running);
   if (isPhase2ANoteAction(running.kind)) {
     return executePersistedNoteAction(running, request, options);
+  }
+  if (isFileAction(running.kind)) {
+    return executePersistedFileAction(running, request, options);
   }
   if (running.kind === "code_project.create") {
     return executePersistedCodeProjectCreateAction(running, request, options);
@@ -1173,6 +1275,10 @@ function isPhase2ANoteAction(kind: AgentActionKind): kind is Phase2ANoteActionKi
     || kind === "note.restore";
 }
 
+function isFileAction(kind: AgentActionKind): kind is FileActionKind {
+  return kind === "file.create" || kind === "file.update" || kind === "file.delete";
+}
+
 async function executePersistedNoteAction(
   action: AgentAction,
   request: CreateAgentActionRequest,
@@ -1197,6 +1303,41 @@ async function executePersistedNoteAction(
     return updated;
   } catch (err) {
     const errorCode = err instanceof AgentActionError ? err.code : "note_action_failed";
+    const updated = await repo.updateStatus(action.id, {
+      status: "failed",
+      result: { ok: false, errorCode },
+      errorCode,
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return updated;
+  }
+}
+
+async function executePersistedFileAction(
+  action: AgentAction,
+  request: CreateAgentActionRequest,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const executor = options?.fileExecutor ?? createDrizzleFileActionExecutor();
+  try {
+    const result = await executor.execute({
+      workspaceId: action.workspaceId,
+      projectId: action.projectId,
+      actorUserId: action.actorUserId,
+      sourceRunId: action.sourceRunId,
+      kind: action.kind as FileActionKind,
+      payload: parseFileActionPayload(action.kind as FileActionKind, request.input ?? {}),
+    });
+    const updated = await repo.updateStatus(action.id, {
+      status: "completed",
+      result,
+      errorCode: null,
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return updated;
+  } catch (err) {
+    const errorCode = err instanceof AgentActionError ? err.code : "file_action_failed";
     const updated = await repo.updateStatus(action.id, {
       status: "failed",
       result: { ok: false, errorCode },
@@ -2123,6 +2264,13 @@ function parseNoteUpdatePayload(input: Record<string, unknown>): NoteUpdateActio
   return noteActionInputByKind["note.update"].parse(input);
 }
 
+function parseFileActionPayload(
+  kind: FileActionKind,
+  input: Record<string, unknown>,
+): FileActionInput {
+  return fileActionInputByKind[kind].parse(input) as FileActionInput;
+}
+
 async function previewNoteUpdateAction(
   input: NoteUpdatePreviewerInput,
   options?: AgentActionServiceOptions,
@@ -2147,6 +2295,21 @@ export function createDrizzleNoteActionExecutor(conn: DB = defaultDb): NoteActio
           return deleteNoteFromAction(conn, input);
         case "note.restore":
           return restoreNoteFromAction(conn, input);
+      }
+    },
+  };
+}
+
+export function createDrizzleFileActionExecutor(): FileActionExecutor {
+  return {
+    async execute(input) {
+      switch (input.kind) {
+        case "file.create":
+          return createFileFromAction(input);
+        case "file.update":
+          return updateFileFromAction(input);
+        case "file.delete":
+          return deleteFileFromAction(input);
       }
     },
   };
@@ -2355,6 +2518,105 @@ function assertExpectedStateVector(expectedBase64: string, actual: Uint8Array): 
   }
 }
 
+async function createFileFromAction(
+  input: FileActionExecutorInput,
+): Promise<Record<string, unknown>> {
+  const payload = input.payload as FileCreateActionInput;
+  const source = await chatSourceForFileAction(input.sourceRunId);
+  const file = await createAgentFile({
+    userId: input.actorUserId,
+    projectId: input.projectId,
+    source: "agent_chat",
+    chatThreadId: source.chatThreadId,
+    chatMessageId: source.chatMessageId,
+    file: payload,
+  });
+  emitTreeEvent({
+    kind: "tree.agent_file_created",
+    projectId: file.projectId,
+    id: file.id,
+    parentId: file.folderId,
+    label: file.title,
+    at: new Date().toISOString(),
+  });
+  return { ok: true, file };
+}
+
+async function chatSourceForFileAction(sourceRunId: string | null | undefined) {
+  if (!sourceRunId) return { chatThreadId: null, chatMessageId: null };
+  const [run] = await defaultDb
+    .select({
+      threadId: chatRuns.threadId,
+      agentMessageId: chatRuns.agentMessageId,
+    })
+    .from(chatRuns)
+    .where(eq(chatRuns.id, sourceRunId))
+    .limit(1);
+  return {
+    chatThreadId: run?.threadId ?? null,
+    chatMessageId: run?.agentMessageId ?? null,
+  };
+}
+
+async function updateFileFromAction(
+  input: FileActionExecutorInput,
+): Promise<Record<string, unknown>> {
+  const payload = input.payload as FileUpdateActionInput;
+  const hasContent = payload.content !== undefined || payload.base64 !== undefined;
+  let file = hasContent
+    ? await createAgentFileVersion({
+        id: payload.fileId,
+        userId: input.actorUserId,
+        file: {
+          filename: payload.filename,
+          title: payload.title,
+          content: payload.content,
+          base64: payload.base64,
+          startIngest: payload.startIngest,
+        },
+      })
+    : await updateAgentFile({
+        id: payload.fileId,
+        userId: input.actorUserId,
+        filename: payload.filename,
+        title: payload.title,
+        folderId: payload.folderId,
+      });
+
+  if (hasContent && payload.folderId !== undefined) {
+    file = await updateAgentFile({
+      id: file.id,
+      userId: input.actorUserId,
+      folderId: payload.folderId,
+    });
+  }
+
+  emitTreeEvent({
+    kind: payload.folderId !== undefined ? "tree.agent_file_moved" : "tree.agent_file_renamed",
+    projectId: file.projectId,
+    id: file.id,
+    parentId: file.folderId,
+    label: file.title,
+    at: new Date().toISOString(),
+  });
+  return { ok: true, file };
+}
+
+async function deleteFileFromAction(
+  input: FileActionExecutorInput,
+): Promise<Record<string, unknown>> {
+  const payload = input.payload as FileDeleteActionInput;
+  const file = await deleteAgentFile(payload.fileId, input.actorUserId);
+  emitTreeEvent({
+    kind: "tree.agent_file_deleted",
+    projectId: file.projectId,
+    id: file.id,
+    parentId: file.folderId,
+    at: new Date().toISOString(),
+  });
+  return { ok: true, file };
+}
+
 async function createNoteFromAction(
   conn: DB,
   input: NoteActionExecutorInput,
@@ -2389,7 +2651,6 @@ async function createNoteFromAction(
       title: notes.title,
     });
   if (!note) throw new AgentActionError("note_create_failed", 409);
-
   await conn.insert(wikiLogs).values({
     noteId: note.id,
     agent: "agent-actions",
@@ -2424,41 +2685,44 @@ async function createNoteFromMarkdownAction(
     if (!folder) throw new AgentActionError("folder_not_found", 404);
   }
 
-  const content = textToPlateValue(payload.bodyMarkdown);
+  const content = markdownToPlateValue(payload.bodyMarkdown);
   const contentText = payload.bodyMarkdown;
-  const [note] = await conn
-    .insert(notes)
-    .values({
-      projectId: input.projectId,
-      workspaceId: input.workspaceId,
-      folderId: payload.folderId,
-      title: payload.title,
-      content,
-      contentText,
-      type: "note",
-      sourceType: "manual",
-    })
-    .returning({
-      id: notes.id,
-      projectId: notes.projectId,
-      folderId: notes.folderId,
-      title: notes.title,
-      contentText: notes.contentText,
+  const note = await conn.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(notes)
+      .values({
+        projectId: input.projectId,
+        workspaceId: input.workspaceId,
+        folderId: payload.folderId,
+        title: payload.title,
+        content,
+        contentText,
+        type: "note",
+        sourceType: "manual",
+      })
+      .returning({
+        id: notes.id,
+        projectId: notes.projectId,
+        folderId: notes.folderId,
+        title: notes.title,
+        contentText: notes.contentText,
+      });
+    if (!created) throw new AgentActionError("note_create_failed", 409);
+    await syncWikiLinks(
+      tx,
+      created.id,
+      extractWikiLinkTargets(content),
+      input.workspaceId,
+    );
+    await tx.insert(wikiLogs).values({
+      noteId: created.id,
+      agent: "agent-actions",
+      action: "create",
+      reason: "agent note.create_from_markdown applied",
     });
-  if (!note) throw new AgentActionError("note_create_failed", 409);
-
-  await syncWikiLinks(
-    conn,
-    note.id,
-    extractWikiLinkTargets(content),
-    input.workspaceId,
-  );
-  await conn.insert(wikiLogs).values({
-    noteId: note.id,
-    agent: "agent-actions",
-    action: "create",
-    reason: "agent note.create_from_markdown applied",
+    return created;
   });
+  if (!note) throw new AgentActionError("note_create_failed", 409);
   emitTreeEvent({
     kind: "tree.note_created",
     projectId: note.projectId,

@@ -47,6 +47,139 @@ describe("runChat agent action fences", () => {
       },
     });
   });
+
+  it("emits generated-note actions with markdown content", async () => {
+    const provider = providerWithText([
+      "새 노트로 만들겠습니다.",
+      "```agent-actions",
+      JSON.stringify({
+        actions: [
+          {
+            kind: "note.create_from_markdown",
+            risk: "write",
+            input: {
+              title: "PDF 요약 노트",
+              folderId: null,
+              bodyMarkdown: "# PDF 요약\n\n- 운영체제 종류",
+            },
+          },
+        ],
+      }),
+      "```",
+    ].join("\n"));
+
+    const chunks = [];
+    for await (const chunk of runChat({
+      workspaceId: "00000000-0000-4000-8000-000000000001",
+      userId: "user-1",
+      scope: { type: "workspace", workspaceId: "00000000-0000-4000-8000-000000000001" },
+      ragMode: "off",
+      chips: [],
+      history: [],
+      userMessage: "이 PDF를 요약해서 새 노트로 만들어줘",
+      provider,
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toContainEqual({
+      type: "agent_action",
+      payload: {
+        actions: [
+          {
+            kind: "note.create_from_markdown",
+            risk: "write",
+            approvalMode: "auto_safe",
+            input: {
+              title: "PDF 요약 노트",
+              folderId: null,
+              bodyMarkdown: "# PDF 요약\n\n- 운영체제 종류",
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  it("fails closed when a creation request has no executable artifact fence", async () => {
+    const provider = providerWithText("새 노트를 생성했습니다.");
+
+    const chunks = [];
+    for await (const chunk of runChat({
+      workspaceId: "00000000-0000-4000-8000-000000000001",
+      userId: "user-1",
+      scope: { type: "workspace", workspaceId: "00000000-0000-4000-8000-000000000001" },
+      ragMode: "off",
+      chips: [],
+      history: [],
+      userMessage: "이 PDF를 요약해서 새 노트로 만들어줘",
+      provider,
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toContainEqual({
+      type: "error",
+      payload: {
+        code: "artifact_action_required",
+        messageKey: "chat.errors.artifactActionRequired",
+        message: "요청한 생성 작업을 실행 가능한 액션으로 만들지 못했습니다. 다시 시도해 주세요.",
+      },
+    });
+  });
+
+  it("emits typed file actions for project file creation", async () => {
+    const provider = providerWithText([
+      "파일로 저장하겠습니다.",
+      "```agent-actions",
+      JSON.stringify({
+        actions: [
+          {
+            kind: "file.create",
+            risk: "write",
+            input: {
+              filename: "summary.md",
+              title: "Summary",
+              content: "# Summary",
+            },
+          },
+        ],
+      }),
+      "```",
+    ].join("\n"));
+
+    const chunks = [];
+    for await (const chunk of runChat({
+      workspaceId: "00000000-0000-4000-8000-000000000001",
+      userId: "user-1",
+      scope: { type: "workspace", workspaceId: "00000000-0000-4000-8000-000000000001" },
+      ragMode: "off",
+      chips: [],
+      history: [],
+      userMessage: "요약을 markdown 파일로 만들어줘",
+      provider,
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toContainEqual({
+      type: "agent_action",
+      payload: {
+        actions: [
+          {
+            kind: "file.create",
+            risk: "write",
+            approvalMode: "auto_safe",
+            input: {
+              filename: "summary.md",
+              title: "Summary",
+              content: "# Summary",
+            },
+          },
+        ],
+      },
+    });
+  });
 });
 
 function providerWithText(text: string): LLMProvider {

@@ -498,6 +498,13 @@
       "when": 1778605000000,
       "tag": "0070_pdf_annotations",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1778606000000,
+      "tag": "0071_note_create_from_markdown_action",
+      "breakpoints": true
     }
   ]
 }

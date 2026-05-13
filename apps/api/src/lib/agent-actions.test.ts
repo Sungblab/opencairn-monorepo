@@ -16,6 +16,7 @@ import {
   recordCodeProjectPreviewSmokeResult,
   transitionAgentActionStatus,
   type AgentActionRepository,
+  type FileActionExecutor,
   type NoteActionExecutor,
   type NoteUpdateApplier,
   type NoteUpdatePreviewer,
@@ -98,7 +99,7 @@ describe("agent action service", () => {
     const { action } = await createAgentAction(
       projectId,
       userId,
-      { requestId, kind: "file.create", risk: "write" },
+      { requestId, kind: "file.export", risk: "external" },
       { repo, canWriteProject: async () => true },
     );
     expect(action.status).toBe("approval_required");
@@ -270,6 +271,113 @@ describe("agent action service", () => {
 
     expect(action.status).toBe("approval_required");
     expect(noteExecutor.calls).toEqual([]);
+  });
+
+  it("does not trust a model-supplied low risk for destructive note actions", async () => {
+    const repo = createMemoryRepo();
+    const noteExecutor = createMemoryNoteExecutor();
+
+    const { action } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "note.delete",
+        risk: "write",
+        approvalMode: "auto_safe",
+        input: { noteId: "00000000-0000-4000-8000-000000000021" },
+      },
+      { repo, canWriteProject: async () => true, noteExecutor },
+    );
+
+    expect(action).toMatchObject({
+      kind: "note.delete",
+      risk: "destructive",
+      status: "approval_required",
+    });
+    expect(noteExecutor.calls).toEqual([]);
+  });
+
+  it("executes file create and update actions through the action ledger", async () => {
+    const repo = createMemoryRepo();
+    const fileExecutor = createMemoryFileExecutor();
+
+    const created = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "file.create",
+        risk: "write",
+        approvalMode: "auto_safe",
+        input: {
+          filename: "summary.md",
+          title: "Summary",
+          content: "# Summary",
+        },
+      },
+      { repo, canWriteProject: async () => true, fileExecutor },
+    );
+    const updated = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId: "00000000-0000-4000-8000-000000000005",
+        kind: "file.update",
+        risk: "write",
+        approvalMode: "auto_safe",
+        input: {
+          fileId: "00000000-0000-4000-8000-000000000091",
+          filename: "summary-v2.md",
+          content: "# Summary v2",
+        },
+      },
+      { repo, canWriteProject: async () => true, fileExecutor },
+    );
+
+    expect(fileExecutor.calls).toEqual([
+      { kind: "file.create", filename: "summary.md" },
+      {
+        kind: "file.update",
+        fileId: "00000000-0000-4000-8000-000000000091",
+        filename: "summary-v2.md",
+      },
+    ]);
+    expect(created.action).toMatchObject({
+      kind: "file.create",
+      status: "completed",
+      result: { ok: true, file: { title: "Summary", filename: "summary.md" } },
+    });
+    expect(updated.action).toMatchObject({
+      kind: "file.update",
+      status: "completed",
+      result: { ok: true, file: { filename: "summary-v2.md", version: 2 } },
+    });
+  });
+
+  it("requires approval for destructive file delete even when the model labels it write", async () => {
+    const repo = createMemoryRepo();
+    const fileExecutor = createMemoryFileExecutor();
+
+    const { action } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "file.delete",
+        risk: "write",
+        approvalMode: "auto_safe",
+        input: { fileId: "00000000-0000-4000-8000-000000000091" },
+      },
+      { repo, canWriteProject: async () => true, fileExecutor },
+    );
+
+    expect(action).toMatchObject({
+      kind: "file.delete",
+      risk: "destructive",
+      status: "approval_required",
+    });
+    expect(fileExecutor.calls).toEqual([]);
   });
 
   it("marks note action execution failures on the ledger", async () => {
@@ -1371,6 +1479,61 @@ function createMemoryNoteExecutor(options?: {
           projectId: input.projectId,
           folderId: payload.folderId ?? null,
           title: payload.title ?? "test",
+        },
+      };
+    },
+  };
+}
+
+function createMemoryFileExecutor(): FileActionExecutor & {
+  calls: Array<{ kind: string; filename?: string; fileId?: string }>;
+} {
+  const calls: Array<{ kind: string; filename?: string; fileId?: string }> = [];
+  return {
+    calls,
+    async execute(input) {
+      const payload = input.payload as {
+        filename?: string;
+        title?: string;
+        fileId?: string;
+      };
+      calls.push({
+        kind: input.kind,
+        ...(payload.filename ? { filename: payload.filename } : {}),
+        ...(payload.fileId ? { fileId: payload.fileId } : {}),
+      });
+      if (input.kind === "file.create") {
+        return {
+          ok: true,
+          file: {
+            id: "00000000-0000-4000-8000-000000000091",
+            projectId: input.projectId,
+            title: payload.title ?? "summary.md",
+            filename: payload.filename ?? "summary.md",
+            version: 1,
+          },
+        };
+      }
+      if (input.kind === "file.update") {
+        return {
+          ok: true,
+          file: {
+            id: payload.fileId,
+            projectId: input.projectId,
+            title: payload.title ?? "Summary",
+            filename: payload.filename ?? "summary.md",
+            version: 2,
+          },
+        };
+      }
+      return {
+        ok: true,
+        file: {
+          id: payload.fileId,
+          projectId: input.projectId,
+          title: "Summary",
+          filename: "summary.md",
+          version: 1,
         },
       };
     },

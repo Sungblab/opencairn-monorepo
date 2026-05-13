@@ -24,9 +24,8 @@ import {
   type ChatMode,
 } from "./agent-pipeline";
 import { getTemporalClient, taskQueue } from "./temporal-client";
-import { executeProjectObjectAction, toProjectObjectSummary } from "./project-object-actions";
+import { toProjectObjectSummary } from "./project-object-actions";
 import { createAgentAction } from "./agent-actions";
-import { emitTreeEvent } from "./tree-events";
 import { recordLlmUsageEvent } from "./llm-usage";
 
 const EXECUTION_LEASE_MS = 60_000;
@@ -746,38 +745,39 @@ async function handleAgentFileChunk(input: {
       startIngest?: boolean;
     }>;
   };
+  const approvalMode = actionApprovalModeFromScope(input.scope);
+  const actions = [];
   const created = [];
   for (const file of payload.files) {
-    const result = await executeProjectObjectAction(
-      { type: "create_project_object", object: file },
-      {
-        context: {
-          userId: input.run.userId,
-          workspaceId: input.run.workspaceId,
-          projectId,
-          chatThreadId: input.run.threadId,
-          chatMessageId: input.run.agentMessageId,
-        },
-      },
-    );
-    if (!result.file || !result.compatibilityEvent) continue;
-    const summary = result.file;
-    emitTreeEvent({
-      kind: "tree.agent_file_created",
-      projectId: summary.projectId,
-      id: summary.id,
-      parentId: summary.folderId,
-      label: summary.title,
-      at: new Date().toISOString(),
+    const { action } = await createAgentAction(projectId, input.run.userId, {
+      requestId: randomUUID(),
+      sourceRunId: input.run.id,
+      kind: "file.create",
+      risk: "write",
+      approvalMode,
+      input: file,
     });
-    await appendChatRunEvent(input.run.id, result.event.type, result.event);
+    actions.push(action);
+    await appendChatRunEvent(input.run.id, "agent_action_created", { action });
+    const summary = fileSummaryFromAction(action);
+    if (!summary) continue;
+    const object = toProjectObjectSummary(summary);
     created.push(summary);
     await appendChatRunEvent(
       input.run.id,
-      result.compatibilityEvent.type,
-      result.compatibilityEvent,
+      "project_object_created",
+      { type: "project_object_created", object },
+    );
+    await appendChatRunEvent(
+      input.run.id,
+      "agent_file_created",
+      { type: "agent_file_created", file: summary },
     );
   }
+  input.meta.agent_actions = [
+    ...((input.meta.agent_actions as unknown[]) ?? []),
+    ...actions,
+  ];
   input.meta.agent_files = [
     ...((input.meta.agent_files as unknown[]) ?? []),
     ...created,
@@ -788,17 +788,28 @@ async function handleAgentFileChunk(input: {
   ];
 }
 
-function actionApprovalModeFromScope(scope: unknown): "require" | "auto_safe" {
+function fileSummaryFromAction(action: Awaited<ReturnType<typeof createAgentAction>>["action"]) {
+  const result = action.result;
+  if (!result || typeof result !== "object" || Array.isArray(result)) return null;
+  const file = (result as { file?: unknown }).file;
+  if (!file || typeof file !== "object" || Array.isArray(file)) return null;
+  return file as Parameters<typeof toProjectObjectSummary>[0];
+}
+
+function actionApprovalModeFromScope(
+  scope: unknown,
+  fallback: "require" | "auto_safe" = "require",
+): "require" | "auto_safe" {
   if (!scope || typeof scope !== "object" || Array.isArray(scope)) {
-    return "require";
+    return fallback;
   }
   const manifest = (scope as Record<string, unknown>).manifest;
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
-    return "require";
+    return fallback;
   }
-  return (manifest as Record<string, unknown>).actionApprovalMode === "auto_safe"
-    ? "auto_safe"
-    : "require";
+  const mode = (manifest as Record<string, unknown>).actionApprovalMode;
+  if (mode === "auto_safe" || mode === "require") return mode;
+  return fallback;
 }
 
 async function projectIdFromScope(scope: unknown): Promise<string | null> {

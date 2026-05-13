@@ -47,7 +47,7 @@ export const agentFileSourceSchema = z.enum([
 ]);
 export type AgentFileSource = z.infer<typeof agentFileSourceSchema>;
 
-const safeFilenameSchema = z
+export const safeFilenameSchema = z
   .string()
   .trim()
   .min(1)

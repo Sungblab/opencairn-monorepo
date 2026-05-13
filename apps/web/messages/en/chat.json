@@ -8,6 +8,7 @@
   },
   "errors": {
     "streamFailed": "Something went wrong while generating the response.",
-    "executionTimeout": "The response timed out."
+    "executionTimeout": "The response timed out.",
+    "artifactActionRequired": "The requested creation task was not turned into an executable action. Please try again."
   }
 }

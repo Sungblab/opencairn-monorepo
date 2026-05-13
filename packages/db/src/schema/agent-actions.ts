@@ -37,6 +37,7 @@ export const agentActionKindEnum = pgEnum("agent_action_kind", [
   "workflow.placeholder",
   "interaction.choice",
   "note.create",
+  "note.create_from_markdown",
   "note.update",
   "note.rename",
   "note.move",

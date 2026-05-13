@@ -125,6 +125,27 @@ async function* fakeAgentFileStream(): AsyncGenerator<AgentChunk> {
   yield { type: "done", payload: {} };
 }
 
+async function* fakeGeneratedNoteActionStream(): AsyncGenerator<AgentChunk> {
+  yield {
+    type: "agent_action",
+    payload: {
+      actions: [
+        {
+          kind: "note.create_from_markdown",
+          risk: "write",
+          input: {
+            title: "Generated Note",
+            folderId: null,
+            bodyMarkdown: "# Generated Note\n\n[[Linked Concept]]",
+          },
+        },
+      ],
+    },
+  };
+  yield { type: "text", payload: { delta: "Created note draft." } };
+  yield { type: "done", payload: {} };
+}
+
 describe("Threads messages — happy path", () => {
   let ctx: SeedResult;
 
@@ -471,7 +492,10 @@ describe("Threads messages — happy path", () => {
       body: JSON.stringify({
         content: "make a brief",
         mode: "auto",
-        scope: { projectId: ctx.projectId },
+        scope: {
+          projectId: ctx.projectId,
+          manifest: { actionApprovalMode: "auto_safe" },
+        },
       }),
     });
     expect(res.status).toBe(200);
@@ -535,6 +559,33 @@ describe("Threads messages — happy path", () => {
       objectType: "agent_file",
     });
     expect(file!.chatMessageId).toBe(rows[1]!.id);
+  });
+
+  it("keeps generated note actions approval-required unless auto-safe is enabled", async () => {
+    __setRunAgentForTest(fakeGeneratedNoteActionStream);
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        content: "make a note",
+        mode: "auto",
+        scope: { projectId: ctx.projectId },
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const events = parseSseEvents(await res.text());
+    const created = events.find((e) => e.event === "agent_action_created");
+    expect(created?.data).toMatchObject({
+      action: {
+        kind: "note.create_from_markdown",
+        risk: "write",
+        status: "approval_required",
+        result: null,
+      },
+    });
   });
 
   it("POST bumps thread updated_at", async () => {

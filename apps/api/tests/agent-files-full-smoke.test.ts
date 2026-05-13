@@ -110,7 +110,10 @@ describe.skipIf(!realStorageSmokeEnabled)(
         body: JSON.stringify({
           content: "create a real file",
           mode: "auto",
-          scope: { projectId: seed.projectId },
+          scope: {
+            projectId: seed.projectId,
+            manifest: { actionApprovalMode: "auto_safe" },
+          },
         }),
       });
       expect(send.status).toBe(200);

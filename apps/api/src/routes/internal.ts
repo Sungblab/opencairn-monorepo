@@ -97,6 +97,7 @@ import {
   startAgentFileIngest,
 } from "../lib/agent-files";
 import { createTreeNode } from "../lib/project-tree-service";
+import { markdownToPlateValue } from "../lib/plate-doc";
 import {
   cleanupExpiredCodeProjectPreviews,
   completeCodeProjectInstallActionFromWorker,
@@ -1269,16 +1270,6 @@ const sourceNoteSchema = z.object({
   triggerCompiler: z.boolean().default(false),
 });
 
-function toPlateDoc(text: string): Record<string, unknown> {
-  // Match the Plate v49 shape used by the editor (Plan 2). One paragraph
-  // block with the extracted text as a single child run. Editor opens the
-  // note and can chunk/reformat in-place later.
-  return {
-    type: "doc",
-    children: [{ type: "p", children: [{ text }] }],
-  };
-}
-
 // Compiler shares the ingest task queue — one worker process handles
 // both workflows. Split later if the compile path needs its own
 // concurrency budget (Plan 4 Task 8 "per-project semaphore" is the
@@ -1310,19 +1301,28 @@ internal.post(
     if (!proj) return c.json({ error: "Project not found" }, 404);
 
     const noteId = randomUUID();
-    await db.insert(notes).values({
-      id: noteId,
-      projectId: body.projectId,
-      workspaceId: proj.workspaceId,
-      title: body.title,
-      content: toPlateDoc(body.content),
-      contentText: body.content,
-      type: "source",
-      sourceType: body.sourceType,
-      sourceFileKey: body.objectKey ?? null,
-      sourceUrl: body.sourceUrl ?? null,
-      mimeType: body.mimeType,
-      isAuto: true,
+    const content = markdownToPlateValue(body.content);
+    await db.transaction(async (tx) => {
+      await tx.insert(notes).values({
+        id: noteId,
+        projectId: body.projectId,
+        workspaceId: proj.workspaceId,
+        title: body.title,
+        content,
+        contentText: body.content,
+        type: "source",
+        sourceType: body.sourceType,
+        sourceFileKey: body.objectKey ?? null,
+        sourceUrl: body.sourceUrl ?? null,
+        mimeType: body.mimeType,
+        isAuto: true,
+      });
+      await syncWikiLinks(
+        tx,
+        noteId,
+        extractWikiLinkTargets(content),
+        proj.workspaceId,
+      );
     });
     let treeNodeId: string | null = null;
     if (body.treeParentNodeId) {
@@ -1433,16 +1433,25 @@ internal.post(
 
     if (body.kind === "note") {
       const noteId = randomUUID();
-      await db.insert(notes).values({
-        id: noteId,
-        projectId: body.projectId,
-        workspaceId: body.workspaceId,
-        title: body.label,
-        content: toPlateDoc(body.text ?? ""),
-        contentText: body.text ?? "",
-        type: "source",
-        sourceType: "unknown",
-        isAuto: true,
+      const content = markdownToPlateValue(body.text ?? "");
+      await db.transaction(async (tx) => {
+        await tx.insert(notes).values({
+          id: noteId,
+          projectId: body.projectId,
+          workspaceId: body.workspaceId,
+          title: body.label,
+          content,
+          contentText: body.text ?? "",
+          type: "source",
+          sourceType: "unknown",
+          isAuto: true,
+        });
+        await syncWikiLinks(
+          tx,
+          noteId,
+          extractWikiLinkTargets(content),
+          body.workspaceId,
+        );
       });
       targetTable = "notes";
       targetId = noteId;
