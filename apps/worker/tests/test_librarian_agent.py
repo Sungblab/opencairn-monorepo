@@ -359,6 +359,59 @@ async def test_librarian_does_not_count_idempotent_wiki_repair_actions() -> None
 
 
 @pytest.mark.asyncio
+async def test_librarian_proposes_renames_for_duplicate_wiki_titles() -> None:
+    provider = _make_provider([])
+    api = _make_api()
+    primary_id = "11111111-1111-4111-8111-111111111111"
+    duplicate_id = "22222222-2222-4222-8222-222222222222"
+    api.get_project_wiki_index = AsyncMock(
+        return_value={
+            "totals": {"orphanPages": 0},
+            "unresolvedLinks": [],
+            "pages": [
+                {
+                    "id": primary_id,
+                    "title": "Runtime",
+                    "type": "wiki",
+                    "sourceType": None,
+                    "summary": "Primary page",
+                    "updatedAt": "2026-05-13T00:00:00.000Z",
+                    "inboundLinks": 2,
+                    "outboundLinks": 1,
+                },
+                {
+                    "id": duplicate_id,
+                    "title": "Runtime",
+                    "type": "wiki",
+                    "sourceType": None,
+                    "summary": "Duplicate page",
+                    "updatedAt": "2026-05-13T00:01:00.000Z",
+                    "inboundLinks": 0,
+                    "outboundLinks": 0,
+                },
+            ],
+        }
+    )
+    agent = LibrarianAgent(provider=provider, api=api)
+
+    events = await _collect(agent)
+
+    end = events[-1]
+    assert end.output["wiki_repair_actions_created"] == 1
+    api.create_agent_action.assert_awaited_once()
+    action_kwargs = api.create_agent_action.await_args.kwargs
+    request = action_kwargs["request"]
+    assert request["kind"] == "note.rename"
+    assert request["risk"] == "write"
+    assert request["approvalMode"] == "require"
+    assert request["input"]["noteId"] == duplicate_id
+    assert request["input"]["title"].startswith("Runtime ")
+    assert request["input"]["title"] != "Runtime"
+    assert request["preview"]["currentTitle"] == "Runtime"
+    assert request["preview"]["duplicateOfNoteId"] == primary_id
+
+
+@pytest.mark.asyncio
 async def test_librarian_flags_contradictions() -> None:
     # Two candidate pairs; LLM says first is a contradiction, second isn't.
     responses = [

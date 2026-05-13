@@ -227,8 +227,14 @@ class LibrarianAgent(Agent):
         )
         started = time.time()
         index = await self.api.get_project_wiki_index(input.project_id)
-        unresolved = list(index.get("unresolvedLinks", []))
-        totals = index.get("totals") if isinstance(index.get("totals"), dict) else {}
+        if not isinstance(index, dict):
+            index = {}
+        unresolved_raw = index.get("unresolvedLinks", [])
+        pages_raw = index.get("pages", [])
+        totals_raw = index.get("totals")
+        unresolved = list(unresolved_raw) if isinstance(unresolved_raw, list) else []
+        pages = list(pages_raw) if isinstance(pages_raw, list) else []
+        totals = totals_raw if isinstance(totals_raw, dict) else {}
         orphan_pages = int(totals.get("orphanPages", 0))
         yield ToolResult(
             run_id=ctx.run_id,
@@ -252,6 +258,7 @@ class LibrarianAgent(Agent):
             input=input,
             ctx=ctx,
             unresolved=unresolved,
+            pages=pages,
         )
         output.wiki_repair_actions_created = repair_count
 
@@ -286,8 +293,10 @@ class LibrarianAgent(Agent):
         input: LibrarianInput,
         ctx: ToolContext,
         unresolved: list[Any],
+        pages: list[Any],
     ) -> int:
         created = 0
+        attempted = 0
         missing = [
             link
             for link in unresolved
@@ -335,12 +344,69 @@ class LibrarianAgent(Agent):
                         },
                     },
                 )
+                attempted += 1
+                if not result.get("idempotent"):
+                    created += 1
+            except Exception as exc:  # noqa: BLE001
+                attempted += 1
+                logger.warning(
+                    "Librarian: failed to create wiki repair action for %s: %s",
+                    target_title,
+                    exc,
+                )
+
+        remaining = max(MAX_WIKI_REPAIR_ACTIONS - attempted, 0)
+        if remaining == 0:
+            return created
+
+        for duplicate in _duplicate_wiki_pages(pages)[:remaining]:
+            proposed_title = _proposed_duplicate_title(
+                duplicate["title"],
+                duplicate["id"],
+            )
+            request_id = str(
+                uuid.uuid5(
+                    WIKI_REPAIR_REQUEST_NAMESPACE,
+                    (
+                        f"{input.project_id}:duplicate-title:"
+                        f"{duplicate['id']}:{proposed_title}"
+                    ),
+                )
+            )
+            try:
+                result = await self.api.create_agent_action(
+                    project_id=input.project_id,
+                    user_id=input.user_id,
+                    request={
+                        "requestId": request_id,
+                        "sourceRunId": ctx.run_id,
+                        "kind": "note.rename",
+                        "risk": "write",
+                        "approvalMode": "require",
+                        "input": {
+                            "noteId": duplicate["id"],
+                            "title": proposed_title,
+                        },
+                        "preview": {
+                            "summary": "Rename a duplicate wiki page title",
+                            "currentTitle": duplicate["title"],
+                            "proposedTitle": proposed_title,
+                            "duplicateOfNoteId": duplicate["primaryId"],
+                            "duplicateOfTitle": duplicate["primaryTitle"],
+                            "reason": (
+                                "Duplicate note titles make title-based wiki "
+                                "links ambiguous."
+                            ),
+                        },
+                    },
+                )
                 if not result.get("idempotent"):
                     created += 1
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
-                    "Librarian: failed to create wiki repair action for %s: %s",
-                    target_title,
+                    "Librarian: failed to create duplicate-title rename action "
+                    "for %s: %s",
+                    duplicate["title"],
                     exc,
                 )
         return created
@@ -971,6 +1037,53 @@ def _parse_contradiction(raw: str) -> dict[str, Any]:
         return json.loads(text)
     except json.JSONDecodeError:
         return {}
+
+
+def _duplicate_wiki_pages(pages: list[Any]) -> list[dict[str, str]]:
+    by_title: dict[str, list[dict[str, str]]] = {}
+    for page in pages:
+        if not isinstance(page, dict):
+            continue
+        note_id = str(page.get("id") or "").strip()
+        title = str(page.get("title") or "").strip()
+        if not note_id or not title:
+            continue
+        try:
+            note_id = str(uuid.UUID(note_id))
+        except ValueError:
+            continue
+        by_title.setdefault(_normalize_wiki_title(title), []).append(
+            {"id": note_id, "title": title}
+        )
+
+    duplicates: list[dict[str, str]] = []
+    for group in by_title.values():
+        if len(group) < 2:
+            continue
+        primary = group[0]
+        for page in group[1:]:
+            duplicates.append(
+                {
+                    "id": page["id"],
+                    "title": page["title"],
+                    "primaryId": primary["id"],
+                    "primaryTitle": primary["title"],
+                }
+            )
+    return duplicates
+
+
+def _normalize_wiki_title(title: str) -> str:
+    return " ".join(title.split()).casefold()
+
+
+def _proposed_duplicate_title(title: str, note_id: str) -> str:
+    suffix = note_id.split("-", 1)[0]
+    base = title.strip() or "Untitled"
+    proposal = f"{base} ({suffix})"
+    if len(proposal) <= 300:
+        return proposal
+    return f"{base[: 297 - len(suffix)].rstrip()} ({suffix})"
 
 
 def _build_clusters(pairs: list[dict[str, Any]]) -> list[list[str]]:
