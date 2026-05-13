@@ -2,6 +2,7 @@
   "renderer": {
     "copy": "Copy",
     "copied": "Copied",
+    "raw": "Raw",
     "mermaid_loading": "Rendering diagram…",
     "mermaid_error": "Cannot render diagram",
     "code_language_label": "{lang}"

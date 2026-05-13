@@ -2,6 +2,7 @@
   "renderer": {
     "copy": "복사",
     "copied": "복사됨",
+    "raw": "원문",
     "mermaid_loading": "다이어그램을 그리는 중…",
     "mermaid_error": "다이어그램을 그릴 수 없습니다",
     "code_language_label": "{lang}"

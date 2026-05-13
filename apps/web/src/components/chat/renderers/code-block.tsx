@@ -125,7 +125,7 @@ export function CodeBlock({ inline, className, children }: CodeBlockProps) {
           </div>
           <details className="mt-2 font-mono text-[color:var(--fg-muted)]">
             <summary className="cursor-pointer select-none text-[0.7rem]">
-              raw
+              {t("raw")}
             </summary>
             <pre className="m-0 mt-2 overflow-x-auto rounded border border-[color:var(--border)] p-2 text-xs text-[color:var(--fg-base)]">
               <code className="bg-transparent">{displayCode}</code>
