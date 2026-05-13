@@ -343,13 +343,20 @@ function inferTransitiveTriples(triples: WorkspaceAtlasTriple[]): WorkspaceAtlas
     }
     for (const subjectId of adjacency.keys()) {
       const visited = new Set<string>();
-      const stack = [...(adjacency.get(subjectId) ?? [])];
+      const stack = [...(adjacency.get(subjectId) ?? [])].map((objectId) => ({
+        depth: 1,
+        objectId,
+      }));
       while (stack.length > 0) {
-        const objectId = stack.pop();
+        if (inferred.length >= MAX_TRANSITIVE_INFERRED_TRIPLES) return inferred;
+        const item = stack.pop();
+        const objectId = item?.objectId;
         if (!objectId || visited.has(objectId)) continue;
         visited.add(objectId);
-        for (const next of adjacency.get(objectId) ?? []) {
-          stack.push(next);
+        if ((item?.depth ?? 0) < MAX_TRANSITIVE_INFERENCE_DEPTH) {
+          for (const next of adjacency.get(objectId) ?? []) {
+            stack.push({ depth: (item?.depth ?? 0) + 1, objectId: next });
+          }
         }
         const key = `${subjectId}\0${predicate}\0${objectId}`;
         if (existing.has(key)) continue;
@@ -368,6 +375,8 @@ function inferTransitiveTriples(triples: WorkspaceAtlasTriple[]): WorkspaceAtlas
 const EXPLICIT_LAYER_SCORE = 25;
 const SOURCE_MEMBERSHIP_EDGE_LIMIT = 900;
 const SOURCE_MEMBERSHIP_MAX_CONCEPTS_PER_CHUNK = 40;
+const MAX_TRANSITIVE_INFERENCE_DEPTH = 4;
+const MAX_TRANSITIVE_INFERRED_TRIPLES = 2_000;
 
 function unwrapRows<T>(raw: unknown): T[] {
   return (raw as { rows?: T[] }).rows ?? (raw as T[]);

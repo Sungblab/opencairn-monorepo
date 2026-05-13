@@ -76,6 +76,13 @@ export type RetrievalHit = {
   graphPath?: string | null;
 };
 
+const GRAPH_CONFIDENCE_SEMANTIC_PATH = 0.88;
+const GRAPH_CONFIDENCE_GENERIC_PATH = 0.68;
+const GRAPH_CONFIDENCE_DISPLAY_PATH = 0.48;
+const GRAPH_SCORE_SEMANTIC_PATH = 0.72;
+const GRAPH_SCORE_GENERIC_PATH = 0.5;
+const GRAPH_SCORE_DISPLAY_PATH = 0.32;
+
 type ProjectRetrievalHit = RetrievalHit & {
   sourceKey: string;
 };
@@ -458,7 +465,12 @@ async function graphExpansionHits(opts: {
         hit.graphPath?.includes("derived_from");
       const weakDisplayPath = hit.graphPath?.includes("appears_with") ||
         hit.graphPath?.includes("near_in_source");
-      const confidence = hit.graphScore * (semanticBoost ? 0.88 : weakDisplayPath ? 0.48 : 0.68);
+      const confidence = hit.graphScore *
+        (semanticBoost
+          ? GRAPH_CONFIDENCE_SEMANTIC_PATH
+          : weakDisplayPath
+            ? GRAPH_CONFIDENCE_DISPLAY_PATH
+            : GRAPH_CONFIDENCE_GENERIC_PATH);
       return {
         sourceKey,
         noteId: hit.noteId,
@@ -467,7 +479,12 @@ async function graphExpansionHits(opts: {
         title: hit.title,
         headingPath: hit.headingPath,
         snippet: hit.snippet,
-        score: hit.graphScore * (semanticBoost ? 0.72 : weakDisplayPath ? 0.32 : 0.5),
+        score: hit.graphScore *
+          (semanticBoost
+            ? GRAPH_SCORE_SEMANTIC_PATH
+            : weakDisplayPath
+              ? GRAPH_SCORE_DISPLAY_PATH
+              : GRAPH_SCORE_GENERIC_PATH),
         channelScores: { graph: hit.graphScore },
         sourceType: hit.sourceType,
         sourceUrl: hit.sourceUrl,

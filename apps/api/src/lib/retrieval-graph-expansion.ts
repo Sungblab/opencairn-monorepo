@@ -2,6 +2,24 @@ import { db, sql } from "@opencairn/db";
 import { clamp01 } from "./retrieval-candidates";
 
 const SNIPPET_MAX = 500;
+const PREDICATE_STEP_WEIGHTS = {
+  dependsOn: 1.0,
+  isA: 0.95,
+  partOf: 0.92,
+  contains: 0.9,
+  causes: 0.88,
+  derivedFrom: 0.84,
+  sameAsCandidate: 0.78,
+  related: 0.58,
+  nearInSource: 0.36,
+  appearsWith: 0.28,
+  fallback: 0.5,
+} as const;
+const EDGE_DIRECTION_WEIGHTS = {
+  forward: 1.0,
+  reverseSemantic: 0.62,
+  reverseAssociative: 0.78,
+} as const;
 
 export type GraphExpansionHit = {
   noteId: string;
@@ -135,23 +153,23 @@ export async function expandGraphCandidates(
       CROSS JOIN LATERAL (
         SELECT (
           CASE relation.ontology_predicate
-            WHEN 'depends_on' THEN 1.0
-            WHEN 'is_a' THEN 0.95
-            WHEN 'part_of' THEN 0.92
-            WHEN 'contains' THEN 0.9
-            WHEN 'causes' THEN 0.88
-            WHEN 'derived_from' THEN 0.84
-            WHEN 'same_as_candidate' THEN 0.78
-            WHEN 'is_related_to' THEN 0.58
-            WHEN 'near_in_source' THEN 0.36
-            WHEN 'appears_with' THEN 0.28
-            ELSE 0.5
+            WHEN 'depends_on' THEN ${PREDICATE_STEP_WEIGHTS.dependsOn}
+            WHEN 'is_a' THEN ${PREDICATE_STEP_WEIGHTS.isA}
+            WHEN 'part_of' THEN ${PREDICATE_STEP_WEIGHTS.partOf}
+            WHEN 'contains' THEN ${PREDICATE_STEP_WEIGHTS.contains}
+            WHEN 'causes' THEN ${PREDICATE_STEP_WEIGHTS.causes}
+            WHEN 'derived_from' THEN ${PREDICATE_STEP_WEIGHTS.derivedFrom}
+            WHEN 'same_as_candidate' THEN ${PREDICATE_STEP_WEIGHTS.sameAsCandidate}
+            WHEN 'is_related_to' THEN ${PREDICATE_STEP_WEIGHTS.related}
+            WHEN 'near_in_source' THEN ${PREDICATE_STEP_WEIGHTS.nearInSource}
+            WHEN 'appears_with' THEN ${PREDICATE_STEP_WEIGHTS.appearsWith}
+            ELSE ${PREDICATE_STEP_WEIGHTS.fallback}
           END *
           CASE
-            WHEN ce.source_id = expanded.concept_id THEN 1.0
+            WHEN ce.source_id = expanded.concept_id THEN ${EDGE_DIRECTION_WEIGHTS.forward}
             WHEN relation.ontology_predicate IN ('depends_on', 'causes', 'derived_from')
-              THEN 0.62
-            ELSE 0.78
+              THEN ${EDGE_DIRECTION_WEIGHTS.reverseSemantic}
+            ELSE ${EDGE_DIRECTION_WEIGHTS.reverseAssociative}
           END
         )::double precision AS step_weight
       ) weight

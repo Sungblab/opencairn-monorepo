@@ -2721,7 +2721,8 @@ internal.get("/projects/:id/ontology-issues", async (c) => {
   const rowsOf = <T>(raw: unknown): T[] =>
     ((raw as { rows?: T[] }).rows ?? (raw as T[] | undefined) ?? []);
 
-  const broadRaw = await db.execute(sql`
+  const [broadRaw, cycleRaw, promotionRaw] = await Promise.all([
+    db.execute(sql`
     SELECT
       e.id AS edge_id,
       e.relation_type,
@@ -2756,9 +2757,9 @@ internal.get("/projects/:id/ontology-issues", async (c) => {
       )
     ORDER BY e.weight DESC, source.name ASC
     LIMIT 50
-  `);
+  `),
 
-  const cycleRaw = await db.execute(sql`
+    db.execute(sql`
     SELECT
       e1.id AS edge_id,
       e2.id AS reverse_edge_id,
@@ -2778,9 +2779,9 @@ internal.get("/projects/:id/ontology-issues", async (c) => {
       AND e2.relation_type IN ('is_a', 'is-a', 'type-of', 'kind-of')
       AND e1.id < e2.id
     LIMIT 25
-  `);
+  `),
 
-  const promotionRaw = await db.execute(sql`
+    db.execute(sql`
     SELECT
       e.id AS edge_id,
       e.relation_type,
@@ -2802,10 +2803,11 @@ internal.get("/projects/:id/ontology-issues", async (c) => {
         'co_occurs',
         'source-proximity',
         'near-in-source'
-      )
+    )
     ORDER BY e.weight DESC, source.name ASC
     LIMIT 50
-  `);
+  `),
+  ]);
 
   return c.json({
     broadRelations: rowsOf(broadRaw),

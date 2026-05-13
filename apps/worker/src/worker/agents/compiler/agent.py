@@ -59,6 +59,7 @@ logger = logging.getLogger(__name__)
 # Librarian feedback; see Plan 5 Task M0.
 MERGE_SIMILARITY_THRESHOLD = 0.88
 MAX_COMPILER_WIKI_PAGE_ACTIONS = 5
+ONTOLOGY_RELATION_EDGE_CONCURRENCY = 8
 WIKI_PAGE_REQUEST_NAMESPACE = uuid.UUID("dd8d8cc6-7f4b-42d0-8f2c-c8d3fe89da8f")
 WIKI_PAGE_UPDATE_REQUEST_NAMESPACE = uuid.UUID("61009c8c-2759-43fc-b398-97e36d433184")
 ONTOLOGY_RELATION_PREDICATES = {
@@ -646,8 +647,8 @@ class CompilerAgent(Agent):
         relations: list[dict[str, Any]],
         concept_id_by_name: dict[str, str],
     ) -> int:
-        created = 0
         seen: set[tuple[str, str, str]] = set()
+        pending: list[tuple[str, str, str, float]] = []
         for relation in relations:
             source_name = str(relation.get("source") or "").strip().casefold()
             target_name = str(relation.get("target") or "").strip().casefold()
@@ -667,16 +668,26 @@ class CompilerAgent(Agent):
                 weight = float(confidence)
             except (TypeError, ValueError):
                 weight = 0.7
-            _, edge_created = await self.api.upsert_edge(
-                source_id=source_id,
-                target_id=target_id,
-                relation_type=predicate,
-                weight=max(0.1, min(1.0, weight)),
-                evidence_note_id=input.note_id,
-            )
-            if edge_created:
-                created += 1
-        return created
+            pending.append((source_id, predicate, target_id, max(0.1, min(1.0, weight))))
+        if not pending:
+            return 0
+
+        semaphore = asyncio.Semaphore(ONTOLOGY_RELATION_EDGE_CONCURRENCY)
+
+        async def _upsert_one(item: tuple[str, str, str, float]) -> bool:
+            source_id, predicate, target_id, weight = item
+            async with semaphore:
+                _, edge_created = await self.api.upsert_edge(
+                    source_id=source_id,
+                    target_id=target_id,
+                    relation_type=predicate,
+                    weight=weight,
+                    evidence_note_id=input.note_id,
+                )
+                return edge_created
+
+        results = await asyncio.gather(*(_upsert_one(item) for item in pending))
+        return sum(1 for created in results if created)
 
     async def _create_wiki_page_actions(
         self,
