@@ -75,7 +75,7 @@ describe("MindmapView", () => {
     expect(screen.getByText(koGraph.views.needsRoot)).toBeInTheDocument();
   });
 
-  it("renders cytoscape with root-centered breadthfirst layout when nodes exist", () => {
+  it("renders cytoscape with root-centered preset positions when nodes exist", () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
         viewType: "mindmap",
@@ -98,14 +98,20 @@ describe("MindmapView", () => {
       />,
     );
     expect(screen.getByTestId("cy").getAttribute("data-layout")).toBe(
-      "breadthfirst",
+      "preset",
     );
-    const layout = JSON.parse(
-      screen.getByTestId("cy").getAttribute("data-layout-json") ?? "{}",
-    ) as { circle?: boolean; roots?: string };
-    expect(layout.circle).toBe(true);
-    expect(layout.roots).toBe(
-      '[id = "11111111-1111-4111-8111-111111111111"]',
+    const elements = JSON.parse(
+      screen.getByTestId("cy").getAttribute("data-elements") ?? "[]",
+    ) as Array<{
+      data: { id: string; isRoot?: boolean };
+      position?: { x: number; y: number };
+    }>;
+    expect(elements[0]?.data.isRoot).toBe(true);
+    expect(elements[0]?.position).toEqual(
+      expect.objectContaining({
+        x: expect.any(Number),
+        y: expect.any(Number),
+      }),
     );
   });
 

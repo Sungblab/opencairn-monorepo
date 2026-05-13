@@ -11,6 +11,7 @@ import { evidenceBundleById, type GroundedEdge } from "../grounded-types";
 import { CoMentionEdgePanel } from "./CoMentionEdgePanel";
 import { EdgeEvidencePanel } from "./EdgeEvidencePanel";
 import { projectNoteLinksToGraph } from "./note-link-projection";
+import { layoutMindmapPreset } from "./mindmap-preset-layout";
 
 // react-cytoscapejs imports cytoscape at module top level. Disable SSR — the
 // underlying renderer needs DOM/window. Same pattern as ProjectGraph + Phase 1
@@ -28,16 +29,11 @@ function edgeElementId(edge: GroundedEdge) {
   return edge.id ?? `${edge.sourceId}->${edge.targetId}:${edge.relationType}`;
 }
 
-function mindmapLayout(rootId: string | null | undefined): cytoscape.LayoutOptions {
+function mindmapLayout(): cytoscape.LayoutOptions {
   return {
-    name: "breadthfirst",
-    directed: false,
-    circle: true,
-    roots: rootId ? `[id = "${rootId}"]` : undefined,
-    spacingFactor: 1.45,
-    padding: 48,
-    avoidOverlap: true,
-    nodeDimensionsIncludeLabels: true,
+    name: "preset",
+    fit: true,
+    padding: 72,
     animate: false,
   } as cytoscape.LayoutOptions;
 }
@@ -68,20 +64,33 @@ export default function MindmapView({ projectId, root }: Props) {
       ),
     [data?.edges, data?.nodes, data?.noteLinks],
   );
+  const presetLayout = useMemo(
+    () =>
+      layoutMindmapPreset(
+        projected.nodes,
+        projected.edges,
+        data?.rootId ?? root,
+      ),
+    [data?.rootId, projected.edges, projected.nodes, root],
+  );
 
   const elements = useMemo(() => {
     if (!data) return [];
     return [
-      ...projected.nodes.map((n) => ({
-        data: {
-          id: n.id,
-          label: n.name,
-          type: "node",
-          isRoot: n.id === data.rootId,
-          noteOnly: projected.noteNodeIds.has(n.id),
-          firstNoteId: n.firstNoteId ?? null,
-        },
-      })),
+      ...projected.nodes.map((n) => {
+        const position = presetLayout.positions.get(n.id);
+        return {
+          data: {
+            id: n.id,
+            label: n.name,
+            type: "node",
+            isRoot: n.id === presetLayout.rootId,
+            noteOnly: projected.noteNodeIds.has(n.id),
+            firstNoteId: n.firstNoteId ?? null,
+          },
+          position,
+        };
+      }),
       ...projected.edges.map((e) => ({
         data: {
           id: edgeElementId(e),
@@ -94,7 +103,14 @@ export default function MindmapView({ projectId, root }: Props) {
         },
       })),
     ];
-  }, [data, projected.edges, projected.noteNodeIds, projected.nodes]);
+  }, [
+    data,
+    presetLayout.positions,
+    presetLayout.rootId,
+    projected.edges,
+    projected.noteNodeIds,
+    projected.nodes,
+  ]);
 
   const selectedEdge = useMemo(
     () => projected.edges.find((edge) => edgeElementId(edge) === selectedEdgeId) as
@@ -136,13 +152,13 @@ export default function MindmapView({ projectId, root }: Props) {
   // post-merge review follow-up — Plan 5 KG Phase 2).
   const onNodeTap = useCallback(
     (id: string) => {
-      if (id === data?.rootId) return;
+      if (id === presetLayout.rootId) return;
       const next = new URLSearchParams(params.toString());
       next.set("view", "mindmap");
       next.set("root", id);
       router.replace(`?${next.toString()}`, { scroll: false });
     },
-    [data?.rootId, params, router],
+    [params, presetLayout.rootId, router],
   );
 
   const openSourceNote = useCallback(
@@ -235,7 +251,7 @@ export default function MindmapView({ projectId, root }: Props) {
     <div className="relative h-full">
       <CytoscapeComponent
       elements={elements as cytoscape.ElementDefinition[]}
-      layout={mindmapLayout(data.rootId)}
+      layout={mindmapLayout()}
       stylesheet={
         [
           {
@@ -324,7 +340,12 @@ export default function MindmapView({ projectId, root }: Props) {
       cy={(cy: cytoscape.Core) => {
         cyRef.current = cy;
       }}
-      style={{ width: "100%", height: "100%" }}
+      style={{
+        width: "100%",
+        height: "100%",
+        minWidth: presetLayout.width,
+        minHeight: presetLayout.height,
+      }}
       />
       {selectedEdge && (
         <EdgeEvidencePanel
