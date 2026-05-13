@@ -17,6 +17,7 @@ all business logic) intact.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -273,6 +274,7 @@ class CompilerAgent(Agent):
                 input=validated,
                 ctx=ctx,
                 source_title=title,
+                source_fingerprint=_source_note_fingerprint(note.payload),
                 concepts=existing_concepts,
             )
             if wiki_page_update_actions_created > 0:
@@ -694,6 +696,7 @@ class CompilerAgent(Agent):
         input: CompilerInput,
         ctx: ToolContext,
         source_title: str,
+        source_fingerprint: str,
         concepts: list[dict[str, str]],
     ) -> int:
         if not concepts:
@@ -756,7 +759,7 @@ class CompilerAgent(Agent):
             request_id = str(
                 uuid.uuid5(
                     WIKI_PAGE_UPDATE_REQUEST_NAMESPACE,
-                    f"{input.project_id}:{input.note_id}:{page_id}",
+                    f"{input.project_id}:{input.note_id}:{page_id}:{source_fingerprint}",
                 )
             )
             try:
@@ -838,6 +841,18 @@ def _build_embed_text(candidate: dict[str, str]) -> str:
     name = candidate["name"].strip()
     description = candidate.get("description", "").strip()
     return name if not description else f"{name} — {description}"
+
+
+def _source_note_fingerprint(note: dict[str, Any]) -> str:
+    payload = json.dumps(
+        {
+            "title": str(note.get("title") or ""),
+            "contentText": str(note.get("contentText") or ""),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 def _build_wiki_page_stub(

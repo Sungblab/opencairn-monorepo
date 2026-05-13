@@ -452,6 +452,97 @@ async def test_compiler_proposes_wiki_updates_for_existing_concept_pages() -> No
 
 
 @pytest.mark.asyncio
+async def test_compiler_wiki_update_request_id_changes_when_source_note_changes() -> None:
+    page_id = "11111111-1111-1111-1111-111111111111"
+    extraction = json.dumps(
+        {
+            "concepts": [
+                {
+                    "name": "Batch Normalization",
+                    "description": "Source evidence changed.",
+                }
+            ]
+        }
+    )
+    provider = _make_provider(extraction)
+    api = _make_api(
+        existing=[
+            {
+                "id": "concept-abc",
+                "name": "Batch Normalization",
+                "similarity": 0.99,
+            }
+        ]
+    )
+    api.get_note = AsyncMock(
+        side_effect=[
+            {
+                "id": "note-1",
+                "projectId": "proj-1",
+                "workspaceId": "ws-1",
+                "title": "Deep Learning Basics",
+                "contentText": "Batch normalization source version one.",
+                "sourceType": "pdf",
+                "sourceUrl": None,
+                "type": "source",
+            },
+            {
+                "id": "note-1",
+                "projectId": "proj-1",
+                "workspaceId": "ws-1",
+                "title": "Deep Learning Basics",
+                "contentText": "Batch normalization source version two with edits.",
+                "sourceType": "pdf",
+                "sourceUrl": None,
+                "type": "source",
+            },
+        ]
+    )
+    api.upsert_concept = AsyncMock(return_value=("concept-abc", False))
+    api.get_project_wiki_index = AsyncMock(
+        return_value={
+            "pages": [
+                {
+                    "id": page_id,
+                    "title": "Batch Normalization",
+                    "summary": "Existing overview.",
+                }
+            ]
+        }
+    )
+    api.get_note_draft_state = AsyncMock(
+        return_value={
+            "id": page_id,
+            "title": "Batch Normalization",
+            "hasYjsDocument": True,
+            "content": [
+                {"type": "p", "children": [{"text": "Existing overview."}]}
+            ],
+        }
+    )
+    agent = CompilerAgent(provider=provider, api=api)
+
+    for _ in range(2):
+        async for _ev in agent.run(
+            {
+                "note_id": "note-1",
+                "project_id": "proj-1",
+                "workspace_id": "ws-1",
+                "user_id": "user-1",
+            },
+            _make_ctx(),
+        ):
+            pass
+
+    request_ids = [
+        call.kwargs["request"]["requestId"]
+        for call in api.create_agent_action.await_args_list
+    ]
+    assert len(request_ids) == 2
+    assert request_ids[0] != request_ids[1]
+
+
+@pytest.mark.asyncio
 async def test_compiler_short_circuits_on_empty_note() -> None:
     provider = _make_provider("")
     api = _make_api()
