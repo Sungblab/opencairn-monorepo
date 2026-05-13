@@ -5,42 +5,44 @@ All HTTP I/O is mocked out via AsyncMock so these run fully offline.
 from __future__ import annotations
 
 import json
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from runtime.tools import ToolContext
 from worker.agents.temporal_agent.agent import (
     StalenessAgent,
-    StalenessInput,
-    _parse_staleness_response,
     _days_since,
+    _parse_staleness_response,
 )
 from worker.agents.temporal_agent.prompts import (
     STALENESS_SYSTEM,
     build_staleness_prompt,
 )
-from runtime.tools import ToolContext
-from runtime.events import (
-    AgentStart,
-    AgentEnd,
-    AgentError,
-    ModelEnd,
-    ToolUse,
-    ToolResult,
-    CustomEvent,
-)
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def _make_note(note_id: str, title: str, days_old: int = 120) -> dict:
-    updated_at = (datetime.now(timezone.utc) - timedelta(days=days_old)).isoformat()
+    updated_at = (datetime.now(UTC) - timedelta(days=days_old)).isoformat()
     return {
         "id": note_id,
         "title": title,
         "contentText": f"This is the content of {title}. Current version is 1.0.",
+        "content": [
+            {
+                "type": "p",
+                "children": [
+                    {
+                        "text": (
+                            f"This is the content of {title}. Current version is 1.0."
+                        )
+                    }
+                ],
+            }
+        ],
         "updatedAt": updated_at,
     }
 
@@ -127,6 +129,65 @@ async def test_staleness_happy_path(mock_provider, ctx):
         # Each alert call should carry the correct noteId.
         posted_note_ids = {c.args[1]["noteId"] for c in alert_calls}
         assert posted_note_ids == {"n1", "n2"}
+
+
+@pytest.mark.asyncio
+async def test_staleness_creates_reviewable_note_update_action(mock_provider, ctx):
+    notes = [_make_note("n1", "API Docs v1")]
+
+    with (
+        patch(
+            "worker.agents.temporal_agent.agent.get_internal",
+            new_callable=AsyncMock,
+        ) as mock_get,
+        patch(
+            "worker.agents.temporal_agent.agent.post_internal",
+            new_callable=AsyncMock,
+        ) as mock_post,
+    ):
+        mock_get.return_value = {"notes": notes}
+        mock_post.return_value = {
+            "action": {"id": "action-1", "status": "draft"},
+            "idempotent": False,
+        }
+
+        agent = StalenessAgent(provider=mock_provider)
+        events = []
+        async for ev in agent.run(
+            {
+                "workspace_id": "ws-1",
+                "project_id": "proj-1",
+                "user_id": "user-1",
+            },
+            ctx,
+        ):
+            events.append(ev)
+
+    action_calls = [
+        c
+        for c in mock_post.call_args_list
+        if "/agent-actions" in c.args[0]
+    ]
+    assert len(action_calls) == 1
+    payload = action_calls[0].args[1]
+    assert payload["userId"] == "user-1"
+    action = payload["action"]
+    assert action["kind"] == "note.update"
+    assert action["risk"] == "write"
+    assert action["approvalMode"] == "require"
+    assert action["input"]["noteId"] == "n1"
+    draft = action["input"]["draft"]["content"]
+    assert draft[0]["children"][0]["text"].startswith("This is the content")
+    assert "Staleness review" in draft[-1]["children"][0]["text"]
+
+    end_ev = next(e for e in events if e.type == "agent_end")
+    assert end_ev.output["review_actions_created"] == 1
+    custom_ev = next(
+        e
+        for e in events
+        if e.type == "custom" and e.label == "staleness.completed"
+    )
+    assert custom_ev.payload["review_actions_created"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -388,12 +449,12 @@ def test_parse_staleness_response_empty():
 
 
 def test_days_since_recent():
-    recent = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+    recent = (datetime.now(UTC) - timedelta(days=5)).isoformat()
     assert _days_since(recent) == 5
 
 
 def test_days_since_z_suffix():
-    dt_str = (datetime.now(timezone.utc) - timedelta(days=100)).strftime(
+    dt_str = (datetime.now(UTC) - timedelta(days=100)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
     assert _days_since(dt_str) >= 99

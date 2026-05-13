@@ -4159,6 +4159,7 @@ internal.get("/projects/:id/stale-notes", async (c) => {
     .select({
       id: notes.id,
       title: notes.title,
+      content: notes.content,
       contentText: notes.contentText,
       updatedAt: notes.updatedAt,
     })

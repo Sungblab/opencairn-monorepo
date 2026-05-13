@@ -270,6 +270,53 @@ describe("GET /api/internal/projects/:id/wiki-index", () => {
   });
 });
 
+describe("GET /api/internal/projects/:id/stale-notes", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("returns Plate content so maintenance agents can preserve note structure", async () => {
+    const plate = [
+      {
+        type: "p",
+        children: [{ text: "Structured wiki content." }],
+      },
+    ];
+    await db
+      .update(notes)
+      .set({
+        type: "wiki",
+        content: plate,
+        contentText: "Structured wiki content.",
+        updatedAt: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000),
+      })
+      .where(eq(notes.id, ctx.noteId));
+
+    const res = await internalFetch(
+      `/api/internal/projects/${ctx.projectId}/stale-notes?days=90&limit=5`,
+      { method: "GET" },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      notes: Array<{ id: string; content: unknown; contentText: string }>;
+    };
+    expect(body.notes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: ctx.noteId,
+          content: plate,
+          contentText: "Structured wiki content.",
+        }),
+      ]),
+    );
+  });
+});
+
 describe("POST /api/internal/projects/:id/agent-actions", () => {
   let ctx: SeedResult;
   beforeEach(async () => {

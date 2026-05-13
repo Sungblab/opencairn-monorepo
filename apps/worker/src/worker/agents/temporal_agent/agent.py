@@ -19,12 +19,14 @@ import logging
 import re
 import time
 import uuid
-from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, ClassVar
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from llm import LLMProvider
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from llm import LLMProvider
 
 from runtime.agent import Agent
 from runtime.events import (
@@ -38,7 +40,6 @@ from runtime.events import (
     ToolUse,
 )
 from runtime.tools import ToolContext, hash_input
-
 from worker.agents.temporal_agent.prompts import (
     STALENESS_SYSTEM,
     build_staleness_prompt,
@@ -46,6 +47,11 @@ from worker.agents.temporal_agent.prompts import (
 from worker.lib.api_client import AgentApiClient, get_internal, post_internal
 
 logger = logging.getLogger(__name__)
+
+MAX_STALENESS_REVIEW_ACTIONS = 5
+STALENESS_REVIEW_REQUEST_NAMESPACE = uuid.UUID(
+    "f7f62d85-9084-43c3-9155-6737d23f19bf"
+)
 
 
 @dataclass(frozen=True)
@@ -161,6 +167,7 @@ class StalenessAgent(Agent):
             # 2. Score all candidates via LLM in parallel (max 5 concurrent).
             notes_checked = 0
             alerts_created = 0
+            review_actions_created = 0
             results: list[StaleNoteResult] = []
 
             _llm_sem = asyncio.Semaphore(5)
@@ -172,8 +179,12 @@ class StalenessAgent(Agent):
                 note_id = str(note.get("id", ""))
                 title = str(note.get("title", "Untitled"))
                 content_text = str(note.get("contentText") or "")
+                content = note.get("content")
+                updated_at = note.get("updatedAt")
                 days_old = _days_since(note.get("updatedAt"))
-                note_meta.append((note_id, title, content_text, days_old))
+                note_meta.append(
+                    (note_id, title, content_text, days_old, content, updated_at)
+                )
 
                 score_call_id = f"call-{uuid.uuid4().hex[:8]}"
                 score_call_ids.append(score_call_id)
@@ -215,15 +226,25 @@ class StalenessAgent(Agent):
                         return "", int((time.time() - t0) * 1000), exc
 
             llm_responses = await asyncio.gather(
-                *[_score_note(nid, ti, ct, do) for nid, ti, ct, do in note_meta]
+                *[
+                    _score_note(nid, ti, ct, do)
+                    for nid, ti, ct, do, _content, _updated_at in note_meta
+                ]
             )
 
             # Emit ModelEnd + ToolResult for each LLM result.
-            for (note_id, title, content_text, days_old), score_call_id, (
+            for (
+                note_id,
+                title,
+                content_text,
+                days_old,
+                content,
+                updated_at,
+            ), score_call_id, (
                 raw_response,
                 latency_ms,
                 exc,
-            ) in zip(note_meta, score_call_ids, llm_responses):
+            ) in zip(note_meta, score_call_ids, llm_responses, strict=False):
                 if exc is not None:
                     logger.warning(
                         "StalenessAgent: LLM scoring failed for note=%r: %s",
@@ -349,6 +370,83 @@ class StalenessAgent(Agent):
                                 },
                             )
 
+                        if review_actions_created < MAX_STALENESS_REVIEW_ACTIONS:
+                            action_call_id = f"call-{uuid.uuid4().hex[:8]}"
+                            action_args = {"note_id": note_id, "score": staleness_score}
+                            yield ToolUse(
+                                run_id=ctx.run_id,
+                                workspace_id=ctx.workspace_id,
+                                agent_name=self.name,
+                                seq=seq.next(),
+                                ts=time.time(),
+                                type="tool_use",
+                                tool_call_id=action_call_id,
+                                tool_name="create_stale_note_review_action",
+                                input_args=action_args,
+                                input_hash=hash_input(action_args),
+                                concurrency_safe=False,
+                            )
+                            action_started = time.time()
+                            try:
+                                action_result = await post_internal(
+                                    f"/api/internal/projects/{validated.project_id}/agent-actions",
+                                    {
+                                        "userId": validated.user_id,
+                                        "action": _build_staleness_review_action(
+                                            project_id=validated.project_id,
+                                            note_id=note_id,
+                                            run_id=ctx.run_id,
+                                            title=title,
+                                            content=content,
+                                            content_text=content_text,
+                                            updated_at=updated_at,
+                                            staleness_score=staleness_score,
+                                            reason=reason,
+                                        ),
+                                    },
+                                )
+                                if not action_result.get("idempotent"):
+                                    review_actions_created += 1
+                                yield ToolResult(
+                                    run_id=ctx.run_id,
+                                    workspace_id=ctx.workspace_id,
+                                    agent_name=self.name,
+                                    seq=seq.next(),
+                                    ts=time.time(),
+                                    type="tool_result",
+                                    tool_call_id=action_call_id,
+                                    ok=True,
+                                    output={
+                                        "idempotent": bool(
+                                            action_result.get("idempotent")
+                                        )
+                                    },
+                                    duration_ms=int(
+                                        (time.time() - action_started) * 1000
+                                    ),
+                                )
+                            except Exception as exc:  # noqa: BLE001
+                                logger.warning(
+                                    "StalenessAgent: failed to create review action "
+                                    "for note=%r: %s",
+                                    note_id,
+                                    exc,
+                                )
+                                yield ToolResult(
+                                    run_id=ctx.run_id,
+                                    workspace_id=ctx.workspace_id,
+                                    agent_name=self.name,
+                                    seq=seq.next(),
+                                    ts=time.time(),
+                                    type="tool_result",
+                                    tool_call_id=action_call_id,
+                                    ok=False,
+                                    output={"error": str(exc)},
+                                    duration_ms=int(
+                                        (time.time() - action_started) * 1000
+                                    ),
+                                )
+
                     except Exception as exc:  # noqa: BLE001
                         logger.warning(
                             "StalenessAgent: failed to create alert for note=%r: %s",
@@ -392,6 +490,7 @@ class StalenessAgent(Agent):
                     "candidates": len(candidates),
                     "notes_checked": notes_checked,
                     "alerts_created": alerts_created,
+                    "review_actions_created": review_actions_created,
                     "project_id": validated.project_id,
                     "stale_days": validated.stale_days,
                 },
@@ -401,6 +500,7 @@ class StalenessAgent(Agent):
                 "candidates": len(candidates),
                 "notes_checked": notes_checked,
                 "alerts_created": alerts_created,
+                "review_actions_created": review_actions_created,
             }
             yield AgentEnd(
                 run_id=ctx.run_id,
@@ -458,6 +558,88 @@ def _strip_fence(raw: str) -> str:
     return m.group(1).strip() if m else text
 
 
+def _build_staleness_review_action(
+    *,
+    project_id: str,
+    note_id: str,
+    run_id: str,
+    title: str,
+    content: Any,
+    content_text: str,
+    updated_at: Any,
+    staleness_score: float,
+    reason: str,
+) -> dict[str, Any]:
+    request_id = str(
+        uuid.uuid5(
+            STALENESS_REVIEW_REQUEST_NAMESPACE,
+            f"{project_id}:{note_id}:{updated_at or 'unknown'}",
+        )
+    )
+    draft = _append_staleness_review_block(
+        content=content,
+        content_text=content_text,
+        staleness_score=staleness_score,
+        reason=reason,
+    )
+    return {
+        "requestId": request_id,
+        "sourceRunId": run_id,
+        "kind": "note.update",
+        "risk": "write",
+        "approvalMode": "require",
+        "input": {
+            "noteId": note_id,
+            "draft": {"format": "plate_value_v1", "content": draft},
+            "reason": f"Staleness review: {reason[:450]}",
+        },
+        "preview": {
+            "summary": "Append a staleness review section to this wiki note",
+            "targetTitle": title,
+            "stalenessScore": staleness_score,
+            "reason": reason[:500],
+        },
+    }
+
+
+def _append_staleness_review_block(
+    *,
+    content: Any,
+    content_text: str,
+    staleness_score: float,
+    reason: str,
+) -> list[dict[str, Any]]:
+    draft = _plate_value_from_note_content(content, content_text)
+    review_text = (
+        f"Staleness review ({staleness_score:.2f}): "
+        f"{reason or 'This wiki note may need a freshness review.'}"
+    )
+    draft.append({"type": "p", "children": [{"text": review_text[:1000]}]})
+    return draft
+
+
+def _plate_value_from_note_content(content: Any, content_text: str) -> list[dict[str, Any]]:
+    if isinstance(content, list):
+        cloned = _json_clone_list(content)
+        if cloned:
+            return cloned
+    if isinstance(content, dict) and isinstance(content.get("children"), list):
+        cloned = _json_clone_list(content["children"])
+        if cloned:
+            return cloned
+    return [{"type": "p", "children": [{"text": content_text}]}]
+
+
+def _json_clone_list(value: list[Any]) -> list[dict[str, Any]]:
+    try:
+        cloned = json.loads(json.dumps(value))
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(cloned, list):
+        return []
+    return [item for item in cloned if isinstance(item, dict)]
+
+
 def _parse_staleness_response(raw: str) -> dict[str, Any]:
     """Parse LLM JSON response into a ``{score, reason}`` dict.
 
@@ -494,10 +676,10 @@ def _days_since(updated_at_raw: Any) -> int:
             ts_str = updated_at_raw.replace("Z", "+00:00")
             dt = datetime.fromisoformat(ts_str)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
         else:
             return 0
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         delta = now - dt
         return max(0, delta.days)
     except (ValueError, TypeError):
@@ -509,6 +691,4 @@ def _is_retryable(exc: Exception) -> bool:
 
     if isinstance(exc, httpx.HTTPStatusError):
         return 500 <= exc.response.status_code < 600
-    if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)):
-        return True
-    return False
+    return isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))
