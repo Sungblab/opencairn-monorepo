@@ -9,6 +9,18 @@ import { NoteEditor, type NoteEditorProps } from "./NoteEditor";
 // file for the actual mock set.
 
 const messages = {
+  project: {
+    tools: {
+      preflight: {
+        loading: "실행 가능 여부를 확인하는 중입니다.",
+        confirm: "이 작업은 약 {credits} credits가 필요합니다.",
+        blocked: "credits가 부족합니다. 필요 {credits}, 보유 {available}.",
+        error: "실행 가능 여부를 확인하지 못했습니다.",
+        confirmStart: "시작",
+        cancel: "닫기",
+      },
+    },
+  },
   editor: {
     placeholder: { body: "내용 입력", title: "제목" },
     save: { saving: "저장 중", saved: "저장됨", failed: "저장 실패" },

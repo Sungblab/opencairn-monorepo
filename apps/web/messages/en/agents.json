@@ -116,6 +116,22 @@
       "missing_source": "manual source check",
       "manual_review": "manual review"
     },
+    "log": {
+      "runtime": "Runtime {executionClass} · mode {chatMode} · RAG {ragMode}",
+      "memory": "Memory {policy} · {included} · {scopes}",
+      "memoryIncluded": "included",
+      "memorySkipped": "not used",
+      "noScopes": "-",
+      "partial": "Partial output {chars} chars · attempt {attempt}",
+      "attemptUnknown": "-",
+      "retryable": "retryable"
+    },
+    "cost": {
+      "input": "input {value}",
+      "output": "output {value}",
+      "cached": "cache {value}",
+      "krw": "₩{value}"
+    },
     "recovery": {
       "title": "Recovery options",
       "step": "{title} · {code}",

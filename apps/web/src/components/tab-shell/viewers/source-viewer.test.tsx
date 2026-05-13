@@ -169,6 +169,18 @@ const tab: Tab = {
 };
 
 const messages = {
+  project: {
+    tools: {
+      preflight: {
+        loading: "실행 가능 여부를 확인하는 중입니다.",
+        confirm: "이 작업은 약 {credits} credits가 필요합니다.",
+        blocked: "credits가 부족합니다. 필요 {credits}, 보유 {available}.",
+        error: "실행 가능 여부를 확인하지 못했습니다.",
+        confirmStart: "시작",
+        cancel: "닫기",
+      },
+    },
+  },
   appShell: {
     viewers: {
       source: {
@@ -195,6 +207,9 @@ const messages = {
           selectionTitle: "선택 영역",
           selectionEmpty: "페이지나 텍스트를 선택한 뒤 /summarize, /decompose, /cite로 이어가세요.",
           selectionActive: "{count}자 선택됨. 요약, 분해, 인용 추출로 이어갈 수 있어요.",
+          sourceProcessing: "원본 처리 중입니다. 완료되면 분석 도구를 더 정확하게 사용할 수 있습니다.",
+          sourceFailed: "원본 처리가 실패했습니다. 업로드 상태를 확인한 뒤 다시 시도하세요.",
+          sourceUnsupported: "이 원본 형식은 현재 자동 분석을 지원하지 않습니다.",
           useThisPdf: "이 PDF만 사용",
           summarize: "요약",
           decompose: "분해",
@@ -290,6 +305,37 @@ describe("SourceViewer", () => {
             }),
             {
               status: 201,
+              headers: { "content-type": "application/json" },
+            },
+          );
+        }
+        if (
+          url === "/api/projects/proj-1/studio-tools/preflight" &&
+          init?.method === "POST"
+        ) {
+          return new Response(
+            JSON.stringify({
+              preflight: {
+                projectId: "proj-1",
+                provider: "gemini",
+                model: "gemini-3-flash-preview",
+                billingPath: "managed",
+                chargeRequired: true,
+                executionClass: "realtime",
+                sourceTokenEstimate: 8000,
+                cachedTokenEstimate: 0,
+                outputTokenCap: 8000,
+                billableTokenEstimate: 16000,
+                estimatedCostKrw: 1,
+                estimatedCredits: 1,
+                currentBalance: 100,
+                canStart: true,
+                blockedReason: null,
+                confirmationRequired: false,
+              },
+            }),
+            {
+              status: 200,
               headers: { "content-type": "application/json" },
             },
           );
@@ -478,6 +524,55 @@ describe("SourceViewer", () => {
       kind: "runCommand",
       commandId: "summarize",
     });
+  });
+
+  it("shows source processing readiness from enrichment status in the analysis rail", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === "/api/notes/n1/enrichment") {
+          return jsonResponse(enrichment({ status: "processing" }));
+        }
+        if (url === "/api/projects/proj-1/study-sessions?sourceNoteId=n1") {
+          return jsonResponse({ sessions: [] });
+        }
+        return jsonResponse({ error: "not_found" }, 404);
+      }),
+    );
+
+    renderSourceViewer();
+    await screen.findByTestId("embedpdf-viewer");
+
+    expect(
+      await screen.findByText("원본 처리 중입니다. 완료되면 분석 도구를 더 정확하게 사용할 수 있습니다."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows unsupported source readiness from enrichment skip reasons", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === "/api/notes/n1/enrichment") {
+          return jsonResponse(enrichment({
+            status: "failed",
+            skipReasons: ["unsupported_source"],
+          }));
+        }
+        if (url === "/api/projects/proj-1/study-sessions?sourceNoteId=n1") {
+          return jsonResponse({ sessions: [] });
+        }
+        return jsonResponse({ error: "not_found" }, 404);
+      }),
+    );
+
+    renderSourceViewer();
+    await screen.findByTestId("embedpdf-viewer");
+
+    expect(
+      await screen.findByText("이 원본 형식은 현재 자동 분석을 지원하지 않습니다."),
+    ).toBeInTheDocument();
   });
 
   it("surfaces wiki notes and project graph context from the source rail", async () => {
@@ -795,6 +890,20 @@ function recording(overrides: Partial<Record<string, unknown>> = {}) {
     transcriptStatus: "ready",
     createdBy: "user-1",
     createdAt: "2026-05-12T00:00:00.000Z",
+    updatedAt: "2026-05-12T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function enrichment(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    noteId: "11111111-1111-4111-8111-111111111111",
+    contentType: "document",
+    status: "done",
+    artifact: {},
+    provider: null,
+    skipReasons: [],
+    error: null,
     updatedAt: "2026-05-12T00:00:00.000Z",
     ...overrides,
   };

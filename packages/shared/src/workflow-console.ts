@@ -121,6 +121,7 @@ export const workflowConsoleCostSchema = z
     outputTokens: z.number().int().nonnegative().optional(),
     cachedTokens: z.number().int().nonnegative().optional(),
     provider: z.string().min(1).optional(),
+    model: z.string().min(1).optional(),
     wallClockMs: z.number().int().nonnegative().optional(),
     krw: z.number().int().nonnegative().optional(),
   })
@@ -197,6 +198,32 @@ export type ChatRunProjectionSource = {
   status: string;
   mode?: string | null;
   error?: unknown;
+  memory?: {
+    memoryPolicy?: string;
+    memoryIncluded?: boolean;
+    scopesUsed?: string[];
+  } | null;
+  runtime?: {
+    executionClass?: string;
+    chatMode?: string;
+    ragMode?: string;
+    memoryPolicy?: string;
+  } | null;
+  cost?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    cachedTokens?: number;
+    provider?: string;
+    model?: string;
+    wallClockMs?: number;
+    krw?: number;
+  } | null;
+  partialOutput?: {
+    chars: number;
+    preview?: string;
+    retryable?: boolean;
+    attempt?: number;
+  } | null;
   createdAt: Date | string;
   updatedAt: Date | string;
   completedAt?: Date | string | null;
@@ -286,13 +313,59 @@ export function workflowConsoleRunFromChatRun(
     title: "Chat run",
     status: normalizedStatus,
     risk: "low",
-    outputs: [],
+    cost: run.cost ?? null,
+    outputs: chatRunOutputs(run),
     approvals: [],
     error: normalizedStatus === "failed" ? errorFromUnknown(run.error, "chat_run_failed") : null,
     createdAt: toIso(run.createdAt),
     updatedAt: toIso(run.updatedAt),
     completedAt: toIsoOrNull(run.completedAt),
   });
+}
+
+function chatRunOutputs(run: ChatRunProjectionSource): WorkflowConsoleOutput[] {
+  const outputs: WorkflowConsoleOutput[] = [];
+  if (run.runtime) {
+    outputs.push({
+      outputType: "log",
+      id: `${run.id}:runtime`,
+      label: "Runtime policy",
+      metadata: {
+        executionClass: run.runtime.executionClass ?? "durable_run",
+        ...(run.runtime.chatMode ? { chatMode: run.runtime.chatMode } : {}),
+        ...(run.runtime.ragMode ? { ragMode: run.runtime.ragMode } : {}),
+        ...(run.runtime.memoryPolicy
+          ? { memoryPolicy: run.runtime.memoryPolicy }
+          : {}),
+      },
+    });
+  }
+  if (run.memory) {
+    outputs.push({
+      outputType: "log",
+      id: `${run.id}:memory`,
+      label: "Memory context",
+      metadata: {
+        memoryPolicy: run.memory.memoryPolicy ?? "auto",
+        memoryIncluded: Boolean(run.memory.memoryIncluded),
+        scopesUsed: run.memory.scopesUsed ?? [],
+      },
+    });
+  }
+  if (run.partialOutput && run.partialOutput.chars > 0) {
+    outputs.push({
+      outputType: "log",
+      id: `${run.id}:partial-output`,
+      label: "Partial output",
+      metadata: {
+        chars: run.partialOutput.chars,
+        ...(run.partialOutput.preview ? { preview: run.partialOutput.preview } : {}),
+        retryable: run.partialOutput.retryable ?? true,
+        ...(run.partialOutput.attempt != null ? { attempt: run.partialOutput.attempt } : {}),
+      },
+    });
+  }
+  return outputs;
 }
 
 export function chatConsoleEventFromChatRunEvent(
@@ -1036,6 +1109,20 @@ function outputsFromAgentAction(action: AgentAction): WorkflowConsoleOutput[] {
       },
     ];
   }
+  const file = recordField(action.result, "file");
+  const fileId = file ? stringField(file, "id") : null;
+  if (file && fileId) {
+    return [
+      {
+        outputType: "agent_file",
+        id: fileId,
+        label:
+          stringField(file, "filename")
+          ?? stringField(file, "title")
+          ?? action.kind,
+      },
+    ];
+  }
   return [];
 }
 
@@ -1067,6 +1154,13 @@ function errorFromUnknown(value: unknown, fallbackCode: string): z.infer<typeof 
 function stringField(value: Record<string, unknown>, key: string): string | null {
   const field = value[key];
   return typeof field === "string" && field.length > 0 ? field : null;
+}
+
+function recordField(value: Record<string, unknown>, key: string): Record<string, unknown> | null {
+  const field = value[key];
+  return field && typeof field === "object" && !Array.isArray(field)
+    ? field as Record<string, unknown>
+    : null;
 }
 
 function numberField(value: Record<string, unknown>, key: string): number | null {

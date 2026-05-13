@@ -52,6 +52,123 @@ describe("workflow console contracts", () => {
     });
   });
 
+  it("projects chat memory scopes and partial output metadata as log outputs", () => {
+    const run = workflowConsoleRunFromChatRun({
+      id: "00000000-0000-4000-8000-000000000010",
+      threadId: "00000000-0000-4000-8000-000000000011",
+      userMessageId: "00000000-0000-4000-8000-000000000012",
+      agentMessageId: "00000000-0000-4000-8000-000000000013",
+      workspaceId,
+      projectId,
+      userId,
+      workflowId: "chat-run-00000000-0000-4000-8000-000000000010",
+      status: "failed",
+      mode: "auto",
+      error: { code: "provider_timeout", retryable: true },
+      memory: {
+        memoryPolicy: "auto",
+        memoryIncluded: true,
+        scopesUsed: [`conversation:project:${projectId}`],
+      },
+      runtime: {
+        executionClass: "durable_run",
+        chatMode: "auto",
+        ragMode: "strict",
+        memoryPolicy: "auto",
+      },
+      partialOutput: {
+        chars: 32,
+        preview: "부분 답변",
+        retryable: true,
+        attempt: 2,
+      },
+      createdAt,
+      updatedAt,
+      completedAt,
+    });
+
+    expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
+      status: "failed",
+      outputs: [
+        {
+          outputType: "log",
+          id: "00000000-0000-4000-8000-000000000010:runtime",
+          label: "Runtime policy",
+          metadata: {
+            executionClass: "durable_run",
+            chatMode: "auto",
+            ragMode: "strict",
+            memoryPolicy: "auto",
+          },
+        },
+        {
+          outputType: "log",
+          id: "00000000-0000-4000-8000-000000000010:memory",
+          label: "Memory context",
+          metadata: {
+            memoryPolicy: "auto",
+            memoryIncluded: true,
+            scopesUsed: [`conversation:project:${projectId}`],
+          },
+        },
+        {
+          outputType: "log",
+          id: "00000000-0000-4000-8000-000000000010:partial-output",
+          label: "Partial output",
+          metadata: {
+            chars: 32,
+            preview: "부분 답변",
+            retryable: true,
+            attempt: 2,
+          },
+        },
+      ],
+      error: {
+        code: "provider_timeout",
+        retryable: true,
+      },
+    });
+  });
+
+  it("projects chat token usage and provider metadata as run cost", () => {
+    const run = workflowConsoleRunFromChatRun({
+      id: "00000000-0000-4000-8000-000000000010",
+      threadId: "00000000-0000-4000-8000-000000000011",
+      userMessageId: "00000000-0000-4000-8000-000000000012",
+      agentMessageId: "00000000-0000-4000-8000-000000000013",
+      workspaceId,
+      projectId,
+      userId,
+      workflowId: "chat-run-00000000-0000-4000-8000-000000000010",
+      status: "complete",
+      mode: "auto",
+      cost: {
+        inputTokens: 123,
+        outputTokens: 45,
+        cachedTokens: 6,
+        provider: "gemini",
+        model: "gemini-3-flash-preview",
+        krw: 5775,
+      },
+      createdAt,
+      updatedAt,
+      completedAt,
+    });
+
+    expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
+      runType: "chat",
+      status: "completed",
+      cost: {
+        inputTokens: 123,
+        outputTokens: 45,
+        cachedTokens: 6,
+        provider: "gemini",
+        model: "gemini-3-flash-preview",
+        krw: 5775,
+      },
+    });
+  });
+
   it("projects agent actions with approval and error details", () => {
     const action = {
       id: "00000000-0000-4000-8000-000000000020",
@@ -130,6 +247,46 @@ describe("workflow console contracts", () => {
         code: "code_project_preview_expired",
         retryable: false,
       },
+    });
+  });
+
+  it("projects completed file action result objects as agent file outputs", () => {
+    const run = workflowConsoleRunFromAgentAction({
+      id: "00000000-0000-4000-8000-000000000025",
+      requestId: "00000000-0000-4000-8000-000000000026",
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      sourceRunId: "00000000-0000-4000-8000-000000000027",
+      kind: "file.create",
+      status: "completed",
+      risk: "write",
+      input: {},
+      preview: null,
+      result: {
+        ok: true,
+        file: {
+          id: "00000000-0000-4000-8000-000000000028",
+          filename: "quiz-set.json",
+          title: "운영체제 퀴즈",
+        },
+      },
+      errorCode: null,
+      createdAt,
+      updatedAt,
+    });
+
+    expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
+      runType: "agent_action",
+      title: "file.create",
+      status: "completed",
+      outputs: [
+        {
+          outputType: "agent_file",
+          id: "00000000-0000-4000-8000-000000000028",
+          label: "quiz-set.json",
+        },
+      ],
     });
   });
 

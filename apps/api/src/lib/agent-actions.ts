@@ -93,6 +93,7 @@ import { plateValueToText } from "./plate-text";
 import { emitTreeEvent } from "./tree-events";
 import { markdownToPlateValue } from "./plate-doc";
 import { refreshNoteChunkIndexBestEffort } from "./note-chunk-refresh";
+import { isUuid } from "./validators";
 import type { PlateValue } from "./yjs-to-plate";
 import {
   createAgentFile,
@@ -2563,7 +2564,9 @@ async function createFileFromAction(
 }
 
 async function chatSourceForFileAction(sourceRunId: string | null | undefined) {
-  if (!sourceRunId) return { chatThreadId: null, chatMessageId: null };
+  if (!sourceRunId || !isUuid(sourceRunId)) {
+    return { chatThreadId: null, chatMessageId: null };
+  }
   const [run] = await defaultDb
     .select({
       threadId: chatRuns.threadId,

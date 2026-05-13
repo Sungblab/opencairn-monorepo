@@ -116,6 +116,22 @@
       "missing_source": "출처 수동 확인",
       "manual_review": "수동 검토"
     },
+    "log": {
+      "runtime": "런타임 {executionClass} · 모드 {chatMode} · RAG {ragMode}",
+      "memory": "메모리 {policy} · {included} · {scopes}",
+      "memoryIncluded": "포함",
+      "memorySkipped": "미사용",
+      "noScopes": "-",
+      "partial": "부분 출력 {chars}자 · 시도 {attempt}",
+      "attemptUnknown": "-",
+      "retryable": "재시도 가능"
+    },
+    "cost": {
+      "input": "입력 {value}",
+      "output": "출력 {value}",
+      "cached": "캐시 {value}",
+      "krw": "₩{value}"
+    },
     "recovery": {
       "title": "복구 옵션",
       "step": "{title} · {code}",

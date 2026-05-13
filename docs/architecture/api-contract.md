@@ -355,10 +355,53 @@ Current sources for the requesting user:
 - import jobs started by the user whose target project is the project;
 - synthesis export runs started by the user and document outputs in the project.
 
+For chat runs, the projection also surfaces operational log outputs from stored
+run events and partial assistant messages. A first `status` event with
+`kind:"memory_context"` records the server-resolved memory policy, whether
+durable memory was injected, and the DB scopes used. Failed or partial agent
+messages are exposed as retry metadata and a compact preview so the UI can
+render recoverable output without trusting client-provided scope memory.
+
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
 | GET | /api/projects/:projectId/workflow-console/runs | project `viewer` | List newest normalized project runs. Optional `?limit=1..100`, default 50. Response: `{ runs: WorkflowConsoleRun[] }`. | - |
 | GET | /api/projects/:projectId/workflow-console/runs/:runId | project `viewer` | Read one normalized run by prefixed run id such as `chat:<uuid>`, `agent_action:<uuid>`, `plan8_agent:<uuid>`, `import:<uuid>`, or `export:<uuid>`. Runs whose source row belongs to another project return 404. | - |
+
+### Studio Tool Preflight
+
+Studio preflight is a project-scoped, read-only estimate surface for costly
+Agent Studio actions. It reuses the existing billing plan and token-cost model,
+checks project read access, resolves the authenticated user's current plan, and
+returns whether the action can start under the current managed-credit balance.
+It does not reserve or debit credits; durable execution paths still own final
+usage recording and managed-credit charging. Durable Agent Panel chat runs
+record provider-reported `chat.stream` usage to `llm_usage_events` and, for
+managed-LLM plans, also write an idempotent `credit_ledger_entries` usage debit
+keyed by `chat_run:<runId>:usage`.
+
+The web client calls this endpoint before launching costly Agent Panel Tools,
+project-home Studio cards, source-rail analysis actions, and editor context-rail
+AI workbench actions. `canStart:false` blocks launch inline. Managed-credit
+profiles that require explicit confirmation return `requiresConfirmation:true`;
+the client must ask for confirmation before opening the durable work surface.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| POST | /api/projects/:projectId/studio-tools/preflight | project `viewer` | Estimate runtime class, source/output token budget, managed/BYOK billing path, billable credits, confirmation requirement, current available credits, and `canStart`/`blockedReason`. `provider` and `model` default to the active LLM environment (`LLM_PROVIDER`, `GEMINI_CHAT_MODEL`, `OPENAI_COMPAT_CHAT_MODEL`) when omitted. | `{ tool, sourceTokenEstimate, cachedTokenEstimate?, provider?, model? }` |
+
+### Study Artifact Generation
+
+Study artifact generation is a typed project-object creation path for first-pass
+Study cards. The API derives project scope from the route, requires project
+write access, verifies every source note belongs to the same project and is
+readable by the actor, validates the generated structured artifact with the
+shared study-artifact schema, and stores the result as a JSON `agent_file`.
+The first-pass generator is deterministic and provider-free; richer model-backed
+generation can reuse the same request and stored JSON artifact contract.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| POST | /api/projects/:projectId/study-artifacts/generate | project `editor` | Generate a typed study artifact from project source notes, validate it, store it through the existing `file.create` agent-action ledger as a JSON agent file, emit the normal project-tree creation event, and return `201 { artifact, file, action }`. When model generation is enabled, the route asks the active chat provider for strict artifact JSON, validates it with the shared schema, runs one repair prompt with validation errors if needed, and returns retryable `502 { error:"study_artifact_model_invalid", retryable:true, runId, issues }` if repair still fails. Model-backed generation records `llm_usage_events` with `sourceType:"study_artifact"` and best-effort managed-credit usage debits with idempotency key `study_artifact:<createdByRunId>:usage`; invalid repair failures also record usage against the returned `runId`. If the LLM is not configured, the route falls back to deterministic first-pass generation. The completed action appears in Workflow Console with an `agent_file` output. Supported `type` values are `quiz_set`, `mock_exam`, `flashcard_deck`, `fill_blank_set`, `exam_prep_pack`, `compare_table`, `glossary`, `cheat_sheet`, `interactive_html`, and `data_table`. | `{ type, sourceNoteIds, title?, difficulty?, tags?, itemCount? }` |
 
 ### Document Generation Actions
 
@@ -416,6 +459,20 @@ The web Agent Panel reads draft `note.update` actions through
 renders the preview summaries and stale-preview guidance, applies through the
 same `/apply` endpoint, and rejects by `PATCH /api/agent-actions/:id/status`
 with `{ "status": "cancelled" }`.
+
+Durable Agent Panel chat runs may bridge server-owned conversation memory into
+execution. When `scope.manifest.memoryPolicy` is omitted or `"auto"`, the API
+loads matching authenticated `conversations.sessionMemoryMd`/`fullSummary`
+from the project first and then workspace scope; `"off"` disables this bridge.
+Caller-supplied `scope.memory` is ignored for system prompt construction. On
+successful terminal runs, completion notifications are emitted best-effort and
+file/action result facts are appended back into the matching conversation
+memory. Failed and cancelled terminal runs append compact failure/cancellation
+facts when memory policy is not off. Long completed threads are compacted into
+the same conversation `fullSummary` after
+`CHAT_COMPACTION_MESSAGE_THRESHOLD` complete messages (default 24), with
+`CHAT_COMPACTION_MAX_MESSAGES` bounding the deterministic transcript window
+used for the compact summary.
 
 `code_project.run` input:
 
@@ -628,7 +685,7 @@ Tool call 실행 전 runtime `PermissionBroker`가 `@tool` policy metadata (`rea
 | PATCH  | /api/threads/:id | owner | Update thread title | `{ title }` |
 | DELETE | /api/threads/:id | owner | Delete thread (cascade messages + feedback) | - |
 | GET    | /api/threads/:id/messages | owner, project-scoped thread이면 current project `viewer` | List messages (oldest → newest). Agent rows created by durable runs include `run_id` and `run_status` so clients can reconnect to queued/running turns. | - |
-| POST   | /api/threads/:id/messages | owner, project-scoped thread이면 current project `viewer` | Send message by creating a durable `chat_runs` row, starting `ChatAgentWorkflow`, and streaming replayable `chat_run_events`. Browser disconnect only detaches from the SSE subscription; it does not cancel provider execution. Execution is guarded by a DB lease that is refreshed while the provider runs, and each retry/re-entry gets a new attempt so stale partial events are not replayed. SSE order: `user_persisted` (`{ id }`) → `agent_placeholder` (`{ id }`) → (`run_attempt` / `status` / `thought` / `text` (delta) / `citation` / `usage` / `save_suggestion?` / `agent_action_created?`)\* → `error?` → `done` (`{ id, status }`). `agent_action_created` is emitted when the LLM returns a validated `agent-actions` fence; the server injects the trusted project/user scope and reads `scope.manifest.actionApprovalMode` (`"require"` default, `"auto_safe"` opt-in). Legacy `agent-file` chunks are converted into safe `file.create` ledger actions; completed compatibility creates still emit `project_object_created` and `agent_file_created` events so older clients can open the generated file. | `{ content, scope?, mode? }` |
+| POST   | /api/threads/:id/messages | owner, project-scoped thread이면 current project `viewer` | Send message by creating a durable `chat_runs` row, starting `ChatAgentWorkflow`, and streaming replayable `chat_run_events`. Browser disconnect only detaches from the SSE subscription; it does not cancel provider execution. Execution is guarded by a DB lease that is refreshed while the provider runs, and each retry/re-entry gets a new attempt so stale partial events are not replayed. SSE order: `user_persisted` (`{ id }`) → `agent_placeholder` (`{ id }`) → (`run_attempt` / `status` / `thought` / `text` (delta) / `citation` / `usage` / `save_suggestion?` / `agent_action_created?`)\* → `error?` → `done` (`{ id, status }`). `agent_action_created` is emitted when the LLM returns a validated `agent-actions` fence; the server injects the trusted project/user scope and reads `scope.manifest.actionApprovalMode` (`"require"` default, `"auto_safe"` opt-in). When `scope.manifest.memoryPolicy` is `auto`, durable Agent Panel execution may inject the authenticated user's existing `conversations.sessionMemoryMd`/`fullSummary` for the same project/workspace; `memoryPolicy:"off"` excludes it, and client-supplied `scope.memory` is not trusted. Successful durable runs create a generic `system` notification with `refType:"chat_run"` and the resolved project id when available. Legacy `agent-file` chunks are converted into safe `file.create` ledger actions; completed compatibility creates still emit `project_object_created` and `agent_file_created` events so older clients can open the generated file. | `{ content, scope?, mode? }` |
 | GET    | /api/chat-runs/:id/events | owner | Reconnect/replay a durable agent-panel run as `text/event-stream`. Query `after` is the last seen event sequence; the API filters by `seq > after` and hides stale events from prior execution attempts. | `?after=0` |
 | POST   | /api/chat-runs/:id/cancel | owner | Explicitly cancel a queued/running durable chat run. The DB row is the user-visible source of truth; Temporal cancellation is best-effort. A running executor polls this state and aborts its executor-owned provider signal. Browser stream abort is not cancellation. | - |
 | GET    | /api/message-feedback | owner | List feedback rows for current user (filtered by `messageId`) | `?messageId=` |

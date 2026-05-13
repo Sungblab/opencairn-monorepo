@@ -6,8 +6,9 @@
 // `eventsource-parser` (handles CRLF, comment heartbeats, partial frames).
 //
 // Lifecycle:
-//   1. caller invokes `send` -> any prior in-flight fetch is aborted so
-//      two assistant turns can never interleave into the same `live`.
+//   1. caller invokes `send`. If another stream is active, keep that stream
+//      attached and replace the single queued prompt; the queued prompt starts
+//      after the current stream finishes.
 //   2. `live` is a transient preview built from incremental SSE events.
 //   3. on `done` (or stream end / error) we invalidate the messages query
 //      and clear `live` — the persisted rows then drive the conversation,
@@ -65,6 +66,10 @@ export interface SendInput {
   threadId?: string;
 }
 
+export type QueuedPrompt = {
+  content: string;
+};
+
 function pendingUserMessage(input: SendInput): ChatMessage {
   return {
     id: `pending-user-${Date.now()}`,
@@ -84,8 +89,26 @@ export function useChatSend(threadId: string | null) {
   const t = useTranslations("chat.errors");
   const [live, setLive] = useState<StreamingAgentMessage | null>(null);
   const [pendingUser, setPendingUser] = useState<ChatMessage | null>(null);
+  const [queuedUser, setQueuedUser] = useState<ChatMessage | null>(null);
+  const [queuedPrompt, setQueuedPrompt] = useState<QueuedPrompt | null>(null);
   const controller = useRef<AbortController | null>(null);
   const resumedRun = useRef<string | null>(null);
+  const queuedSend = useRef<{
+    input: SendInput;
+    targetThreadId: string;
+  } | null>(null);
+  const startSendRef = useRef<
+    (input: SendInput, targetThreadId: string) => Promise<void>
+  >(async () => {});
+  const startQueuedSend = useCallback(() => {
+    const next = queuedSend.current;
+    if (!next) return;
+    queuedSend.current = null;
+    setQueuedUser(null);
+    setQueuedPrompt(null);
+    if (!next.input.content.trim()) return;
+    void startSendRef.current(next.input, next.targetThreadId);
+  }, []);
 
   const consumeStream = useCallback(
     async (res: Response, ac: AbortController, targetThreadId: string) => {
@@ -216,10 +239,11 @@ export function useChatSend(threadId: string | null) {
           setPendingUser(null);
           controller.current = null;
           resumedRun.current = null;
+          startQueuedSend();
         }
       }
     },
-    [qc, t],
+    [qc, startQueuedSend, t],
   );
 
   const resumeRun = useCallback(
@@ -239,22 +263,20 @@ export function useChatSend(threadId: string | null) {
       if (!stream.ok || !stream.body) {
         setLive(null);
         setPendingUser(null);
+        setQueuedUser(null);
+        setQueuedPrompt(null);
         controller.current = null;
         resumedRun.current = null;
+        startQueuedSend();
         return;
       }
       await consumeStream(stream, ac, threadId);
     },
-    [threadId, consumeStream],
+    [threadId, consumeStream, startQueuedSend],
   );
 
-  const send = useCallback(
-    async (input: SendInput) => {
-      const targetThreadId = input.threadId ?? threadId;
-      if (!targetThreadId) return;
-      // Aborting any in-flight stream guarantees the next send starts from
-      // a clean live state (no interleaving of two assistant turns).
-      controller.current?.abort();
+  const startSend = useCallback(
+    async (input: SendInput, targetThreadId: string) => {
       const ac = new AbortController();
       controller.current = ac;
 
@@ -278,26 +300,92 @@ export function useChatSend(threadId: string | null) {
           signal: ac.signal,
         });
       } catch (err) {
-        // AbortError fires here when a newer send superseded us before the
-        // fetch resolved. Leave `live` as the newer send already set it,
-        // and bail without invalidating (the newer send owns invalidation).
-        if ((err as Error).name === "AbortError") return;
+        if ((err as Error).name === "AbortError") {
+          if (controller.current === ac) {
+            setLive(null);
+            setPendingUser(null);
+            controller.current = null;
+            resumedRun.current = null;
+            startQueuedSend();
+          }
+          return;
+        }
         setLive(null);
         setPendingUser(null);
+        if (controller.current === ac) {
+          controller.current = null;
+          resumedRun.current = null;
+          startQueuedSend();
+        }
         return;
       }
 
       if (!res.ok || !res.body) {
         setLive(null);
         setPendingUser(null);
+        if (controller.current === ac) {
+          controller.current = null;
+          resumedRun.current = null;
+          startQueuedSend();
+        }
         return;
       }
 
       await qc.invalidateQueries({ queryKey: ["chat-threads"] });
       await consumeStream(res, ac, targetThreadId);
     },
-    [threadId, consumeStream, qc],
+    [consumeStream, qc, startQueuedSend],
+  );
+  startSendRef.current = startSend;
+
+  const send = useCallback(
+    async (input: SendInput) => {
+      const targetThreadId = input.threadId ?? threadId;
+      if (!targetThreadId) return;
+      if (controller.current) {
+        const nextPendingUser = pendingUserMessage(input);
+        queuedSend.current = { input, targetThreadId };
+        setQueuedUser(nextPendingUser);
+        setQueuedPrompt({ content: input.content });
+        return;
+      }
+      await startSend(input, targetThreadId);
+    },
+    [threadId, startSend],
   );
 
-  return { send, live, pendingUser, resumeRun };
+  const updateQueuedPrompt = useCallback((content: string) => {
+    const next = queuedSend.current;
+    if (!next) return;
+    const input = { ...next.input, content };
+    queuedSend.current = { ...next, input };
+    setQueuedPrompt({ content });
+    setQueuedUser(pendingUserMessage(input));
+  }, []);
+
+  const clearQueuedPrompt = useCallback(() => {
+    queuedSend.current = null;
+    setQueuedPrompt(null);
+    setQueuedUser(null);
+  }, []);
+
+  const interruptQueuedPrompt = useCallback(() => {
+    if (!queuedSend.current) return;
+    if (controller.current) {
+      controller.current.abort();
+      return;
+    }
+    startQueuedSend();
+  }, [startQueuedSend]);
+
+  return {
+    send,
+    live,
+    pendingUser: queuedUser ?? pendingUser,
+    queuedPrompt,
+    updateQueuedPrompt,
+    clearQueuedPrompt,
+    interruptQueuedPrompt,
+    resumeRun,
+  };
 }

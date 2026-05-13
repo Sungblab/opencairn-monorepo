@@ -2,17 +2,17 @@ import type {
   DocumentGenerationFormat,
   ImageRenderEngine,
   PdfRenderEngine,
+  StudioToolProfileId,
 } from "@/lib/api-client";
+import type { StudyArtifactType } from "@opencairn/shared";
 import type { AgentCommandId } from "./agent-commands";
 
 export type ToolDiscoveryCategory =
   | "add_sources"
-  | "understand"
-  | "create"
   | "study"
-  | "organize"
-  | "delegate"
-  | "review";
+  | "content"
+  | "analysis"
+  | "utility";
 
 export type ToolDiscoverySurface = "project_home" | "agent_tools";
 
@@ -50,23 +50,42 @@ export type ToolDiscoveryIcon =
   | "activity"
   | "book"
   | "bot"
+  | "brain"
   | "check"
   | "download"
   | "file"
+  | "file_json"
   | "graduation"
+  | "link"
   | "network"
+  | "plug"
   | "presentation"
   | "search"
   | "sparkles"
-  | "table";
+  | "table"
+  | "video";
 
 export type ToolDiscoveryAction =
-  | { type: "route"; route: "project_graph" | "project_agents" | "project_learn" }
+  | {
+      type: "route";
+      route:
+        | "project_graph"
+        | "project_graph_mindmap"
+        | "project_agents"
+        | "project_learn"
+        | "project_learn_flashcards"
+        | "project_learn_socratic"
+        | "workspace_integrations"
+        | "workspace_import_web"
+        | "workspace_import_youtube";
+    }
   | { type: "upload" }
   | { type: "open_activity" }
   | { type: "open_review" }
   | { type: "literature_search" }
+  | { type: "deep_research" }
   | { type: "workbench_command"; commandId: AgentCommandId }
+  | { type: "study_artifact_generate"; artifactType: StudyArtifactType }
   | {
       type: "document_generation_preset";
       presetId: DocumentGenerationPresetId;
@@ -80,17 +99,19 @@ export type ToolDiscoveryItem = {
   icon: ToolDiscoveryIcon;
   emphasis?: boolean;
   requiresProject?: boolean;
+  preflight?: {
+    tool: StudioToolProfileId;
+    sourceTokenEstimate: number;
+  };
   action: ToolDiscoveryAction;
 };
 
 export const TOOL_DISCOVERY_CATEGORY_ORDER: ToolDiscoveryCategory[] = [
   "add_sources",
-  "understand",
-  "create",
   "study",
-  "organize",
-  "delegate",
-  "review",
+  "content",
+  "analysis",
+  "utility",
 ];
 
 export const DOCUMENT_GENERATION_PRESETS: Record<
@@ -162,28 +183,55 @@ export const TOOL_DISCOVERY_ITEMS: ToolDiscoveryItem[] = [
     action: { type: "literature_search" },
   },
   {
+    id: "web_import",
+    category: "add_sources",
+    surfaces: ["project_home", "agent_tools"],
+    i18nKey: "webImport",
+    icon: "link",
+    action: { type: "route", route: "workspace_import_web" },
+  },
+  {
+    id: "youtube_import",
+    category: "add_sources",
+    surfaces: ["project_home", "agent_tools"],
+    i18nKey: "youtubeImport",
+    icon: "video",
+    action: { type: "route", route: "workspace_import_youtube" },
+  },
+  {
+    id: "connected_sources",
+    category: "add_sources",
+    surfaces: ["project_home", "agent_tools"],
+    i18nKey: "connectedSources",
+    icon: "plug",
+    action: { type: "route", route: "workspace_integrations" },
+  },
+  {
     id: "research",
-    category: "understand",
+    category: "analysis",
     surfaces: ["project_home", "agent_tools"],
     i18nKey: "research",
     icon: "search",
-    action: { type: "workbench_command", commandId: "research" },
+    preflight: { tool: "deep_research", sourceTokenEstimate: 48_000 },
+    action: { type: "deep_research" },
   },
   {
     id: "summarize",
-    category: "understand",
+    category: "content",
     surfaces: ["agent_tools"],
     i18nKey: "summarize",
     icon: "sparkles",
-    action: { type: "workbench_command", commandId: "summarize" },
+    preflight: { tool: "cheat_sheet", sourceTokenEstimate: 18_000 },
+    action: { type: "study_artifact_generate", artifactType: "cheat_sheet" },
   },
   {
     id: "pdf_report_fast",
-    category: "create",
+    category: "content",
     surfaces: ["project_home", "agent_tools"],
     i18nKey: "pdfReport",
     icon: "file",
     emphasis: true,
+    preflight: { tool: "document", sourceTokenEstimate: 24_000 },
     action: {
       type: "document_generation_preset",
       presetId: "pdf_report_fast",
@@ -191,10 +239,11 @@ export const TOOL_DISCOVERY_ITEMS: ToolDiscoveryItem[] = [
   },
   {
     id: "pdf_report_latex",
-    category: "create",
+    category: "content",
     surfaces: ["project_home", "agent_tools"],
     i18nKey: "latexPdf",
     icon: "file",
+    preflight: { tool: "document", sourceTokenEstimate: 32_000 },
     action: {
       type: "document_generation_preset",
       presetId: "pdf_report_latex",
@@ -202,55 +251,102 @@ export const TOOL_DISCOVERY_ITEMS: ToolDiscoveryItem[] = [
   },
   {
     id: "docx_report",
-    category: "create",
+    category: "content",
     surfaces: ["project_home", "agent_tools"],
     i18nKey: "docxReport",
     icon: "file",
+    preflight: { tool: "document", sourceTokenEstimate: 24_000 },
     action: { type: "document_generation_preset", presetId: "docx_report" },
   },
   {
     id: "pptx_deck",
-    category: "create",
+    category: "content",
     surfaces: ["project_home", "agent_tools"],
-    i18nKey: "pptxDeck",
+    i18nKey: "slides",
     icon: "presentation",
+    preflight: { tool: "slides", sourceTokenEstimate: 24_000 },
     action: { type: "document_generation_preset", presetId: "pptx_deck" },
   },
   {
     id: "xlsx_table",
-    category: "create",
+    category: "content",
     surfaces: ["project_home", "agent_tools"],
     i18nKey: "xlsxTable",
     icon: "table",
+    preflight: { tool: "data_table", sourceTokenEstimate: 12_000 },
     action: { type: "document_generation_preset", presetId: "xlsx_table" },
   },
   {
     id: "source_figure",
-    category: "create",
+    category: "content",
     surfaces: ["project_home", "agent_tools"],
     i18nKey: "sourceFigure",
     icon: "sparkles",
+    preflight: { tool: "document", sourceTokenEstimate: 16_000 },
     action: { type: "document_generation_preset", presetId: "source_figure" },
   },
   {
-    id: "learn",
+    id: "study_artifact_generator",
     category: "study",
     surfaces: ["project_home", "agent_tools"],
-    i18nKey: "learn",
+    i18nKey: "studyArtifactGenerator",
     icon: "graduation",
-    action: { type: "route", route: "project_learn" },
+    preflight: { tool: "quiz", sourceTokenEstimate: 16_000 },
+    action: { type: "study_artifact_generate", artifactType: "quiz_set" },
+  },
+  {
+    id: "flashcards",
+    category: "study",
+    surfaces: ["project_home", "agent_tools"],
+    i18nKey: "flashcards",
+    icon: "graduation",
+    action: { type: "route", route: "project_learn_flashcards" },
+  },
+  {
+    id: "teach_to_learn",
+    category: "study",
+    surfaces: ["project_home", "agent_tools"],
+    i18nKey: "teachToLearn",
+    icon: "brain",
+    action: { type: "route", route: "project_learn_socratic" },
   },
   {
     id: "graph",
-    category: "organize",
+    category: "analysis",
     surfaces: ["project_home", "agent_tools"],
     i18nKey: "graph",
     icon: "network",
     action: { type: "route", route: "project_graph" },
   },
   {
+    id: "mind_map",
+    category: "analysis",
+    surfaces: ["project_home", "agent_tools"],
+    i18nKey: "mindMap",
+    icon: "network",
+    action: { type: "route", route: "project_graph_mindmap" },
+  },
+  {
+    id: "data_table",
+    category: "utility",
+    surfaces: ["agent_tools"],
+    i18nKey: "dataTable",
+    icon: "table",
+    preflight: { tool: "data_table", sourceTokenEstimate: 12_000 },
+    action: { type: "study_artifact_generate", artifactType: "data_table" },
+  },
+  {
+    id: "json_export",
+    category: "utility",
+    surfaces: ["project_home", "agent_tools"],
+    i18nKey: "jsonExport",
+    icon: "file_json",
+    preflight: { tool: "data_table", sourceTokenEstimate: 12_000 },
+    action: { type: "study_artifact_generate", artifactType: "data_table" },
+  },
+  {
     id: "agents",
-    category: "delegate",
+    category: "utility",
     surfaces: ["project_home", "agent_tools"],
     i18nKey: "agents",
     icon: "bot",
@@ -258,7 +354,7 @@ export const TOOL_DISCOVERY_ITEMS: ToolDiscoveryItem[] = [
   },
   {
     id: "runs",
-    category: "delegate",
+    category: "utility",
     surfaces: ["project_home", "agent_tools"],
     i18nKey: "runs",
     icon: "activity",
@@ -266,7 +362,7 @@ export const TOOL_DISCOVERY_ITEMS: ToolDiscoveryItem[] = [
   },
   {
     id: "review_inbox",
-    category: "review",
+    category: "utility",
     surfaces: ["project_home", "agent_tools"],
     i18nKey: "reviewInbox",
     icon: "check",

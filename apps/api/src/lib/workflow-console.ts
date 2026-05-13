@@ -2,12 +2,15 @@ import {
   agentActions,
   agentRuns,
   and,
+  chatMessages,
+  chatRunEvents,
   chatRuns,
   db as defaultDb,
   desc,
   eq,
   inArray,
   importJobs,
+  llmUsageEvents,
   projects,
   sql,
   synthesisDocuments,
@@ -140,29 +143,16 @@ export function createDrizzleWorkflowConsoleRepository(
           and(
             eq(chatRuns.workspaceId, scope.workspaceId),
             eq(chatRuns.userId, userId),
-            sql`(${chatRuns.scope}->>'projectId' = ${projectId} OR (${chatRuns.scope}->>'type' = 'project' AND ${chatRuns.scope}->>'id' = ${projectId}) OR ${chatRuns.scope} @> ${projectChipScope}::jsonb)`,
+            sql`(${chatRuns.scope}->>'projectId' = ${projectId} OR ${chatRuns.scope}->'manifest'->>'projectId' = ${projectId} OR (${chatRuns.scope}->>'type' = 'project' AND ${chatRuns.scope}->>'id' = ${projectId}) OR ${chatRuns.scope} @> ${projectChipScope}::jsonb)`,
           ),
         )
         .orderBy(desc(chatRuns.createdAt))
         .limit(limit);
-      return rows
-        .slice(0, limit)
-        .map((row) => ({
-          id: row.id,
-          threadId: row.threadId,
-          userMessageId: row.userMessageId,
-          agentMessageId: row.agentMessageId,
-          workspaceId: row.workspaceId,
-          projectId,
-          userId: row.userId,
-          workflowId: row.workflowId,
-          status: row.status,
-          mode: row.mode,
-          error: row.error,
-          createdAt: row.createdAt,
-          updatedAt: row.completedAt ?? row.startedAt ?? row.createdAt,
-          completedAt: row.completedAt,
-        }));
+      return Promise.all(
+        rows
+          .slice(0, limit)
+          .map((row) => toChatRunProjection(conn, row, projectId)),
+      );
     },
     async listAgentActionsByProject({ projectId, userId, limit }) {
       const rows = await conn
@@ -243,22 +233,7 @@ export function createDrizzleWorkflowConsoleRepository(
         .where(and(eq(chatRuns.id, runId), eq(chatRuns.userId, userId)))
         .limit(1);
       if (!row || extractProjectIdFromScope(row.scope) !== projectId) return null;
-      return {
-        id: row.id,
-        threadId: row.threadId,
-        userMessageId: row.userMessageId,
-        agentMessageId: row.agentMessageId,
-        workspaceId: row.workspaceId,
-        projectId,
-        userId: row.userId,
-        workflowId: row.workflowId,
-        status: row.status,
-        mode: row.mode,
-        error: row.error,
-        createdAt: row.createdAt,
-        updatedAt: row.completedAt ?? row.startedAt ?? row.createdAt,
-        completedAt: row.completedAt,
-      };
+      return toChatRunProjection(conn, row, projectId);
     },
     async getAgentActionById({ actionId, projectId, userId }) {
       const [row] = await conn
@@ -344,6 +319,158 @@ export function createDrizzleWorkflowConsoleRepository(
       return hydrated ?? null;
     },
   };
+}
+
+async function toChatRunProjection(
+  conn: DB,
+  row: typeof chatRuns.$inferSelect,
+  projectId: string,
+): Promise<ChatRunProjectionSource> {
+  const metadata = await loadChatRunOperationalMetadata(conn, row);
+  return {
+    id: row.id,
+    threadId: row.threadId,
+    userMessageId: row.userMessageId,
+    agentMessageId: row.agentMessageId,
+    workspaceId: row.workspaceId,
+    projectId,
+    userId: row.userId,
+    workflowId: row.workflowId,
+    status: row.status,
+    mode: row.mode,
+    error: row.error,
+    memory: metadata.memory,
+    runtime: metadata.runtime,
+    cost: metadata.cost,
+    partialOutput: metadata.partialOutput,
+    createdAt: row.createdAt,
+    updatedAt: row.completedAt ?? row.startedAt ?? row.createdAt,
+    completedAt: row.completedAt,
+  };
+}
+
+async function loadChatRunOperationalMetadata(
+  conn: DB,
+  row: typeof chatRuns.$inferSelect,
+): Promise<Pick<ChatRunProjectionSource, "memory" | "runtime" | "cost" | "partialOutput">> {
+  const memoryEvents = await conn
+    .select({ payload: chatRunEvents.payload })
+    .from(chatRunEvents)
+    .where(and(eq(chatRunEvents.runId, row.id), eq(chatRunEvents.event, "status")))
+    .orderBy(desc(chatRunEvents.seq))
+    .limit(20);
+  const memory =
+    memoryEvents
+      .map((event) => memoryFromStatusPayload(event.payload))
+      .find((item) => item !== null) ?? null;
+  const runtime =
+    memoryEvents
+      .map((event) => runtimeFromStatusPayload(event.payload))
+      .find((item) => item !== null) ?? null;
+  const cost = await loadChatRunUsageCost(conn, row.id);
+
+  if (row.status !== "failed") {
+    return { memory, runtime, cost, partialOutput: null };
+  }
+  const [message] = await conn
+    .select({ content: chatMessages.content })
+    .from(chatMessages)
+    .where(eq(chatMessages.id, row.agentMessageId))
+    .limit(1);
+  const body = bodyFromMessageContent(message?.content);
+  const normalized = body.trim();
+  return {
+    memory,
+    runtime,
+    cost,
+    partialOutput: normalized
+      ? {
+          chars: normalized.length,
+          preview: normalized.slice(0, 240),
+          retryable: true,
+          attempt: row.currentAttempt,
+        }
+      : null,
+  };
+}
+
+async function loadChatRunUsageCost(
+  conn: DB,
+  runId: string,
+): Promise<ChatRunProjectionSource["cost"]> {
+  const [usage] = await conn
+    .select({
+      provider: llmUsageEvents.provider,
+      model: llmUsageEvents.model,
+      tokensIn: llmUsageEvents.tokensIn,
+      tokensOut: llmUsageEvents.tokensOut,
+      cachedTokens: llmUsageEvents.cachedTokens,
+      costKrw: llmUsageEvents.costKrw,
+    })
+    .from(llmUsageEvents)
+    .where(
+      and(
+        eq(llmUsageEvents.sourceType, "chat_run"),
+        eq(llmUsageEvents.sourceId, runId),
+      ),
+    )
+    .orderBy(desc(llmUsageEvents.createdAt))
+    .limit(1);
+  if (!usage) return null;
+  return {
+    provider: usage.provider,
+    model: usage.model,
+    inputTokens: usage.tokensIn,
+    outputTokens: usage.tokensOut,
+    cachedTokens: usage.cachedTokens,
+    krw: Math.round(Number(usage.costKrw)),
+  };
+}
+
+function runtimeFromStatusPayload(
+  payload: unknown,
+): ChatRunProjectionSource["runtime"] {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  if (record.kind !== "runtime_context") return null;
+  return {
+    executionClass:
+      typeof record.executionClass === "string"
+        ? record.executionClass
+        : "durable_run",
+    chatMode: typeof record.chatMode === "string" ? record.chatMode : undefined,
+    ragMode: typeof record.ragMode === "string" ? record.ragMode : undefined,
+    memoryPolicy:
+      typeof record.memoryPolicy === "string" ? record.memoryPolicy : undefined,
+  };
+}
+
+function memoryFromStatusPayload(
+  payload: unknown,
+): ChatRunProjectionSource["memory"] {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  if (record.kind !== "memory_context") return null;
+  return {
+    memoryPolicy:
+      typeof record.memoryPolicy === "string" ? record.memoryPolicy : "auto",
+    memoryIncluded: record.memoryIncluded === true,
+    scopesUsed: Array.isArray(record.scopesUsed)
+      ? record.scopesUsed.filter((scope): scope is string => typeof scope === "string")
+      : [],
+  };
+}
+
+function bodyFromMessageContent(content: unknown): string {
+  if (!content || typeof content !== "object" || Array.isArray(content)) {
+    return "";
+  }
+  const body = (content as Record<string, unknown>).body;
+  return typeof body === "string" ? body : "";
 }
 
 function toAgentActionProjection(row: typeof agentActions.$inferSelect): AgentAction {
@@ -570,6 +697,14 @@ function extractProjectIdFromScope(scope: unknown): string | null {
   if (!scope || typeof scope !== "object" || Array.isArray(scope)) return null;
   const record = scope as Record<string, unknown>;
   if (typeof record.projectId === "string") return record.projectId;
+  if (
+    record.manifest &&
+    typeof record.manifest === "object" &&
+    !Array.isArray(record.manifest) &&
+    typeof (record.manifest as Record<string, unknown>).projectId === "string"
+  ) {
+    return (record.manifest as Record<string, string>).projectId;
+  }
   if (record.type === "project" && typeof record.id === "string") {
     return record.id;
   }

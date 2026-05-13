@@ -68,6 +68,8 @@ import { workflowConsoleRoutes } from "./routes/workflow-console";
 import { codeWorkspaceRoutes } from "./routes/code-workspaces";
 import { projectTreeRoutes } from "./routes/project-tree";
 import { studySessionRoutes } from "./routes/study-sessions";
+import { studioToolRoutes } from "./routes/studio-tools";
+import { studyArtifactRoutes } from "./routes/study-artifacts";
 import { startEmailDispatcher } from "./lib/email-dispatcher";
 
 export function createApp() {
@@ -135,6 +137,8 @@ export function createApp() {
   app.route("/api", workflowConsoleRoutes);
   app.route("/api", codeWorkspaceRoutes);
   app.route("/api", studySessionRoutes);
+  app.route("/api/projects", studioToolRoutes);
+  app.route("/api/projects", studyArtifactRoutes);
   app.route("/api/tree", projectTreeRoutes);
   // Plan 2C share-link routes. Same public-then-auth shape as inviteRoutes.
   // Mounted FIRST among `/api` wildcard sub-apps so its public route

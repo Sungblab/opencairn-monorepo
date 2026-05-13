@@ -26,4 +26,5 @@ export * from "./agent-action-fence";
 export * from "./agentic-plans";
 export * from "./workflow-console";
 export * from "./study-sessions";
+export * from "./study-artifacts";
 export * from "./project-templates";

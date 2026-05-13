@@ -131,6 +131,22 @@ const messages = {
       showSource: "원본 보기",
       hideSource: "원본 닫기",
       jsonTree: "JSON 트리",
+      studyArtifact: {
+        label: "학습 자료",
+        type: "{type}",
+        sourceCount: "출처 {count}개",
+        difficulty: "난이도 {difficulty}",
+        tags: "태그: {tags}",
+        questionCount: "문항 {count}개",
+        cardCount: "카드 {count}개",
+        sectionCount: "섹션 {count}개",
+        itemCount: "항목 {count}개",
+        front: "앞면",
+        back: "뒷면",
+        answer: "정답",
+        explanation: "해설",
+        sourceRefs: "근거 {count}개",
+      },
       csvTable: "CSV 테이블 · {rows}행",
       column: "열 {index}",
       download: "원본 다운로드",
@@ -298,6 +314,50 @@ describe("AgentFileViewer", () => {
     expect(await screen.findByText("미리보기")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Report" })).toBeInTheDocument();
     expect(screen.queryByText("원본")).not.toBeInTheDocument();
+  });
+
+  it("renders structured study artifact JSON as an interactive study view", async () => {
+    const file = fileSummary({
+      title: "운영체제 퀴즈",
+      filename: "quiz-set.json",
+      extension: "json",
+      kind: "json",
+      mimeType: "application/json",
+    });
+    renderViewer(
+      file,
+      JSON.stringify({
+        type: "quiz_set",
+        title: "운영체제 퀴즈",
+        sourceIds: ["note-1"],
+        difficulty: "medium",
+        tags: ["운영체제"],
+        createdByRunId: "run-1",
+        renderTargets: ["interactive_view", "json_file"],
+        questions: [
+          {
+            id: "q1",
+            kind: "multiple_choice",
+            prompt: "페이지 테이블의 역할은 무엇인가?",
+            choices: [
+              { id: "a", text: "가상 주소를 물리 주소로 매핑한다" },
+              { id: "b", text: "프로세스를 종료한다" },
+            ],
+            answer: { choiceId: "a" },
+            explanation: "페이지 테이블은 주소 변환 정보를 담는다.",
+            sourceRefs: [{ sourceId: "note-1", label: "강의노트" }],
+          },
+        ],
+      }),
+    );
+
+    expect(await screen.findByText("학습 자료")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "운영체제 퀴즈" })).toBeInTheDocument();
+    expect(screen.getByText("난이도 medium")).toBeInTheDocument();
+    expect(screen.getByText("문항 1개")).toBeInTheDocument();
+    expect(screen.getByText("페이지 테이블의 역할은 무엇인가?")).toBeInTheDocument();
+    expect(screen.getByText("가상 주소를 물리 주소로 매핑한다")).toBeInTheDocument();
+    expect(screen.getByText("페이지 테이블은 주소 변환 정보를 담는다.")).toBeInTheDocument();
   });
 
   it("syncs the tab title from loaded file metadata", async () => {

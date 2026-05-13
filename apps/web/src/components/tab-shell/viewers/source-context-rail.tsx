@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { BacklinksResponse } from "@opencairn/shared";
+import {
+  enrichmentResponseSchema,
+  type BacklinksResponse,
+  type EnrichmentResponse,
+} from "@opencairn/shared";
 import {
   Activity,
   AlertCircle,
@@ -137,7 +141,11 @@ export function SourceContextRail({
             className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto"
           >
             {active === "analysis" ? (
-              <SourceRailAnalysis selectedText={selectedText} />
+              <SourceRailAnalysis
+                noteId={noteId}
+                selectedText={selectedText}
+                projectId={projectId}
+              />
             ) : null}
             {active === "wiki" ? (
               <SourceRailWiki
@@ -317,15 +325,44 @@ function SourceRailWiki({
   );
 }
 
-function SourceRailAnalysis({ selectedText }: { selectedText: string }) {
+function SourceRailAnalysis({
+  noteId,
+  selectedText,
+  projectId,
+}: {
+  noteId: string;
+  selectedText: string;
+  projectId: string | null;
+}) {
   const t = useTranslations("appShell.viewers.source.rail");
   const selectedCount = selectedText.length;
+  const enrichmentQuery = useQuery<EnrichmentResponse | null>({
+    queryKey: ["source-rail-enrichment", noteId],
+    enabled: Boolean(noteId),
+    staleTime: 30_000,
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`/api/notes/${noteId}/enrichment`, {
+        credentials: "include",
+        signal,
+      });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`enrichment ${res.status}`);
+      const parsed = enrichmentResponseSchema.safeParse(await res.json());
+      if (!parsed.success) throw new Error("enrichment_payload_invalid");
+      return parsed.data;
+    },
+  });
+  const sourceReadiness = getSourceReadiness(enrichmentQuery.data ?? null);
 
   return (
     <div className="space-y-3 p-3">
       <p className="text-xs leading-5 text-muted-foreground">
         {t("analysisDescription")}
       </p>
+      {sourceReadiness ? (
+        <SourceReadinessNotice readiness={sourceReadiness} />
+      ) : null}
       <div className="rounded-[var(--radius-card)] border border-border bg-muted/25 p-2">
         <div className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">
           {t("selectionTitle")}
@@ -352,6 +389,11 @@ function SourceRailAnalysis({ selectedText }: { selectedText: string }) {
         </WorkbenchContextButton>
         <WorkbenchCommandButton
           commandId="summarize"
+          preflight={{
+            projectId,
+            profile: "summary",
+            sourceTokenEstimate: 8000,
+          }}
           data-testid="source-rail-summarize-button"
           className="app-hover inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] border border-border px-2.5 text-sm"
         >
@@ -382,6 +424,63 @@ function SourceRailAnalysis({ selectedText }: { selectedText: string }) {
           {t("review")}
         </WorkbenchActivityButton>
       </div>
+    </div>
+  );
+}
+
+function getSourceReadiness(
+  enrichment: EnrichmentResponse | null,
+): "processing" | "failed" | "unsupported" | null {
+  if (!enrichment) return null;
+  if (hasUnsupportedSourceReason(enrichment.skipReasons)) return "unsupported";
+  if (enrichment.status === "pending" || enrichment.status === "processing") {
+    return "processing";
+  }
+  if (enrichment.status === "failed") return "failed";
+  return null;
+}
+
+function hasUnsupportedSourceReason(skipReasons: string[]) {
+  return skipReasons.some((reason) => {
+    const normalized = reason.toLowerCase();
+    return (
+      normalized.includes("unsupported_source") ||
+      normalized.includes("source_unsupported") ||
+      normalized.includes("mime_unsupported") ||
+      normalized.includes("parser_unsupported")
+    );
+  });
+}
+
+function SourceReadinessNotice({
+  readiness,
+}: {
+  readiness: "processing" | "failed" | "unsupported";
+}) {
+  const t = useTranslations("appShell.viewers.source.rail");
+  const destructive = readiness === "failed" || readiness === "unsupported";
+  const label =
+    readiness === "processing"
+      ? t("sourceProcessing")
+      : readiness === "unsupported"
+        ? t("sourceUnsupported")
+        : t("sourceFailed");
+
+  return (
+    <div
+      data-testid={`source-readiness-${readiness}`}
+      className={`flex items-start gap-2 rounded-[var(--radius-card)] border p-2 text-xs leading-5 ${
+        destructive
+          ? "border-destructive/40 bg-destructive/5 text-destructive"
+          : "border-border bg-muted/25 text-muted-foreground"
+      }`}
+    >
+      {readiness === "processing" ? (
+        <Loader2 aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />
+      ) : (
+        <AlertCircle aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      )}
+      <span>{label}</span>
     </div>
   );
 }

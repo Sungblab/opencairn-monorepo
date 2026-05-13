@@ -25,7 +25,11 @@ import {
 import ReactMarkdown from "react-markdown";
 import { JsonView, defaultStyles } from "react-json-view-lite";
 import remarkGfm from "remark-gfm";
-import type { AgentFileSummary } from "@opencairn/shared";
+import {
+  validateStudyArtifact,
+  type AgentFileSummary,
+  type StudyArtifact,
+} from "@opencairn/shared";
 import "react-json-view-lite/dist/index.css";
 import type { Tab } from "@/stores/tabs-store";
 import { useTabsStore } from "@/stores/tabs-store";
@@ -568,6 +572,18 @@ function JsonPreview({ fileUrl }: { fileUrl: string }) {
       </div>
     );
   if (parsed == null) return <TextPreview fileUrl={fileUrl} />;
+  const studyArtifact = validateStudyArtifact(parsed);
+
+  if (studyArtifact.success) {
+    return (
+      <StudyArtifactPreview
+        artifact={studyArtifact.artifact}
+        fileUrl={fileUrl}
+        sourceOpen={sourceOpen}
+        onToggleSource={() => setSourceOpen((open) => !open)}
+      />
+    );
+  }
 
   return (
     <div
@@ -596,6 +612,336 @@ function JsonPreview({ fileUrl }: { fileUrl: string }) {
       ) : null}
     </div>
   );
+}
+
+function StudyArtifactPreview({
+  artifact,
+  fileUrl,
+  sourceOpen,
+  onToggleSource,
+}: {
+  artifact: StudyArtifact;
+  fileUrl: string;
+  sourceOpen: boolean;
+  onToggleSource: () => void;
+}) {
+  const t = useTranslations("agentFiles.viewer.studyArtifact");
+  return (
+    <div
+      className={cn(
+        "grid h-full min-h-0 grid-cols-1",
+        sourceOpen && "lg:grid-cols-2",
+      )}
+    >
+      <div className="app-scrollbar-thin h-full overflow-auto p-4">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b pb-4">
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+              <GitBranch className="h-3.5 w-3.5" />
+              <span>{t("label")}</span>
+              <StatusPill label={t("type", { type: artifact.type })} />
+              <StatusPill label={t("difficulty", { difficulty: artifact.difficulty })} />
+              <StatusPill
+                label={t("sourceCount", { count: artifact.sourceIds.length })}
+              />
+            </div>
+            <h2 className="text-lg font-semibold">{artifact.title}</h2>
+            {artifact.tags.length > 0 ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t("tags", { tags: artifact.tags.join(", ") })}
+              </p>
+            ) : null}
+          </div>
+          <SourceToggleButton open={sourceOpen} onClick={onToggleSource} />
+        </div>
+        {renderStudyArtifactBody(artifact, t)}
+      </div>
+      {sourceOpen ? (
+        <div className="min-h-0 border-t lg:border-l lg:border-t-0">
+          <TextPreview fileUrl={fileUrl} label={t("source")} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function renderStudyArtifactBody(
+  artifact: StudyArtifact,
+  t: ReturnType<typeof useTranslations>,
+) {
+  switch (artifact.type) {
+    case "quiz_set":
+      return (
+        <QuestionList
+          title={t("questionCount", { count: artifact.questions.length })}
+          questions={artifact.questions}
+          t={t}
+        />
+      );
+    case "mock_exam":
+      return (
+        <div className="space-y-4">
+          <SectionLabel>{t("sectionCount", { count: artifact.sections.length })}</SectionLabel>
+          {artifact.sections.map((section) => (
+            <section key={section.id} className="rounded-md border p-4">
+              <h3 className="font-medium">{section.title}</h3>
+              {section.instructions ? (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {section.instructions}
+                </p>
+              ) : null}
+              <div className="mt-3">
+                <QuestionList
+                  title={t("questionCount", { count: section.questions.length })}
+                  questions={section.questions}
+                  t={t}
+                />
+              </div>
+            </section>
+          ))}
+        </div>
+      );
+    case "flashcard_deck":
+      return (
+        <div className="space-y-3">
+          <SectionLabel>{t("cardCount", { count: artifact.cards.length })}</SectionLabel>
+          {artifact.cards.map((card) => (
+            <div key={card.id} className="grid gap-2 rounded-md border p-4 md:grid-cols-2">
+              <div>
+                <div className="text-xs font-medium text-muted-foreground">
+                  {t("front")}
+                </div>
+                <p className="mt-1 text-sm">{card.front}</p>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-muted-foreground">
+                  {t("back")}
+                </div>
+                <p className="mt-1 text-sm">{card.back}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    case "fill_blank_set":
+      return (
+        <div className="space-y-3">
+          <SectionLabel>{t("itemCount", { count: artifact.items.length })}</SectionLabel>
+          {artifact.items.map((item, index) => (
+            <div key={item.id} className="rounded-md border p-4">
+              <div className="text-xs font-medium text-muted-foreground">
+                {index + 1}
+              </div>
+              <p className="mt-1 text-sm">{item.prompt}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {item.blanks.map((blank) => (
+                  <StatusPill key={blank.id} label={blank.answer} />
+                ))}
+              </div>
+              <Explanation text={item.explanation} t={t} />
+            </div>
+          ))}
+        </div>
+      );
+    case "exam_prep_pack":
+      return (
+        <div className="space-y-5">
+          <LabeledList
+            title={t("itemCount", { count: artifact.keyConcepts.length })}
+            items={artifact.keyConcepts.map((item) => ({
+              id: item.id,
+              title: item.term,
+              body: item.explanation,
+            }))}
+          />
+          <QuestionList
+            title={t("questionCount", {
+              count: artifact.expectedQuestions.length,
+            })}
+            questions={artifact.expectedQuestions}
+            t={t}
+          />
+        </div>
+      );
+    case "compare_table":
+      return (
+        <StudyTable
+          columns={artifact.columns}
+          rows={artifact.rows.map((row) => [row.label, ...row.cells])}
+        />
+      );
+    case "glossary":
+      return (
+        <LabeledList
+          title={t("itemCount", { count: artifact.terms.length })}
+          items={artifact.terms.map((term) => ({
+            id: term.id,
+            title: term.term,
+            body: term.definition,
+            aside: term.example,
+          }))}
+        />
+      );
+    case "cheat_sheet":
+      return (
+        <div className="space-y-3">
+          <SectionLabel>{t("sectionCount", { count: artifact.sections.length })}</SectionLabel>
+          {artifact.sections.map((section) => (
+            <section key={section.id} className="rounded-md border p-4">
+              <h3 className="font-medium">{section.heading}</h3>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                {section.bullets.map((bullet, index) => (
+                  <li key={index}>{bullet}</li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      );
+    case "data_table":
+      return (
+        <StudyTable
+          columns={artifact.columns}
+          rows={artifact.rows.map((row) =>
+            artifact.columns.map((column) => formatUnknown(row[column])),
+          )}
+        />
+      );
+    case "interactive_html":
+      return (
+        <pre className="app-scrollbar-thin overflow-auto rounded-md border bg-muted/30 p-4 text-xs">
+          {artifact.html}
+        </pre>
+      );
+  }
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <div className="text-xs font-medium text-muted-foreground">{children}</div>;
+}
+
+function QuestionList({
+  title,
+  questions,
+  t,
+}: {
+  title: string;
+  questions: Array<Extract<StudyArtifact, { type: "quiz_set" }>["questions"][number]>;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  return (
+    <div className="space-y-3">
+      <SectionLabel>{title}</SectionLabel>
+      {questions.map((question, index) => (
+        <article key={question.id} className="rounded-md border p-4">
+          <div className="mb-2 text-xs font-medium text-muted-foreground">
+            {index + 1} · {question.kind}
+          </div>
+          <p className="text-sm font-medium">{question.prompt}</p>
+          {question.choices?.length ? (
+            <div className="mt-3 grid gap-2">
+              {question.choices.map((choice) => (
+                <div key={choice.id} className="rounded border bg-muted/20 px-3 py-2 text-sm">
+                  <span className="mr-2 font-medium text-muted-foreground">
+                    {choice.id}
+                  </span>
+                  {choice.text}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div className="mt-3 text-xs text-muted-foreground">
+            {t("answer")}: {formatUnknown(question.answer)}
+          </div>
+          <Explanation text={question.explanation} t={t} />
+          {question.sourceRefs.length > 0 ? (
+            <div className="mt-2 text-xs text-muted-foreground">
+              {t("sourceRefs", { count: question.sourceRefs.length })}
+            </div>
+          ) : null}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function Explanation({
+  text,
+  t,
+}: {
+  text?: string;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  if (!text) return null;
+  return (
+    <p className="mt-2 text-sm text-muted-foreground">
+      <span className="font-medium">{t("explanation")}: </span>
+      {text}
+    </p>
+  );
+}
+
+function LabeledList({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{ id: string; title: string; body: string; aside?: string }>;
+}) {
+  return (
+    <div className="space-y-3">
+      <SectionLabel>{title}</SectionLabel>
+      {items.map((item) => (
+        <article key={item.id} className="rounded-md border p-4">
+          <h3 className="font-medium">{item.title}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>
+          {item.aside ? <p className="mt-2 text-sm">{item.aside}</p> : null}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function StudyTable({
+  columns,
+  rows,
+}: {
+  columns: string[];
+  rows: string[][];
+}) {
+  return (
+    <div className="app-scrollbar-thin overflow-auto">
+      <table className="min-w-full border-collapse text-left text-xs">
+        <thead className="sticky top-0 bg-background">
+          <tr>
+            {columns.map((column) => (
+              <th key={column} className="border-b px-3 py-2 font-medium">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={rowIndex} className="border-b last:border-0">
+              {row.map((cell, cellIndex) => (
+                <td key={cellIndex} className="px-3 py-2 align-top">
+                  <div className="max-w-96 whitespace-pre-wrap">{cell}</div>
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function formatUnknown(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value == null) return "";
+  return JSON.stringify(value);
 }
 
 function CsvPreview({ fileUrl }: { fileUrl: string }) {

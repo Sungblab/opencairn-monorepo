@@ -54,6 +54,7 @@ import {
 
 import { Composer } from "./composer";
 import { Conversation } from "./conversation";
+import { QueuedPromptControls } from "./queued-prompt-controls";
 import {
   DocumentGenerationCards,
   asDocumentGenerationCards,
@@ -142,7 +143,16 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const activeThreadId = useThreadsStore((s) => s.activeThreadId);
   const setActive = useThreadsStore((s) => s.setActiveThread);
   const { create } = useChatThreads(workspaceId, shellProjectId);
-  const { send, live, pendingUser, resumeRun } = useChatSend(activeThreadId);
+  const {
+    send,
+    live,
+    pendingUser,
+    queuedPrompt,
+    updateQueuedPrompt,
+    clearQueuedPrompt,
+    interruptQueuedPrompt,
+    resumeRun,
+  } = useChatSend(activeThreadId);
   const { upload, isUploading } = useIngestUpload();
   const uploadT = useTranslations("sidebar.upload");
 
@@ -162,7 +172,6 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const [activeContextEnabled, setActiveContextEnabled] = useState(true);
   const [selectionText, setSelectionText] = useState("");
   const [draggingReference, setDraggingReference] = useState(false);
-  const [isSending, setIsSending] = useState(false);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [attachedReferences, setAttachedReferences] = useState<
     ProjectTreeDragPayload[]
@@ -297,18 +306,19 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     setComposerFocusKey((current) => current + 1);
   }
   const threadActionsDisabled = !workspaceId;
-  const composerDisabled = !workspaceId || isSending || create.isPending;
+  const composerDisabled = !workspaceId || create.isPending;
 
   const handleSend = useCallback(
     (input: AgentPanelSendInput) => {
       if (!workspaceId) return;
-      if (sendInFlightRef.current) return;
-      sendInFlightRef.current = true;
-      setIsSending(true);
+      if (!activeThreadId && sendInFlightRef.current) return;
       void (async () => {
+        let creatingThread = false;
         try {
           let threadId = activeThreadId;
           if (!threadId) {
+            creatingThread = true;
+            sendInFlightRef.current = true;
             const thread = await create.mutateAsync({});
             threadId = thread.id;
             setActive(thread.id);
@@ -324,8 +334,9 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
           });
           setAttachedReferences([]);
         } finally {
-          sendInFlightRef.current = false;
-          setIsSending(false);
+          if (creatingThread) {
+            sendInFlightRef.current = false;
+          }
         }
       })();
     },
@@ -740,6 +751,14 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
             />
           )}
           <div className="border-t border-border bg-background pt-2">
+            {queuedPrompt ? (
+              <QueuedPromptControls
+                content={queuedPrompt.content}
+                onChange={updateQueuedPrompt}
+                onDiscard={clearQueuedPrompt}
+                onInterrupt={interruptQueuedPrompt}
+              />
+            ) : null}
             <ComposerContextStrip
               activeLabel={invocationContextLabel}
               references={attachedReferences}
