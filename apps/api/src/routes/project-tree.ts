@@ -10,6 +10,7 @@ import {
   softDeleteTreeNode,
 } from "../lib/project-tree-service";
 import { emitTreeEvent } from "../lib/tree-events";
+import { refreshNoteChunkIndexBestEffort } from "../lib/note-chunk-refresh";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
@@ -36,7 +37,7 @@ export const projectTreeRoutes = new Hono<AppEnv>()
 
     const body = c.req.valid("json");
     try {
-      const updated = await renameTreeNode({
+      const { node: updated, noteForRefresh } = await renameTreeNode({
         projectId: node.projectId,
         nodeId: id,
         label: body.label,
@@ -49,6 +50,9 @@ export const projectTreeRoutes = new Hono<AppEnv>()
         label: updated.label,
         at: new Date().toISOString(),
       });
+      if (noteForRefresh) {
+        await refreshNoteChunkIndexBestEffort(noteForRefresh);
+      }
       return c.json({ node: updated });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 400);

@@ -570,16 +570,36 @@ export async function renameTreeNode(input: {
       .where(eq(projectTreeNodes.id, input.nodeId))
       .returning();
 
+    let noteForRefresh: {
+      id: string;
+      workspaceId: string;
+      projectId: string;
+      title: string;
+      contentText: string | null;
+      deletedAt: Date | null;
+    } | null = null;
+
     if (current.targetTable === "folders" && current.targetId) {
       await tx
         .update(folders)
         .set({ name: input.label })
         .where(eq(folders.id, current.targetId));
     } else if (current.targetTable === "notes" && current.targetId) {
-      await tx
+      const [renamedNote] = await tx
         .update(notes)
         .set({ title: input.label })
-        .where(eq(notes.id, current.targetId));
+        .where(eq(notes.id, current.targetId))
+        .returning({
+          id: notes.id,
+          workspaceId: notes.workspaceId,
+          projectId: notes.projectId,
+          title: notes.title,
+          contentText: notes.contentText,
+          deletedAt: notes.deletedAt,
+        });
+      if (current.label !== input.label) {
+        noteForRefresh = renamedNote ?? null;
+      }
     } else if (current.targetTable === "agent_files" && current.targetId) {
       await tx
         .update(agentFiles)
@@ -592,7 +612,7 @@ export async function renameTreeNode(input: {
         .where(eq(codeWorkspaces.id, current.targetId));
     }
 
-    return updated;
+    return { node: updated, noteForRefresh };
   });
 }
 

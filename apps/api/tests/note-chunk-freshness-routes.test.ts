@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
-import { agentFiles, and, db, eq, wikiLinks } from "@opencairn/db";
+import { signSessionCookie } from "./helpers/session.js";
+import { agentFiles, and, db, eq, projectTreeNodes, wikiLinks } from "@opencairn/db";
 import { randomUUID } from "node:crypto";
+import { labelFromId } from "../src/lib/tree-queries.js";
 
 const mocks = vi.hoisted(() => ({
   refreshNoteChunkIndexBestEffort: vi.fn(),
@@ -13,6 +15,22 @@ vi.mock("../src/lib/note-chunk-refresh", () => ({
 }));
 
 const app = createApp();
+
+async function authedFetch(
+  path: string,
+  init: RequestInit & { userId: string },
+): Promise<Response> {
+  const { userId, headers, ...rest } = init;
+  const cookie = await signSessionCookie(userId);
+  return app.request(path, {
+    ...rest,
+    headers: {
+      ...(headers ?? {}),
+      cookie,
+      "content-type": "application/json",
+    },
+  });
+}
 
 describe("note chunk freshness route wiring", () => {
   let ctx: SeedResult;
@@ -298,5 +316,66 @@ describe("note chunk freshness route wiring", () => {
       .from(wikiLinks)
       .where(eq(wikiLinks.sourceNoteId, noteId));
     expect(rows).toHaveLength(0);
+  });
+
+  it("reindexes a note when its project tree node title changes", async () => {
+    const nodeId = randomUUID();
+    await db.insert(projectTreeNodes).values({
+      id: nodeId,
+      workspaceId: ctx.workspaceId,
+      projectId: ctx.projectId,
+      parentId: null,
+      kind: "note",
+      targetTable: "notes",
+      targetId: ctx.noteId,
+      label: "Old tree title",
+      icon: "file-text",
+      path: labelFromId(nodeId),
+    });
+    mocks.refreshNoteChunkIndexBestEffort.mockClear();
+
+    const res = await authedFetch(`/api/tree/nodes/${nodeId}`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({ label: "Renamed through tree" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(mocks.refreshNoteChunkIndexBestEffort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: ctx.noteId,
+        workspaceId: ctx.workspaceId,
+        projectId: ctx.projectId,
+        title: "Renamed through tree",
+      }),
+    );
+  });
+
+  it("reindexes a note when an agent rename action changes its title", async () => {
+    mocks.refreshNoteChunkIndexBestEffort.mockClear();
+
+    const res = await authedFetch(`/api/projects/${ctx.projectId}/agent-actions`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        requestId: randomUUID(),
+        kind: "note.rename",
+        risk: "write",
+        input: {
+          noteId: ctx.noteId,
+          title: "Renamed by librarian",
+        },
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(mocks.refreshNoteChunkIndexBestEffort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: ctx.noteId,
+        workspaceId: ctx.workspaceId,
+        projectId: ctx.projectId,
+        title: "Renamed by librarian",
+      }),
+    );
   });
 });

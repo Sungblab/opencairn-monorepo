@@ -91,6 +91,7 @@ import { diffPlateValues } from "./note-version-diff";
 import { plateValueToText } from "./plate-text";
 import { emitTreeEvent } from "./tree-events";
 import { markdownToPlateValue } from "./plate-doc";
+import { refreshNoteChunkIndexBestEffort } from "./note-chunk-refresh";
 import type { PlateValue } from "./yjs-to-plate";
 import {
   createAgentFile,
@@ -2742,15 +2743,24 @@ async function renameNoteFromAction(
   if (!(await canWrite(input.actorUserId, { type: "note", id: payload.noteId }, { db: conn }))) {
     throw new AgentActionError("forbidden", 403);
   }
+  const [current] = await conn
+    .select({ title: notes.title })
+    .from(notes)
+    .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.projectId), isNull(notes.deletedAt)));
+  if (!current) throw new AgentActionError("note_not_found", 404);
+
   const [note] = await conn
     .update(notes)
     .set({ title: payload.title })
     .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.projectId), isNull(notes.deletedAt)))
     .returning({
       id: notes.id,
+      workspaceId: notes.workspaceId,
       projectId: notes.projectId,
       folderId: notes.folderId,
       title: notes.title,
+      contentText: notes.contentText,
+      deletedAt: notes.deletedAt,
     });
   if (!note) throw new AgentActionError("note_not_found", 404);
 
@@ -2762,6 +2772,9 @@ async function renameNoteFromAction(
     label: note.title,
     at: new Date().toISOString(),
   });
+  if (current.title !== note.title) {
+    await refreshNoteChunkIndexBestEffort(note);
+  }
   return { ok: true, note };
 }
 
