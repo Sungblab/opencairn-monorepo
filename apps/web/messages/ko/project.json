@@ -129,7 +129,7 @@
       },
       "mindMap": {
         "title": "마인드맵",
-        "description": "프로젝트 그래프의 마인드맵 보기를 엽니다."
+        "description": "프로젝트 지식 맵의 마인드맵 보기를 엽니다."
       },
       "agents": {
         "title": "에이전트에게 맡기기",
@@ -231,7 +231,7 @@
       "description": "논문을 검색하고 선택한 자료를 프로젝트에 저장합니다."
     },
     "graph": {
-      "title": "프로젝트 그래프",
+      "title": "프로젝트 지식 맵",
       "description": "노트와 자료 사이의 연결을 구조로 확인합니다."
     },
     "agents": {
@@ -285,8 +285,12 @@
       },
       "refresh": "인덱스 갱신",
       "refreshing": "갱신 요청 중",
+      "refreshQueued": "인덱스 갱신을 요청했어요.",
+      "refreshFailed": "인덱스 갱신 요청에 실패했어요.",
       "runLibrarian": "정리 에이전트 실행",
-      "runningLibrarian": "실행 요청 중"
+      "runningLibrarian": "실행 요청 중",
+      "librarianStarted": "정리 에이전트를 실행했어요. 활동 패널에서 진행 상황을 확인하세요.",
+      "librarianFailed": "정리 에이전트를 시작하지 못했어요."
     },
     "actions": {
       "map": "관계 지도로 보기",

@@ -10,6 +10,7 @@ import { CompactAppShellLoader } from "./compact-app-shell-loader";
 import { useShellLabels } from "@/components/shell/shell-labels";
 import { usePanelStore } from "@/stores/panel-store";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
+import { ProjectMainDropZone } from "./project-main-drop-zone";
 
 const usePanelHydrationEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -114,7 +115,9 @@ export function AppShell({
           />
         </CollapsedPanelRail>
       ) : null}
-      <TabShell>{children}</TabShell>
+      <ProjectMainDropZone>
+        <TabShell>{children}</TabShell>
+      </ProjectMainDropZone>
       {agentPanelOpen && (
         <>
           <ShellResizeHandle

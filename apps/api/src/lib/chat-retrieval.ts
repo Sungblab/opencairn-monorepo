@@ -249,7 +249,7 @@ export async function retrieveWithPolicy(opts: {
     };
   }
 
-  const hits = collected.orderedCandidates
+  const hits = filterHitsForPageOnlyScope(opts, collected.orderedCandidates
     .slice(0, policy.resultTopK)
     .map((candidate) => collected.hitByCandidateId.get(candidate.id))
     .filter((h): h is ProjectRetrievalHit => h != null)
@@ -272,8 +272,26 @@ export async function retrieveWithPolicy(opts: {
       evidenceId: h.evidenceId,
       support: h.support,
       graphPath: h.graphPath,
-    }));
+    })));
   return retrievalResult(hits, policy, qualityReport);
+}
+
+function filterHitsForPageOnlyScope(
+  opts: {
+    scope: RetrievalScope;
+    chips: RetrievalChip[];
+  },
+  hits: RetrievalHit[],
+): RetrievalHit[] {
+  if (opts.scope.type === "page") {
+    const noteId = opts.scope.noteId;
+    return hits.filter((hit) => hit.noteId === noteId);
+  }
+  const pageChips = opts.chips.filter((chip) => chip.type === "page");
+  const hasBroaderChip = opts.chips.some((chip) => chip.type !== "page");
+  if (pageChips.length === 0 || hasBroaderChip) return hits;
+  const allowed = new Set(pageChips.map((chip) => chip.id));
+  return hits.filter((hit) => allowed.has(hit.noteId));
 }
 
 function retrievalResult(

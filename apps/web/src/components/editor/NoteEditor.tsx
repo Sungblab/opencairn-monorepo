@@ -710,7 +710,7 @@ export function NoteEditor({
                 onShowComments={handleShowComments}
               />
             )}
-            <div className="mx-auto w-full max-w-[720px] flex-1 px-4 py-5 sm:px-8 sm:py-7">
+            <div className="mx-auto w-full max-w-[840px] flex-1 px-4 py-5 sm:px-8 sm:py-7">
               <div
                 className="border-b border-border/80 pb-3"
                 data-testid="note-title-section"
@@ -721,7 +721,7 @@ export function NoteEditor({
                     onChange={(e) => handleTitleChange(e.target.value)}
                     placeholder={t("placeholder.title")}
                     disabled={readOnly}
-                    className="placeholder:text-fg-muted w-full bg-transparent text-3xl font-semibold outline-none"
+                    className="placeholder:text-fg-muted w-full bg-transparent text-3xl font-semibold leading-tight outline-none sm:text-4xl"
                     data-testid="note-title"
                   />
                   {/* PresenceStack shows remote collaborators; self-hides when
@@ -780,7 +780,7 @@ export function NoteEditor({
                       ? t("placeholder.body_with_slash")
                       : t("placeholder.body")
                   }
-                  className="prose prose-stone min-h-[60vh] max-w-none focus:outline-none"
+                  className="prose prose-stone min-h-[60vh] max-w-none focus:outline-none [&_h1]:mb-5 [&_h1]:border-b [&_h1]:border-border [&_h1]:pb-3 [&_h2]:mt-9 [&_h2]:border-b [&_h2]:border-border/70 [&_h2]:pb-2 [&_h3]:mt-6 [&_li]:my-1 [&_table]:text-sm"
                   readOnly={readOnly}
                 />
                 {selectionAskPosition ? (

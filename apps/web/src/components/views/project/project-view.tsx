@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   FilePlus,
   GitBranch,
@@ -22,26 +23,33 @@ import {
   studioToolsApi,
   type ProjectNoteRow,
   type ProjectWikiIndex,
-  type ProjectWikiIndexHealthIssueKind,
   type ProjectWikiIndexHealthStatus,
   type StudioToolPreflightResponse,
 } from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { WorkbenchActivityButton } from "@/components/agent-panel/workbench-trigger-button";
 import { SourceUploadButton } from "@/components/sidebar/SourceUploadButton";
-import {
-  useAgentWorkbenchStore,
-  type AgentWorkflowIntent,
-} from "@/stores/agent-workbench-store";
+import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
 import {
   getToolDiscoveryGroups,
   type ToolDiscoveryItem,
 } from "@/components/agent-panel/tool-discovery-catalog";
 import {
+  getToolRouteHref,
+  routeShouldOpenAsWorkflow,
+  toolShouldOpenAsWorkflow,
+  workflowForToolItem,
+} from "@/components/agent-panel/tool-discovery-actions";
+import {
   getToolDiscoveryTileClassName,
   ToolDiscoveryTileContent,
 } from "@/components/agent-panel/tool-discovery-tile";
+import {
+  formatWikiHealthIssueSummary,
+  hasLibrarianRepairIssue,
+  WikiIndexHealthBadge,
+} from "@/components/wiki/wiki-index-health";
 import { ProjectMetaRow } from "./project-meta-row";
 import { ProjectNotesTable } from "./project-notes-table";
 
@@ -117,14 +125,31 @@ export function ProjectView({
       await queryClient.invalidateQueries({
         queryKey: ["project-wiki-index", projectId],
       });
+      toast.success(t("graphDiscovery.health.refreshQueued"));
+    },
+    onError: () => {
+      toast.error(t("graphDiscovery.health.refreshFailed"));
     },
   });
   const runLibrarianMutation = useMutation({
     mutationFn: () => plan8AgentsApi.runLibrarian({ projectId }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["plan8-agents", projectId],
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["plan8-agents", projectId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["workflow-console-runs", projectId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["project-wiki-index", projectId],
+        }),
+      ]);
+      toast.success(t("graphDiscovery.health.librarianStarted"));
+      openAgentPanelTab("activity");
+    },
+    onError: () => {
+      toast.error(t("graphDiscovery.health.librarianFailed"));
     },
   });
   // Page count + last activity are derived from the unfiltered notes list to
@@ -143,45 +168,6 @@ export function ProjectView({
   const lastActivityIso =
     allNotes && allNotes.length > 0 ? allNotes[0].updated_at : null;
 
-  function projectRouteHref(
-    route: Extract<ToolDiscoveryItem["action"], { type: "route" }>["route"],
-  ) {
-    if (route === "project_graph") {
-      return urls.workspace.projectGraph(locale, wsSlug, projectId);
-    }
-    if (route === "project_graph_mindmap") {
-      return `${urls.workspace.projectGraph(locale, wsSlug, projectId)}?view=mindmap`;
-    }
-    if (route === "project_agents") {
-      return urls.workspace.projectAgents(locale, wsSlug, projectId);
-    }
-    if (route === "project_learn_flashcards") {
-      return urls.workspace.projectLearnFlashcards(locale, wsSlug, projectId);
-    }
-    if (route === "project_learn_socratic") {
-      return urls.workspace.projectLearnSocratic(locale, wsSlug, projectId);
-    }
-    if (route === "workspace_integrations") {
-      return urls.workspace.settingsSection(
-        locale,
-        wsSlug,
-        "workspace",
-        "integrations",
-      );
-    }
-    if (route === "workspace_import_web") {
-      return `${urls.workspace.import(locale, wsSlug)}?projectId=${encodeURIComponent(
-        projectId,
-      )}&source=web`;
-    }
-    if (route === "workspace_import_youtube") {
-      return `${urls.workspace.import(locale, wsSlug)}?projectId=${encodeURIComponent(
-        projectId,
-      )}&source=youtube`;
-    }
-    return urls.workspace.projectLearn(locale, wsSlug, projectId);
-  }
-
   function projectGraphHref(view?: "cards" | "mindmap") {
     const base = urls.workspace.projectGraph(locale, wsSlug, projectId);
     return view ? `${base}?view=${view}` : base;
@@ -193,7 +179,7 @@ export function ProjectView({
   ) {
     if (toolShouldOpenAsWorkflow(item)) {
       void preflight;
-      requestWorkflow(workflowForProjectItem(item));
+      requestWorkflow(workflowForToolItem(item));
       openAgentPanelTab("chat");
       return;
     }
@@ -262,18 +248,6 @@ export function ProjectView({
       .join(" · ");
   }
 
-  function formatWikiHealthIssueSummary(index: ProjectWikiIndex | undefined) {
-    if (!index || index.health.issues.length === 0) return null;
-    return index.health.issues
-      .slice(0, 2)
-      .map((issue) =>
-        t(`graphDiscovery.health.issues.${issue.kind}`, {
-          count: issue.count,
-        }),
-      )
-      .join(" · ");
-  }
-
   const canRefreshWikiIndex =
     projectPermissions?.role === "owner" ||
     projectPermissions?.role === "admin" ||
@@ -306,7 +280,12 @@ export function ProjectView({
         return (
           <ToolLink
             key={item.id}
-            href={projectRouteHref(item.action.route)}
+            href={getToolRouteHref({
+              route: item.action.route,
+              locale,
+              wsSlug,
+              projectId,
+            })}
             icon={item.icon}
             title={title}
             description={description}
@@ -461,7 +440,10 @@ export function ProjectView({
             ? t(`graphDiscovery.health.status.${wikiIndex.health.status}`)
             : null
         }
-        healthIssueSummary={formatWikiHealthIssueSummary(wikiIndex)}
+        healthIssueSummary={formatWikiHealthIssueSummary(
+          wikiIndex,
+          (kind, count) => t(`graphDiscovery.health.issues.${kind}`, { count }),
+        )}
         healthTone={wikiIndex?.health.status ?? null}
         refreshLabel={t("graphDiscovery.health.refresh")}
         refreshingLabel={t("graphDiscovery.health.refreshing")}
@@ -518,8 +500,7 @@ export function ProjectView({
             preflightState.status === "blocked"
               ? t("tools.preflight.blocked", {
                   credits: preflightState.preflight.cost.billableCredits,
-                  available:
-                    preflightState.preflight.balance.availableCredits,
+                  available: preflightState.preflight.balance.availableCredits,
                 })
               : ""
           }
@@ -747,43 +728,24 @@ function GraphDiscoveryPanel({
             </p>
           ) : null}
           {healthStatus ? (
-            <div
-              data-testid="project-wiki-health"
-              className={`mt-2 inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-1 rounded-[var(--radius-control)] border px-2 py-1 text-xs font-medium ${getWikiHealthClassName(
-                healthTone,
-              )}`}
-            >
-              <span>
-                {healthLabel} {healthStatus}
-              </span>
-              {healthIssueSummary ? (
-                <span className="min-w-0 truncate text-current/80">
-                  · {healthIssueSummary}
-                </span>
-              ) : null}
-              {showRefresh ? (
-                <button
-                  type="button"
-                  disabled={refreshPending}
-                  onClick={onRefresh}
-                  className="ml-1 rounded-[var(--radius-control)] border border-current/25 bg-background/70 px-1.5 py-0.5 text-[11px] font-medium text-current hover:bg-background disabled:opacity-60"
-                >
-                  {refreshPending ? refreshingLabel : refreshLabel}
-                </button>
-              ) : null}
-              {showRunLibrarian ? (
-                <button
-                  type="button"
-                  disabled={runLibrarianPending}
-                  onClick={onRunLibrarian}
-                  className="ml-1 rounded-[var(--radius-control)] border border-current/25 bg-background/70 px-1.5 py-0.5 text-[11px] font-medium text-current hover:bg-background disabled:opacity-60"
-                >
-                  {runLibrarianPending
-                    ? runningLibrarianLabel
-                    : runLibrarianLabel}
-                </button>
-              ) : null}
-            </div>
+            <WikiIndexHealthBadge
+              testId="project-wiki-health"
+              className="mt-2 inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-1 rounded-[var(--radius-control)] border px-2 py-1 text-xs font-medium"
+              label={healthLabel}
+              status={healthStatus}
+              issueSummary={healthIssueSummary}
+              tone={healthTone}
+              refreshLabel={refreshLabel}
+              refreshingLabel={refreshingLabel}
+              showRefresh={showRefresh}
+              refreshPending={refreshPending}
+              onRefresh={onRefresh}
+              runLibrarianLabel={runLibrarianLabel}
+              runningLibrarianLabel={runningLibrarianLabel}
+              showRunLibrarian={showRunLibrarian}
+              runLibrarianPending={runLibrarianPending}
+              onRunLibrarian={onRunLibrarian}
+            />
           ) : null}
         </div>
         <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
@@ -802,38 +764,6 @@ function GraphDiscoveryPanel({
       </div>
     </section>
   );
-}
-
-const LIBRARIAN_REPAIR_ISSUES = new Set<ProjectWikiIndexHealthIssueKind>([
-  "duplicate_titles",
-  "unresolved_missing",
-  "unresolved_ambiguous",
-  "orphan_pages",
-]);
-
-function hasLibrarianRepairIssue(index: ProjectWikiIndex | undefined): boolean {
-  return Boolean(
-    index?.health.issues.some((issue) =>
-      LIBRARIAN_REPAIR_ISSUES.has(issue.kind),
-    ),
-  );
-}
-
-function getWikiHealthClassName(
-  status: ProjectWikiIndexHealthStatus | null,
-): string {
-  switch (status) {
-    case "blocked":
-      return "border-destructive/30 bg-destructive/5 text-destructive";
-    case "needs_attention":
-      return "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200";
-    case "updating":
-      return "border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-700/60 dark:bg-sky-950/30 dark:text-sky-200";
-    case "healthy":
-      return "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700/60 dark:bg-emerald-950/30 dark:text-emerald-200";
-    default:
-      return "border-border bg-background text-muted-foreground";
-  }
 }
 
 function GraphDiscoveryLink({
@@ -1052,114 +982,4 @@ function ToolUploadButton({
       />
     </SourceUploadButton>
   );
-}
-
-function toolShouldOpenAsWorkflow(item: ToolDiscoveryItem): boolean {
-  switch (item.action.type) {
-    case "literature_search":
-    case "deep_research":
-    case "workbench_command":
-    case "study_artifact_generate":
-    case "document_generation_preset":
-      return true;
-    case "route":
-      return routeShouldOpenAsWorkflow(item.action.route);
-    default:
-      return false;
-  }
-}
-
-function routeShouldOpenAsWorkflow(
-  route: Extract<ToolDiscoveryItem["action"], { type: "route" }>["route"],
-): boolean {
-  return (
-    route === "project_learn" ||
-    route === "project_learn_flashcards" ||
-    route === "project_learn_socratic" ||
-    route === "workspace_import_web" ||
-    route === "workspace_import_youtube"
-  );
-}
-
-function workflowPrompt(toolId: string): string {
-  switch (toolId) {
-    case "literature":
-      return "현재 프로젝트 주제에 맞는 논문을 찾아서 후보를 정리하고, 가져올 만한 자료를 추천해줘.";
-    case "research":
-      return "현재 프로젝트 자료를 바탕으로 깊이 있는 리서치를 시작해줘. 필요한 외부 자료와 근거를 함께 찾아줘.";
-    case "summarize":
-      return "현재 프로젝트 자료를 핵심 개념, 근거, 시험/활용 포인트 중심으로 요약해줘.";
-    case "pdf_report_fast":
-      return "현재 프로젝트 자료를 바탕으로 빠르게 공유할 수 있는 PDF 보고서를 만들어줘.";
-    case "pdf_report_latex":
-      return "현재 프로젝트 자료를 바탕으로 논문형 LaTeX PDF 보고서를 만들어줘.";
-    case "docx_report":
-      return "현재 프로젝트 자료를 바탕으로 편집 가능한 DOCX 보고서를 만들어줘.";
-    case "pptx_deck":
-      return "현재 프로젝트 자료를 발표자료 흐름으로 정리해줘.";
-    case "xlsx_table":
-      return "현재 프로젝트 자료를 비교 가능한 표와 스프레드시트로 정리해줘.";
-    case "source_figure":
-      return "현재 프로젝트 자료를 설명하는 핵심 피규어나 구조도를 만들어줘.";
-    case "study_artifact_generator":
-      return "현재 프로젝트 자료로 학습 자료를 만들어줘. 먼저 적절한 유형과 난이도를 제안해줘.";
-    case "flashcards":
-      return "현재 프로젝트 자료로 플래시카드를 만들어줘. 핵심 개념, 정의, 예시, 시험 포인트를 포함해줘.";
-    case "teach_to_learn":
-      return "현재 프로젝트 자료를 바탕으로 나에게 질문하면서 설명하는 Teach to Learn 세션을 시작해줘.";
-    case "web_import":
-      return "웹 URL을 현재 프로젝트 자료로 가져오고 요약까지 이어갈 수 있게 도와줘.";
-    case "youtube_import":
-      return "YouTube URL을 현재 프로젝트 자료로 가져오고 핵심 내용을 정리할 수 있게 도와줘.";
-    default:
-      return "현재 프로젝트 자료를 바탕으로 이 작업을 진행해줘.";
-  }
-}
-
-function workflowForProjectItem(
-  item: ToolDiscoveryItem,
-): Omit<AgentWorkflowIntent, "id"> {
-  switch (item.action.type) {
-    case "literature_search":
-      return {
-        kind: "literature_search",
-        toolId: item.id,
-        i18nKey: item.i18nKey,
-        prompt: workflowPrompt(item.id),
-      };
-    case "study_artifact_generate":
-      return {
-        kind: "study_artifact",
-        toolId: item.id,
-        i18nKey: item.i18nKey,
-        prompt: workflowPrompt(item.id),
-        artifactType: item.action.artifactType,
-      };
-    case "document_generation_preset":
-      return {
-        kind: "document_generation",
-        toolId: item.id,
-        i18nKey: item.i18nKey,
-        prompt: workflowPrompt(item.id),
-        presetId: item.action.presetId,
-      };
-    case "route":
-      return {
-        kind:
-          item.action.route === "project_learn_socratic"
-            ? "teach_to_learn"
-            : "agent_prompt",
-        toolId: item.id,
-        i18nKey: item.i18nKey,
-        prompt: workflowPrompt(item.id),
-        route: item.action.route,
-      };
-    default:
-      return {
-        kind: "agent_prompt",
-        toolId: item.id,
-        i18nKey: item.i18nKey,
-        prompt: workflowPrompt(item.id),
-      };
-  }
 }

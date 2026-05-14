@@ -2,7 +2,7 @@
 import type { ComponentType, ReactNode } from "react";
 import { urls } from "@/lib/urls";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -48,17 +48,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  TrashTab,
-  TrashTabSkeleton,
-} from "@/components/views/workspace-settings/trash-tab";
 
 export interface ShellSidebarProps {
   deepResearchEnabled: boolean;
@@ -85,33 +74,12 @@ export function ShellSidebar({
   const locale = useLocale();
   const tNav = useTranslations("sidebar.nav");
   const tSections = useTranslations("sidebar.sections");
-  const tTrash = useTranslations("workspaceSettings.trash");
   const toggleSidebar = usePanelStore((s) => s.toggleSidebar);
   const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
-  const agentPanelOpen = usePanelStore((s) => s.agentPanelOpen);
   const setSidebarWorkspace = useSidebarStore((s) => s.setWorkspace);
   const quickCreateOrder = useSidebarStore((s) => s.quickCreateOrder);
   const recordQuickCreateUse = useSidebarStore((s) => s.recordQuickCreateUse);
   const base = wsSlug ? urls.workspace.root(locale, wsSlug) : null;
-  const [trashOpen, setTrashOpen] = useState(false);
-  const workspaces = useQuery({
-    queryKey: ["workspaces", "me"],
-    enabled: Boolean(wsSlug),
-    queryFn: async (): Promise<{
-      workspaces: { id: string; slug: string; name: string }[];
-    }> => {
-      const res = await fetch("/api/workspaces/me", { credentials: "include" });
-      if (!res.ok) throw new Error(`workspaces/me ${res.status}`);
-      return (await res.json()) as {
-        workspaces: { id: string; slug: string; name: string }[];
-      };
-    },
-    staleTime: 30_000,
-  });
-  const workspaceId = useMemo(
-    () => workspaces.data?.workspaces.find((w) => w.slug === wsSlug)?.id ?? null,
-    [workspaces.data?.workspaces, wsSlug],
-  );
   useEffect(() => {
     if (wsSlug) {
       setSidebarWorkspace(wsSlug);
@@ -154,7 +122,7 @@ export function ShellSidebar({
       <div className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 py-2.5 pb-8">
         <ScopedSearch />
         {base && wsSlug ? (
-          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_2rem_2rem] items-center gap-1.5">
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-1.5">
             <SidebarNavLink
               href={
                 projectId
@@ -162,23 +130,14 @@ export function ShellSidebar({
                   : base
               }
               label={
-                projectId
-                  ? tNav("project_home_short")
-                  : tNav("dashboard_short")
+                projectId ? tNav("project_home_short") : tNav("dashboard_short")
               }
               Icon={Home}
-            />
-            <PanelIconButton
-              label={tNav("workbench")}
-              Icon={Bot}
-              onClick={() => openAgentPanelTab("chat")}
-              active={agentPanelOpen}
             />
             <ProjectToolsMenu
               base={base}
               compact
               synthesisExportEnabled={synthesisExportEnabled}
-              onOpenTrash={() => setTrashOpen(true)}
             />
           </div>
         ) : null}
@@ -213,9 +172,13 @@ export function ShellSidebar({
               onOpenActivity={() => openAgentPanelTab("activity")}
             />
 
-            <SidebarSection id="files" label={tSections("files")} Icon={FileText}>
+            <SidebarSection
+              id="files"
+              label={tSections("files")}
+              Icon={FileText}
+            >
               <div
-                className="-mx-1 h-96 min-h-64 max-h-[45vh] overflow-hidden border-y border-border/80 py-1"
+                className="-mx-3 min-h-36 max-h-[52vh] overflow-hidden border-y border-border/80 px-1 py-1"
                 data-testid="sidebar-tree-region"
               >
                 <ProjectTree projectId={projectId} workspaceSlug={wsSlug} />
@@ -283,21 +246,6 @@ export function ShellSidebar({
           className="pointer-events-none sticky bottom-[-2rem] -mx-3 mt-2 h-10 bg-gradient-to-t from-background via-background/80 to-transparent"
         />
       </div>
-      <Dialog open={trashOpen} onOpenChange={setTrashOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{tTrash("heading")}</DialogTitle>
-            <DialogDescription>{tTrash("retention")}</DialogDescription>
-          </DialogHeader>
-          {workspaceId ? (
-            <TrashTab wsId={workspaceId} showHeader={false} />
-          ) : !workspaces.isError ? (
-            <TrashTabSkeleton />
-          ) : (
-            <p className="text-sm text-destructive">{tTrash("loadFailed")}</p>
-          )}
-        </DialogContent>
-      </Dialog>
       <SidebarFooter />
     </aside>
   );
@@ -396,7 +344,10 @@ function activeRunProgress(run: WorkflowConsoleRun): number | null {
   ) {
     return Math.max(
       0,
-      Math.min(100, Math.round((run.progress.current / run.progress.total) * 100)),
+      Math.min(
+        100,
+        Math.round((run.progress.current / run.progress.total) * 100),
+      ),
     );
   }
   return null;
@@ -506,19 +457,13 @@ function ProjectToolsMenu({
   base,
   compact = false,
   synthesisExportEnabled,
-  onOpenTrash,
 }: {
   base: string;
   compact?: boolean;
   synthesisExportEnabled: boolean;
-  onOpenTrash: () => void;
 }) {
   const t = useTranslations("sidebar.nav");
   const [open, setOpen] = useState(false);
-  const openTrash = () => {
-    setOpen(false);
-    onOpenTrash();
-  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -540,11 +485,7 @@ function ProjectToolsMenu({
         sideOffset={6}
         className="w-[260px] rounded-md border border-border bg-background p-2 shadow-sm ring-0"
       >
-        <MoreMenu
-          base={base}
-          synthesisExportEnabled={synthesisExportEnabled}
-          onOpenTrash={openTrash}
-        />
+        <MoreMenu base={base} synthesisExportEnabled={synthesisExportEnabled} />
       </PopoverContent>
     </Popover>
   );

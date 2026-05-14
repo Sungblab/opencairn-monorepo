@@ -10,6 +10,7 @@ export type Usage = {
 };
 
 export type ThinkingLevel = "minimal" | "low" | "medium" | "high";
+export type ModelProfile = "fast" | "balanced" | "quality";
 
 export type GroundedSearchSource = {
   title: string;
@@ -41,6 +42,7 @@ export interface LLMProvider {
     signal?: AbortSignal;
     maxOutputTokens?: number;
     thinkingLevel?: ThinkingLevel;
+    modelProfile?: ModelProfile;
     cachedContent?: string;
   }): Promise<GroundedSearchResult | null>;
   streamGenerate(opts: {
@@ -49,6 +51,7 @@ export interface LLMProvider {
     maxOutputTokens?: number;
     temperature?: number;
     thinkingLevel?: ThinkingLevel;
+    modelProfile?: ModelProfile;
     cachedContent?: string;
   }): AsyncGenerator<StreamChunk>;
 }

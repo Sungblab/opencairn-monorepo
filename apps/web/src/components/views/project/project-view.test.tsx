@@ -299,6 +299,9 @@ describe("ProjectView", () => {
     expect(plan8AgentsApi.runLibrarian).toHaveBeenCalledWith({
       projectId: "p1",
     });
+    await waitFor(() =>
+      expect(usePanelStore.getState().agentPanelTab).toBe("activity"),
+    );
     expect(
       screen.getByText(
         "project.graphDiscovery.index.pages · project.graphDiscovery.index.links · project.graphDiscovery.index.orphans · project.graphDiscovery.index.latest",

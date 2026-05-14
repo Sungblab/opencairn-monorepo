@@ -38,7 +38,7 @@
     "workbench": "워크벤치",
     "tools": "도구",
     "notifications": "알림",
-    "graph": "프로젝트 그래프",
+    "graph": "지식 맵",
     "agents": "에이전트",
     "learn": "학습",
     "atlas": "온톨로지 아틀라스",
@@ -121,7 +121,10 @@
     "guest_name": "게스트",
     "workspace_loading": "공간",
     "plan_free": "개인 플랜",
+    "plan_pro": "Pro",
+    "plan_max": "Max",
     "plan_byok": "BYOK",
+    "credits_remaining": "{credits} 크레딧",
     "credits_amount": "₩{value, number}"
   },
   "search": {
@@ -131,6 +134,7 @@
     "title": "파일 업로드",
     "description": "여러 파일을 한 번에 올리면 원본을 먼저 열고 분석은 백그라운드에서 병렬 진행합니다.",
     "drop": "파일을 여러 개 드래그하거나 클릭해서 선택하세요",
+    "dropMain": "이 프로젝트에 파일 업로드",
     "hint": "PDF, 문서, 이미지, 오디오, 영상, Markdown",
     "selected": "선택됨: {name}",
     "selected_many": "{count}개 파일 선택됨",
@@ -161,9 +165,9 @@
     "confirm_delete_body": "\"{label}\"은 프로젝트 트리에서 삭제됩니다."
   },
   "tree_badges": {
-    "analysis_completed": "분석 완료",
+    "analysis_completed": "완료",
     "analysis_running": "분석 중",
-    "analysis_failed": "분석 실패"
+    "analysis_failed": "실패"
   },
   "toasts": {
     "move_failed": "이동에 실패했어요. 다시 시도해주세요.",
@@ -175,7 +179,7 @@
     "delete_failed": "삭제에 실패했어요. 다시 시도해주세요."
   },
   "graph": {
-    "entry": "이 프로젝트 그래프 보기"
+    "entry": "이 프로젝트 지식 맵 보기"
   },
   "agents": {
     "entry": "이 프로젝트 에이전트 보기"

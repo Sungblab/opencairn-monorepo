@@ -2,6 +2,7 @@ import {
   LLMNotConfiguredError,
   type GroundedSearchResult,
   type LLMProvider,
+  type ModelProfile,
   type StreamChunk,
   type Usage,
 } from "./provider";
@@ -18,6 +19,23 @@ function headers(apiKey?: string): HeadersInit {
   };
 }
 
+function chatModelForProfile(
+  profile: ModelProfile | undefined,
+  fallback: string,
+): string {
+  if (profile === "quality") {
+    return (
+      process.env.OPENAI_COMPAT_CHAT_MODEL_QUALITY ??
+      process.env.OPENAI_COMPAT_CHAT_MODEL_PRO ??
+      fallback
+    );
+  }
+  if (profile === "fast") {
+    return process.env.OPENAI_COMPAT_CHAT_MODEL_FAST ?? fallback;
+  }
+  return fallback;
+}
+
 export function getOpenAICompatibleProvider(): LLMProvider {
   const baseRaw = process.env.OPENAI_COMPAT_BASE_URL;
   const chatModel = process.env.OPENAI_COMPAT_CHAT_MODEL;
@@ -32,12 +50,13 @@ export function getOpenAICompatibleProvider(): LLMProvider {
 
   return {
     async groundSearch(query, opts): Promise<GroundedSearchResult | null> {
+      const model = chatModelForProfile(opts?.modelProfile, chatModel);
       const res = await fetch(`${baseUrl}/responses`, {
         method: "POST",
         headers: headers(apiKey),
         signal: opts?.signal,
         body: JSON.stringify({
-          model: chatModel,
+          model,
           input: query,
           tools: [{ type: "web_search" }],
           tool_choice: "auto",
@@ -68,7 +87,7 @@ export function getOpenAICompatibleProvider(): LLMProvider {
         ? {
             tokensIn: data.usage.input_tokens ?? 0,
             tokensOut: data.usage.output_tokens ?? 0,
-            model: chatModel,
+            model,
           }
         : undefined;
 
@@ -106,12 +125,13 @@ export function getOpenAICompatibleProvider(): LLMProvider {
     },
 
     async *streamGenerate(opts): AsyncGenerator<StreamChunk> {
+      const model = chatModelForProfile(opts.modelProfile, chatModel);
       const res = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: headers(apiKey),
         signal: opts.signal,
         body: JSON.stringify({
-          model: chatModel,
+          model,
           messages: opts.messages,
           stream: true,
           stream_options: { include_usage: true },
@@ -131,14 +151,14 @@ export function getOpenAICompatibleProvider(): LLMProvider {
       let usage: Usage | null = null;
       for await (const chunk of parseOpenAICompatibleSse(
         res.body,
-        chatModel,
+        model,
         opts.signal,
       )) {
         if ("usage" in chunk) usage = chunk.usage;
         yield chunk;
       }
       if (!opts.signal?.aborted && !usage) {
-        yield { usage: { tokensIn: 0, tokensOut: 0, model: chatModel } };
+        yield { usage: { tokensIn: 0, tokensOut: 0, model } };
       }
     },
   };

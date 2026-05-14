@@ -2,19 +2,10 @@
 
 import { urls } from "@/lib/urls";
 import {
-  Bell,
-  Cable,
   CreditCard,
-  KeyRound,
-  Languages,
-  Link2,
-  Palette,
   PlugZap,
   Settings,
-  Shield,
-  Trash2,
   User,
-  UserPlus,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -49,8 +40,12 @@ type SettingsSection =
   | "workspace/trash"
   | "billing/plan";
 
+type SettingsGroup = "personal" | "aiTools" | "workspace" | "billing";
+
 const GROUPS: Array<{
-  id: "personal" | "aiTools" | "workspace" | "billing";
+  id: SettingsGroup;
+  hrefSegment: "personal" | "ai" | "workspace" | "billing";
+  icon: LucideIcon;
   items: Array<{
     id: SettingsSection;
     labelNs: "account" | "workspaceSettings";
@@ -59,6 +54,8 @@ const GROUPS: Array<{
 }> = [
   {
     id: "personal",
+    hrefSegment: "personal",
+    icon: User,
     items: [
       { id: "personal/profile", labelNs: "account", labelKey: "tabs.profile" },
       {
@@ -81,6 +78,8 @@ const GROUPS: Array<{
   },
   {
     id: "aiTools",
+    hrefSegment: "ai",
+    icon: PlugZap,
     items: [
       { id: "ai/providers", labelNs: "account", labelKey: "tabs.providers" },
       { id: "ai/mcp", labelNs: "account", labelKey: "tabs.mcp" },
@@ -88,6 +87,8 @@ const GROUPS: Array<{
   },
   {
     id: "workspace",
+    hrefSegment: "workspace",
+    icon: Users,
     items: [
       {
         id: "workspace/members",
@@ -118,25 +119,11 @@ const GROUPS: Array<{
   },
   {
     id: "billing",
+    hrefSegment: "billing",
+    icon: CreditCard,
     items: [{ id: "billing/plan", labelNs: "account", labelKey: "tabs.billing" }],
   },
 ];
-
-const SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
-  "personal/profile": User,
-  "personal/appearance": Palette,
-  "personal/language": Languages,
-  "personal/notifications": Bell,
-  "personal/security": Shield,
-  "ai/providers": KeyRound,
-  "ai/mcp": PlugZap,
-  "workspace/members": Users,
-  "workspace/invites": UserPlus,
-  "workspace/integrations": Cable,
-  "workspace/shared-links": Link2,
-  "workspace/trash": Trash2,
-  "billing/plan": CreditCard,
-};
 
 function sectionFromPath(path: string[] | undefined, legacySub?: string) {
   const parts = path?.length ? path : legacySub ? [legacySub] : [];
@@ -189,9 +176,18 @@ function sectionFromPath(path: string[] | undefined, legacySub?: string) {
   }
 }
 
-function sectionHref(locale: string, wsSlug: string, section: SettingsSection) {
-  const [first, second] = section.split("/") as [string, string];
-  return urls.workspace.settingsSection(locale, wsSlug, first, second);
+function groupFromSection(section: SettingsSection): SettingsGroup {
+  if (section.startsWith("personal/")) return "personal";
+  if (section.startsWith("ai/")) return "aiTools";
+  if (section.startsWith("workspace/")) return "workspace";
+  return "billing";
+}
+
+function groupHref(locale: string, wsSlug: string, group: SettingsGroup) {
+  const config = GROUPS.find((item) => item.id === group);
+  return config
+    ? urls.workspace.settingsSection(locale, wsSlug, config.hrefSegment)
+    : urls.workspace.settings(locale, wsSlug);
 }
 
 export interface WorkspaceSettingsViewProps {
@@ -210,44 +206,50 @@ export function WorkspaceSettingsView({
   const locale = useLocale();
   const tWorkspace = useTranslations("workspaceSettings");
   const tAccount = useTranslations("account");
-  const current = sectionFromPath(path, sub);
-  const currentItem = GROUPS.flatMap((group) => group.items).find(
-    (item) => item.id === current,
-  );
-  const currentTitle =
-    currentItem?.labelNs === "workspaceSettings"
-      ? tWorkspace(currentItem.labelKey)
-      : currentItem
-        ? tAccount(currentItem.labelKey)
-        : tWorkspace("title");
+  const tMcp = useTranslations("settings.mcp");
+  const currentGroup = groupFromSection(sectionFromPath(path, sub));
+  const currentTitle = tWorkspace(`groups.${currentGroup}`);
 
   const body = (() => {
-    switch (current) {
-      case "personal/profile":
-        return <ProfileView />;
-      case "personal/appearance":
-        return <AppearanceView />;
-      case "personal/language":
-        return <LanguageRegionView />;
-      case "personal/notifications":
-        return <NotificationsView />;
-      case "personal/security":
-        return <SecurityView />;
-      case "ai/providers":
-        return <ProvidersView />;
-      case "ai/mcp":
-        return <McpSettingsClientLoader />;
-      case "workspace/members":
-        return <MembersTab wsId={wsId} />;
-      case "workspace/invites":
-        return <InvitesTab wsId={wsId} />;
-      case "workspace/integrations":
-        return <IntegrationsTab wsId={wsId} />;
-      case "workspace/shared-links":
-        return <SharedLinksTab wsId={wsId} />;
-      case "workspace/trash":
-        return <TrashTab wsId={wsId} />;
-      case "billing/plan":
+    switch (currentGroup) {
+      case "personal":
+        return (
+          <div className="space-y-12">
+            <ProfileView />
+            <AppearanceView />
+            <LanguageRegionView />
+            <NotificationsView />
+            <SecurityView />
+          </div>
+        );
+      case "aiTools":
+        return (
+          <div className="space-y-12">
+            <ProvidersView />
+            <section className="max-w-4xl space-y-5">
+              <div>
+                <h1 className="text-2xl font-semibold tracking-normal">
+                  {tAccount("tabs.mcp")}
+                </h1>
+                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                  {tMcp("subtitle")}
+                </p>
+              </div>
+              <McpSettingsClientLoader />
+            </section>
+          </div>
+        );
+      case "workspace":
+        return (
+          <div className="space-y-12">
+            <MembersTab wsId={wsId} />
+            <InvitesTab wsId={wsId} />
+            <IntegrationsTab wsId={wsId} />
+            <SharedLinksTab wsId={wsId} />
+            <TrashTab wsId={wsId} />
+          </div>
+        );
+      case "billing":
         return <BillingView />;
     }
   })();
@@ -269,44 +271,35 @@ export function WorkspaceSettingsView({
             </p>
           </div>
         </div>
-        <nav className="flex gap-3 overflow-x-auto pb-1 lg:flex-col lg:gap-5 lg:overflow-x-visible lg:pb-0">
-          {GROUPS.map((group) => (
-            <section key={group.id} className="shrink-0 lg:shrink">
-              <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase text-muted-foreground">
-                {tWorkspace(`groups.${group.id}`)}
-              </p>
-              <div className="flex gap-1 lg:flex-col">
-                {group.items.map((item) => {
-                  const active = current === item.id;
-                  const t =
-                    item.labelNs === "account" ? tAccount : tWorkspace;
-                  const Icon = SECTION_ICONS[item.id];
-                  return (
-                    <Link
-                      key={item.id}
-                      href={sectionHref(locale, wsSlug, item.id)}
-                      aria-current={active ? "page" : undefined}
-                      className={`group inline-flex min-h-10 shrink-0 items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm transition-colors lg:w-full ${
-                        active
-                          ? "border-foreground/15 bg-foreground text-background shadow-sm"
-                          : "border-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
-                      }`}
-                    >
-                      <Icon
-                        aria-hidden
-                        className={`h-4 w-4 shrink-0 ${
-                          active
-                            ? "text-background"
-                            : "text-muted-foreground group-hover:text-foreground"
-                        }`}
-                      />
-                      <span className="whitespace-nowrap">{t(item.labelKey)}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+        <nav className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-x-visible lg:pb-0">
+          {GROUPS.map((group) => {
+            const active = currentGroup === group.id;
+            const GroupIcon = group.icon;
+            return (
+              <Link
+                key={group.id}
+                href={groupHref(locale, wsSlug, group.id)}
+                aria-current={active ? "page" : undefined}
+                className={`group inline-flex min-h-10 shrink-0 items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm transition-colors lg:w-full ${
+                  active
+                    ? "border-foreground/15 bg-foreground text-background shadow-sm"
+                    : "border-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <GroupIcon
+                  aria-hidden
+                  className={`h-4 w-4 shrink-0 ${
+                    active
+                      ? "text-background"
+                      : "text-muted-foreground group-hover:text-foreground"
+                  }`}
+                />
+                <span className="whitespace-nowrap">
+                  {tWorkspace(`groups.${group.id}`)}
+                </span>
+              </Link>
+            );
+          })}
         </nav>
       </aside>
       <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">

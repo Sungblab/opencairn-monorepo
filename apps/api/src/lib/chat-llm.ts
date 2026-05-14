@@ -104,6 +104,15 @@ const SYSTEM_PROMPT = [
   "Avoid one-screen summaries for multi-page materials. Prefer enough detail that the note can replace a first reading pass.",
   "Inside note.create_from_markdown bodyMarkdown, do not include [^N] citation markers or footnote syntax; keep citations in the assistant reply only when needed.",
   "",
+  "## Study Note Output Contract",
+  "For lecture/PDF/material organization, produce a polished Korean study note instead of a chatty summary.",
+  "Use this structure when the source supports it: source line, learning objectives, section-by-section notes, key definitions, examples/code, comparison tables, common mistakes, and review questions.",
+  "Use Markdown headings, nested bullets, tables, code fences, and > [!tip]/> [!warn] callouts where they improve readability.",
+  "If the user asks for a new note, put the full study note in note.create_from_markdown bodyMarkdown and keep the visible assistant reply short with inline citations.",
+  "When the user asks to organize, summarize, or explain lecture/PDF/materials in chat, do not give a shallow outline.",
+  "Produce a study-note style answer with the source title, major sections, definitions, examples, code snippets or tables when useful, and review questions when the material contains practice prompts.",
+  "For chat answers grounded in workspace context, place [^N] markers next to the sentence or bullet they support. Group citations around meaningful claims instead of repeating the same marker after every sentence.",
+  "",
   "Only use save-suggestion when the user asks for a reusable suggestion card rather than asking you to create the note.",
   "If used, append exactly one save-suggestion fenced block at the end:",
   "```save-suggestion",
@@ -199,8 +208,9 @@ export async function* runChat(opts: {
       const grounded = provider.groundSearch
         ? await provider.groundSearch(opts.userMessage, {
             signal: opts.signal,
-            maxOutputTokens: envInt("CHAT_MAX_OUTPUT_TOKENS", 8192),
+            maxOutputTokens: policy.maxOutputTokens,
             thinkingLevel: policy.thinkingLevel,
+            modelProfile: policy.modelProfile,
           })
         : null;
       if (grounded?.answer && grounded.sources.length > 0) {
@@ -274,8 +284,9 @@ export async function* runChat(opts: {
     for await (const chunk of provider.streamGenerate({
       messages,
       signal: opts.signal,
-      maxOutputTokens: maxOutputTokensForTurn(opts.userMessage),
+      maxOutputTokens: maxOutputTokensForTurn(opts.userMessage, policy),
       thinkingLevel: policy.thinkingLevel,
+      modelProfile: policy.modelProfile,
     })) {
       if ("delta" in chunk) {
         buffer.push(chunk.delta);
@@ -377,6 +388,7 @@ async function buildActiveDocumentContextBlock(opts: {
   rawScope?: unknown;
 }): Promise<string> {
   const noteId = await resolveActiveContextNoteId(opts.rawScope, opts.scope);
+  const selectedText = selectedTextFromRawScope(opts.rawScope);
   if (!noteId || !opts.userId) return "";
   try {
     const allowed = await canRead(opts.userId, { type: "note", id: noteId });
@@ -403,6 +415,23 @@ async function buildActiveDocumentContextBlock(opts: {
     if (!note || !text) return "";
     const maxChars = envInt("CHAT_ACTIVE_DOCUMENT_CONTEXT_CHARS", 120000);
     const excerpt = excerptAcrossDocument(text, maxChars);
+    if (selectedText) {
+      return [
+        "## Current Selection Context",
+        `title=${note.title}`,
+        `sourceType=${note.sourceType ?? "unknown"} mimeType=${note.mimeType ?? "unknown"}`,
+        "The user selected this exact excerpt in the current material. Treat it as the primary and bounded source unless the user explicitly asks for the whole document.",
+        "<selected_text>",
+        selectedText,
+        "</selected_text>",
+        "",
+        "## Current Document Context",
+        "Use the full document only for minimal disambiguation of the selected excerpt.",
+        "<current_document_excerpt>",
+        excerptAcrossDocument(text, Math.min(maxChars, 8000)),
+        "</current_document_excerpt>",
+      ].join("\n");
+    }
     return [
       "## Current Document Context",
       `title=${note.title}`,
@@ -416,6 +445,24 @@ async function buildActiveDocumentContextBlock(opts: {
   } catch {
     return "";
   }
+}
+
+function selectedTextFromRawScope(rawScope: unknown): string | null {
+  if (!rawScope || typeof rawScope !== "object" || Array.isArray(rawScope)) {
+    return null;
+  }
+  const invocationContext = (rawScope as Record<string, unknown>).invocationContext;
+  if (
+    !invocationContext ||
+    typeof invocationContext !== "object" ||
+    Array.isArray(invocationContext)
+  ) {
+    return null;
+  }
+  const selected = (invocationContext as Record<string, unknown>).selectionText;
+  return typeof selected === "string" && selected.trim()
+    ? selected.trim()
+    : null;
 }
 
 async function resolveActiveContextNoteId(
@@ -473,8 +520,11 @@ async function resolveActiveContextNoteId(
   return scope.type === "page" ? scope.noteId : null;
 }
 
-function maxOutputTokensForTurn(userMessage: string): number {
-  const fallback = envInt("CHAT_MAX_OUTPUT_TOKENS", 8192);
+function maxOutputTokensForTurn(
+  userMessage: string,
+  policy: ReturnType<typeof selectChatRuntimePolicy>,
+): number {
+  const fallback = policy.maxOutputTokens;
   if (!requiresExecutableArtifactAction(userMessage)) return fallback;
   return Math.max(fallback, envInt("CHAT_ARTIFACT_MAX_OUTPUT_TOKENS", 20000));
 }

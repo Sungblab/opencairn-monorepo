@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { LocateFixed, Minus, Plus, RotateCcw } from "lucide-react";
 import type { ViewNode } from "@opencairn/shared";
@@ -83,6 +83,15 @@ function clampPosition(pos: BoardPosition): BoardPosition {
   };
 }
 
+function boardEdgePath(source: BoardPosition, target: BoardPosition): string {
+  const x1 = source.x + NODE_WIDTH / 2;
+  const y1 = source.y + NODE_HEIGHT / 2;
+  const x2 = target.x + NODE_WIDTH / 2;
+  const y2 = target.y + NODE_HEIGHT / 2;
+  const bend = Math.max(48, Math.abs(x2 - x1) * 0.25);
+  return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
+}
+
 export default function BoardView({ projectId, root }: Props) {
   const t = useTranslations("graph");
   const { data, isLoading, error } = useProjectGraph(projectId, {
@@ -90,6 +99,7 @@ export default function BoardView({ projectId, root }: Props) {
     root,
   });
   const [zoom, setZoom] = useState(0.76);
+  const [isPanning, setIsPanning] = useState(false);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const displayData = useMemo(
     () =>
@@ -126,6 +136,13 @@ export default function BoardView({ projectId, root }: Props) {
     startY: number;
     origin: BoardPosition;
   } | null>(null);
+  const panRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    scrollLeft: number;
+    scrollTop: number;
+  } | null>(null);
 
   useEffect(() => {
     setPositions(initialPositions);
@@ -141,6 +158,39 @@ export default function BoardView({ projectId, root }: Props) {
     const availableHeight = Math.max(320, viewport.clientHeight - 48);
     setZoom(clampZoom(Math.min(availableWidth / BOARD_WIDTH, availableHeight / BOARD_HEIGHT)));
   }, [clampZoom]);
+
+  const startPan = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as Element | null;
+    if (target?.closest("[data-role='board-node'],button,a")) return;
+    const viewport = event.currentTarget;
+    panRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+    };
+    setIsPanning(true);
+    viewport.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  }, []);
+
+  const movePan = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const pan = panRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    const viewport = event.currentTarget;
+    viewport.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+    viewport.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
+  }, []);
+
+  const stopPan = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const pan = panRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    panRef.current = null;
+    setIsPanning(false);
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }, []);
 
   if (isLoading) {
     return <div className="p-6 text-sm text-muted-foreground">…</div>;
@@ -163,7 +213,14 @@ export default function BoardView({ projectId, root }: Props) {
   return (
     <div
       ref={viewportRef}
-      className="relative h-full overflow-auto bg-background"
+      data-testid="board-viewport"
+      className={`relative h-full overflow-auto bg-background ${
+        isPanning ? "cursor-grabbing select-none" : "cursor-grab"
+      }`}
+      onPointerDown={startPan}
+      onPointerMove={movePan}
+      onPointerUp={stopPan}
+      onPointerCancel={stopPan}
     >
       <ViewZoomControls
         onFit={fitBoard}
@@ -215,13 +272,11 @@ export default function BoardView({ projectId, root }: Props) {
             const target = positions.get(edge.targetId);
             if (!source || !target) return null;
             return (
-              <line
+              <path
                 key={edge.id}
                 data-testid="board-edge"
-                x1={source.x + NODE_WIDTH / 2}
-                y1={source.y + NODE_HEIGHT / 2}
-                x2={target.x + NODE_WIDTH / 2}
-                y2={target.y + NODE_HEIGHT / 2}
+                d={boardEdgePath(source, target)}
+                fill="none"
                 className={
                   edge.surfaceType === "co_mention"
                     ? "stroke-emerald-500/30"

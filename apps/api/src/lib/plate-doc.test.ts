@@ -134,6 +134,22 @@ describe("markdownToPlateValue", () => {
     });
   });
 
+  it("emits callout nodes with the kind field expected by the Plate renderer", () => {
+    const value = markdownToPlateValue("> [!warning] 시험에 자주 나오는 포인트");
+
+    expect(value[0]).toMatchObject({
+      type: "callout",
+      kind: "warn",
+      children: [
+        {
+          type: "p",
+          children: [{ text: "시험에 자주 나오는 포인트" }],
+        },
+      ],
+    });
+    expect(value[0]).not.toHaveProperty("variant");
+  });
+
   it("converts markdown wiki links into title-resolvable Plate wiki-link nodes", () => {
     const value = markdownToPlateValue(
       "운영체제는 [[프로세스 (Process)|프로세스]]와 [[가상 메모리]]를 관리합니다.",
@@ -247,5 +263,51 @@ describe("markdownToPlateValue", () => {
       type: "p",
       children: [{ text: "trailing prose" }],
     });
+  });
+
+  it("preserves nested lecture bullets as indented list items", () => {
+    const value = markdownToPlateValue(
+      "- 메모리 관리\n  - 참조 횟수는 객체를 가리키는 이름 수입니다.\n  - 가비지 컬렉션은 참조 횟수가 0인 객체를 정리합니다.",
+    );
+
+    expect(value).toEqual([
+      {
+        type: "p",
+        listStyleType: "disc",
+        indent: 1,
+        children: [{ text: "메모리 관리" }],
+      },
+      {
+        type: "p",
+        listStyleType: "disc",
+        indent: 2,
+        children: [{ text: "참조 횟수는 객체를 가리키는 이름 수입니다." }],
+      },
+      {
+        type: "p",
+        listStyleType: "disc",
+        indent: 2,
+        children: [{ text: "가비지 컬렉션은 참조 횟수가 0인 객체를 정리합니다." }],
+      },
+    ]);
+  });
+
+  it("converts lecture callouts into Plate callout nodes", () => {
+    const value = markdownToPlateValue("> [!tip] 시험에서는 id() 값 자체보다 객체 참조 관계를 이해해야 합니다.");
+
+    expect(value).toEqual([
+      {
+        type: "callout",
+        kind: "tip",
+        children: [
+          {
+            type: "p",
+            children: [
+              { text: "시험에서는 id() 값 자체보다 객체 참조 관계를 이해해야 합니다." },
+            ],
+          },
+        ],
+      },
+    ]);
   });
 });

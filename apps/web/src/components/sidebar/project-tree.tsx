@@ -9,15 +9,7 @@ import { toast } from "sonner";
 import { urls } from "@/lib/urls";
 import { tabToUrl } from "@/lib/tab-url";
 import { useTabsStore } from "@/stores/tabs-store";
-import { DownloadCloud, UploadCloud } from "lucide-react";
-import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DownloadCloud } from "lucide-react";
 import {
   treeQueryKey,
   useProjectTree,
@@ -26,8 +18,11 @@ import {
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useTypeAhead } from "@/hooks/use-tree-keyboard";
-import { useIngestUpload } from "@/hooks/use-ingest-upload";
 import { dataTransferHasFiles } from "@/lib/project-tree-dnd";
+import {
+  ProjectUploadDialog,
+  useProjectUploadDialog,
+} from "@/components/upload/project-upload-dialog";
 import { ProjectTreeNode } from "./project-tree-node";
 import {
   ProjectTreeContext,
@@ -61,6 +56,8 @@ function deriveData(
   const containers = new Set([
     "folder",
     "note",
+    "source_bundle",
+    "artifact_group",
     "code_workspace",
   ]);
   function mark(n: TreeNode): TreeNode {
@@ -193,7 +190,7 @@ export function ProjectTree({
   const tSidebar = useTranslations("sidebar");
   const tToast = useTranslations("sidebar.toasts");
   const tUpload = useTranslations("sidebar.upload");
-  const { uploadMany } = useIngestUpload();
+  const upload = useProjectUploadDialog({ projectId });
   const [treeRefresh, setTreeRefresh] = useState(0);
   const data = useMemo(
     () =>
@@ -206,12 +203,9 @@ export function ProjectTree({
   const [typeAheadBuf, setTypeAheadBuf] = useState("");
   const [fileDropActive, setFileDropActive] = useState(false);
   const [pendingUploadFiles, setPendingUploadFiles] = useState<File[]>([]);
-  const [uploadingDropFile, setUploadingDropFile] = useState(false);
-  const [uploadError, setUploadError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileDropDepthRef = useRef(0);
   const treeRef = useRef<TreeApi<TreeNode> | null>(null);
-  const dropUploadInFlightRef = useRef(false);
 
   // react-arborist's virtualization needs a concrete pixel height. When the
   // caller doesn't pin one we observe the container and forward its
@@ -404,44 +398,6 @@ export function ProjectTree({
     [loadChildren, locale, router, tToast, workspaceSlug],
   );
 
-  const startUpload = useCallback(
-    async (files: File[]) => {
-      if (files.length === 0) return;
-      if (dropUploadInFlightRef.current) return;
-      dropUploadInFlightRef.current = true;
-      setUploadingDropFile(true);
-      setUploadError(false);
-      try {
-        const results = await uploadMany(files, projectId, { concurrency: 3 });
-        const firstOpened = results.find(
-          (item) => item.ok && item.result?.originalFileId,
-        );
-        if (firstOpened?.result?.originalFileId) {
-          openOriginalFileTab(
-            firstOpened.result.originalFileId,
-            firstOpened.file.name,
-          );
-        }
-        await qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
-        const failed = results.some((item) => !item.ok);
-        setUploadError(failed);
-        if (!failed) {
-          setPendingUploadFiles([]);
-        } else {
-          toast.error(tUpload("error"));
-        }
-      } catch (err) {
-        console.error("project tree file drop upload failed", err);
-        setUploadError(true);
-        toast.error(tUpload("error"));
-      } finally {
-        dropUploadInFlightRef.current = false;
-        setUploadingDropFile(false);
-      }
-    },
-    [projectId, qc, tUpload, uploadMany],
-  );
-
   const ctxValue: ProjectTreeCtxValue = useMemo(
     () => ({
       renamingId,
@@ -512,7 +468,6 @@ export function ProjectTree({
           event.preventDefault();
           fileDropDepthRef.current = 0;
           setFileDropActive(false);
-          setUploadError(false);
           setPendingUploadFiles(Array.from(event.dataTransfer.files));
         }}
       >
@@ -532,7 +487,7 @@ export function ProjectTree({
           data={data}
           width={width}
           height={observedHeight}
-          rowHeight={34}
+          rowHeight={28}
           openByDefault={false}
           searchTerm={typeAheadBuf || undefined}
           onToggle={handleToggle}
@@ -541,56 +496,21 @@ export function ProjectTree({
           {ProjectTreeNode}
         </Tree>
       </div>
-      <Dialog
+      <ProjectUploadDialog
         open={pendingUploadFiles.length > 0}
         onOpenChange={(open) => {
-          if (uploadingDropFile) return;
-          if (!open) {
-            setPendingUploadFiles([]);
-            setUploadError(false);
-          }
+          if (!open) setPendingUploadFiles([]);
         }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{tUpload("title")}</DialogTitle>
-            <DialogDescription>{tUpload("description")}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-[var(--radius-card)] border border-dashed border-border bg-muted/20 px-4 text-center text-sm">
-              <UploadCloud
-                aria-hidden
-                className="h-7 w-7 text-muted-foreground"
-              />
-              <span className="font-medium">
-                {pendingUploadFiles.length === 1
-                  ? tUpload("selected", { name: pendingUploadFiles[0]!.name })
-                  : pendingUploadFiles.length > 1
-                    ? tUpload("selected_many", {
-                        count: pendingUploadFiles.length,
-                      })
-                    : tUpload("drop")}
-              </span>
-              <span className="max-w-sm text-xs leading-5 text-muted-foreground">
-                {tUpload("hint")}
-              </span>
-            </div>
-            {uploadError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {tUpload("error")}
-              </p>
-            ) : null}
-            <button
-              type="button"
-              disabled={pendingUploadFiles.length === 0 || uploadingDropFile}
-              onClick={() => void startUpload(pendingUploadFiles)}
-              className="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {uploadingDropFile ? tUpload("uploading") : tUpload("start")}
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        files={pendingUploadFiles}
+        uploading={upload.isUploading}
+        error={upload.hasUploadError}
+        onFilesChange={setPendingUploadFiles}
+        onStart={() => {
+          void upload.startUpload(pendingUploadFiles).then((result) => {
+            if (result?.ok) setPendingUploadFiles([]);
+          });
+        }}
+      />
     </ProjectTreeContext.Provider>
   );
 }

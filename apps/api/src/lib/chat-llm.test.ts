@@ -112,6 +112,35 @@ describe("runChat agent action fences", () => {
     expect(provider.calls?.[0]?.maxOutputTokens).toBeGreaterThanOrEqual(4096);
   });
 
+  it("uses the quality profile and artifact-sized output budget for lecture material organization", async () => {
+    const provider = providerWithText("강의자료를 구조화해 정리했습니다.");
+
+    for await (const chunk of runChat({
+      workspaceId: "00000000-0000-4000-8000-000000000001",
+      userId: "user-1",
+      scope: {
+        type: "workspace",
+        workspaceId: "00000000-0000-4000-8000-000000000001",
+      },
+      ragMode: "off",
+      chips: [],
+      history: [],
+      userMessage: "이 PDF 강의자료 정리해줘 자료",
+      provider,
+    })) {
+      void chunk;
+    }
+
+    expect(provider.calls?.[0]).toMatchObject({
+      maxOutputTokens: 20000,
+      modelProfile: "quality",
+      thinkingLevel: "high",
+    });
+    expect(provider.calls?.[0]?.messages[0]?.content).toContain(
+      "## Study Note Output Contract",
+    );
+  });
+
   it("emits generated-note actions when the model omits the final top-level brace", async () => {
     const provider = providerWithText(
       [
@@ -302,10 +331,17 @@ describe("runChat agent action fences", () => {
 });
 
 function providerWithText(text: string): LLMProvider & {
-  calls?: Array<{ maxOutputTokens?: number; messages: Array<{ content: string }> }>;
+  calls?: Array<{
+    maxOutputTokens?: number;
+    modelProfile?: string;
+    thinkingLevel?: string;
+    messages: Array<{ content: string }>;
+  }>;
 } {
   const calls: Array<{
     maxOutputTokens?: number;
+    modelProfile?: string;
+    thinkingLevel?: string;
     messages: Array<{ content: string }>;
   }> = [];
   return {
@@ -314,7 +350,12 @@ function providerWithText(text: string): LLMProvider & {
       return [0.1, 0.2, 0.3];
     },
     async *streamGenerate(opts) {
-      calls.push({ maxOutputTokens: opts.maxOutputTokens, messages: opts.messages });
+      calls.push({
+        maxOutputTokens: opts.maxOutputTokens,
+        modelProfile: opts.modelProfile,
+        thinkingLevel: opts.thinkingLevel,
+        messages: opts.messages,
+      });
       yield { delta: text };
       yield { usage: { tokensIn: 1, tokensOut: 1, model: "test" } };
     },

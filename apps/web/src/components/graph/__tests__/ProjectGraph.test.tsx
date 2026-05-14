@@ -8,9 +8,25 @@ import koGraph from "@/../messages/ko/graph.json";
 import { plan8AgentsApi, projectsApi } from "@/lib/api-client";
 import { useRouter, useSearchParams } from "next/navigation";
 
+const toastSuccess = vi.hoisted(() => vi.fn());
+const toastError = vi.hoisted(() => vi.fn());
+const openAgentPanelTab = vi.hoisted(() => vi.fn());
+
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(),
   useSearchParams: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: toastSuccess,
+    error: toastError,
+  },
+}));
+
+vi.mock("@/stores/panel-store", () => ({
+  usePanelStore: (selector: (state: { openAgentPanelTab: typeof openAgentPanelTab }) => unknown) =>
+    selector({ openAgentPanelTab }),
 }));
 
 vi.mock("@/lib/api-client", () => ({
@@ -82,6 +98,7 @@ function wrap(ui: React.ReactNode) {
 
 describe("ProjectGraph (assembled)", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     (useRouter as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       replace: vi.fn(),
     });
@@ -113,10 +130,14 @@ describe("ProjectGraph (assembled)", () => {
       screen.getByRole("button", { name: koGraph.health.refresh }),
     );
     expect(projectsApi.refreshWikiIndex).toHaveBeenCalledWith("p-1");
+    expect(await screen.findByText(koGraph.health.refresh)).toBeInTheDocument();
+    expect(toastSuccess).toHaveBeenCalledWith(koGraph.health.refreshQueued);
     await userEvent.click(
       screen.getByRole("button", { name: koGraph.health.runLibrarian }),
     );
     expect(plan8AgentsApi.runLibrarian).toHaveBeenCalledWith({ projectId: "p-1" });
+    expect(toastSuccess).toHaveBeenCalledWith(koGraph.health.librarianStarted);
+    expect(openAgentPanelTab).toHaveBeenCalledWith("activity");
   });
 
   it("surfaces recent wiki activity in the graph workspace", async () => {

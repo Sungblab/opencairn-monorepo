@@ -49,7 +49,11 @@
     "streaming_preparing": "Preparing response",
     "jump_to_stream": "View new response",
     "jump_to_latest": "View latest",
+    "long_thread_title": "This thread is getting long",
+    "long_thread_body": "After 20 user turns, more context gets compressed and answer quality can drop. Start a new chat before going deeper.",
+    "long_thread_cta": "New chat",
     "citation_fallback": "Source {index}",
+    "citation_view_source": "View source",
     "runSummary": {
       "running": "Running",
       "elapsed": "{seconds}s",
@@ -333,30 +337,42 @@
     "input_aria": "Message input",
     "attach_aria": "Attach",
     "add_menu_aria": "Add and reference options",
+    "add_button": "Add",
+    "stop_aria": "Stop response",
     "dropHint": "Drop to pin it to this question",
     "reference": {
       "remove_aria": "Remove reference"
     },
     "context": {
-      "activeTab": "Active",
-      "currentNote": "Current note",
+      "activeTab": "Active tab",
+      "currentNote": "Note",
       "selection": "Selection {count}",
-      "currentPdf": "Current PDF",
+      "currentPdf": "PDF",
       "projectWide": "Project",
       "file": "File",
+      "activeReference": "Using",
       "pinned": "Pinned"
     },
     "addMenu": {
-      "file": "Add file to project",
-      "activeTabOn": "Auto-reference active tab",
-      "activeTabOff": "Active-tab auto-reference off",
+      "file": "Upload file",
+      "file_description": "Add a PDF, document, or image to this project.",
+      "research": "Start research",
+      "research_description": "Start a research task from current project material and external search.",
+      "activeTabOn": "Current tab reference on",
+      "activeTabOff": "Current tab reference off",
+      "activeTab_description": "Use the open file or note as the default source for this turn.",
       "memoryOff": "Exclude project memory",
-      "autoApplyOn": "Actions: auto",
-      "autoApplyOff": "Actions: ask"
+      "memoryOff_description": "Answer from the current material without project memory.",
+      "autoApplyOn": "Auto-run on",
+      "autoApplyOff": "Confirm before running",
+      "autoApply_description": "Choose whether note creation and edits run immediately."
     },
     "actionApproval": {
       "require": "Ask",
       "auto_safe": "Auto",
+      "trigger_label": "Actions",
+      "require_short": "Confirm",
+      "auto_safe_short": "Auto",
       "require_label": "Ask before running",
       "require_description": "Show approval cards before creating or changing notes.",
       "auto_safe_label": "Auto-run safe actions",
@@ -370,6 +386,8 @@
     "slash": {
       "menu_aria": "Commands",
       "empty": "No matching commands.",
+      "hint": "Enter selects · Esc closes",
+      "clear_command_aria": "Clear command",
       "command": {
         "summarize": "Summarize the current material",
         "decompose": "Break down structure, claims, and evidence",
@@ -417,16 +435,22 @@
     },
     "modes": {
       "trigger_aria": "Choose response mode",
-      "auto": "AUTO",
-      "auto_description": "Chooses speed and depth based on the material and question.",
-      "fast": "FAST",
-      "fast_description": "Best for quick answers and lightweight drafts.",
-      "balanced": "BALANCED",
+      "trigger_label": "Response",
+      "auto": "Auto",
+      "auto_short": "Auto",
+      "auto_description": "Chooses fast, accurate, or research mode from the question and material. PDF and lecture-note tasks switch to the higher-quality note profile.",
+      "fast": "Fast Answer",
+      "fast_short": "Fast",
+      "fast_description": "Uses a lower reasoning budget for quick checks and lightweight drafts.",
+      "balanced": "Balanced",
+      "balanced_short": "Balanced",
       "balanced_description": "Balances speed and accuracy for everyday work.",
-      "accurate": "ACCURATE",
-      "accurate_description": "Uses more care when evidence and verification matter.",
-      "research": "RESEARCH",
-      "research_description": "Explores and organizes project material more broadly."
+      "accurate": "Accurate",
+      "accurate_short": "Accurate",
+      "accurate_description": "Uses a higher reasoning budget when evidence and verification matter.",
+      "research": "Research",
+      "research_short": "Research",
+      "research_description": "Searches, checks sources, and spends more room on broader synthesis."
     }
   },
   "contextTray": {

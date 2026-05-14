@@ -78,7 +78,7 @@ export function ProjectTreeNode({
         aria-level={node.level + 1}
         data-kind={kind}
         data-id={node.data.id}
-        className="group relative flex h-full min-h-11 w-full min-w-0 items-center gap-2 overflow-hidden rounded-[var(--radius-control)] px-2.5 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+        className="group relative flex h-full min-h-8 w-full min-w-0 items-center gap-1.5 overflow-hidden px-1.5 py-0.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
         onClick={() => {
           if (parentId) ctx.onCreateNote(parentId);
         }}
@@ -101,6 +101,8 @@ export function ProjectTreeNode({
   const canHaveChildren = new Set([
     "folder",
     "note",
+    "source_bundle",
+    "artifact_group",
     "code_workspace",
   ]);
   const canExpand = canHaveChildren.has(kind);
@@ -164,6 +166,16 @@ export function ProjectTreeNode({
   function handleRowClick(e: React.MouseEvent<HTMLDivElement>) {
     if (isRenaming) return;
     const targetId = node.data.target_id ?? node.data.id;
+    if (kind === "artifact_group") {
+      const role =
+        typeof node.data.metadata?.role === "string"
+          ? node.data.metadata.role
+          : "";
+      if (role === "analysis") {
+        ctx.onOpenAnalysisGroup?.(node.data.id, displayLabel);
+        return;
+      }
+    }
     if (canExpand && !opensOnRowClick.has(kind)) {
       if (e.detail > 1) return;
       node.toggle();
@@ -353,6 +365,7 @@ export function ProjectTreeNode({
             aria-expanded={canExpand ? node.isOpen : undefined}
             data-kind={kind}
             data-id={node.data.id}
+            data-selected={node.isSelected || undefined}
             data-renaming={isRenaming || undefined}
             draggable={!isRenaming}
             onClick={handleRowClick}
@@ -368,7 +381,7 @@ export function ProjectTreeNode({
             }}
             onKeyDown={handleRowKeyDown}
             title={t("row_hint")}
-            className="group relative flex h-full min-h-8 w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-[var(--radius-control)] px-2.5 text-sm text-foreground transition-colors hover:bg-muted/70 focus-visible:bg-muted data-[drop-target=true]:bg-muted"
+            className="group relative flex h-full min-h-7 w-full min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden px-1.5 text-xs text-foreground transition-colors hover:bg-muted/70 focus-visible:bg-muted data-[drop-target=true]:bg-muted data-[selected=true]:bg-muted"
           />
         }
       >
@@ -377,21 +390,21 @@ export function ProjectTreeNode({
           <ChevronRight
             aria-hidden
             data-testid="tree-chevron"
-            className={`ml-2 h-4 w-4 shrink-0 text-muted-foreground transition-transform ${node.isOpen ? "rotate-90" : ""}`}
+            className={`ml-1 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${node.isOpen ? "rotate-90" : ""}`}
             onClick={(e) => {
               e.stopPropagation();
               node.toggle();
             }}
           />
         ) : (
-          <span aria-hidden className="ml-2 h-4 w-4 shrink-0" />
+          <span aria-hidden className="ml-1 h-3.5 w-3.5 shrink-0" />
         )}
         <NodeIcon node={node.data} />
         {isRenaming ? (
           <input
             ref={inputRef}
             defaultValue={node.data.label}
-            className="min-w-0 flex-1 rounded bg-transparent px-0.5 text-sm text-foreground outline-none ring-1 ring-border"
+            className="min-w-0 flex-1 rounded bg-transparent px-0.5 text-xs text-foreground outline-none ring-1 ring-border"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -440,7 +453,7 @@ export function ProjectTreeNode({
                   e.stopPropagation();
                   ctx.onCreateNote(node.data.id);
                 }}
-                className={`${rowActionsVisible ? "grid" : "hidden group-hover:grid focus-visible:grid"} h-6 w-6 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+                className={`${rowActionsVisible ? "grid" : "hidden group-hover:grid focus-visible:grid"} h-6 w-6 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
               >
                 <Plus aria-hidden className="h-3.5 w-3.5" />
               </button>
@@ -452,7 +465,7 @@ export function ProjectTreeNode({
               data-visible-row-actions={rowActionsVisible ? "true" : undefined}
               type="button"
               onClick={toggleActionMenu}
-              className={`${rowActionsVisible ? "grid" : "hidden group-hover:grid focus-visible:grid"} h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+              className={`${rowActionsVisible ? "grid" : "hidden group-hover:grid focus-visible:grid"} h-6 w-6 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
             >
               <MoreHorizontal aria-hidden className="h-3.5 w-3.5" />
             </button>
@@ -591,12 +604,7 @@ export function ProjectTreeNode({
           onCopyLink={copyLink}
           onFavorite={nodeHref() && kind === "note" ? pinFavorite : undefined}
           onDelete={() =>
-            ctx.onDelete(
-              node.data.id,
-              kind,
-              displayLabel,
-              node.data.target_id,
-            )
+            ctx.onDelete(node.data.id, kind, displayLabel, node.data.target_id)
           }
         />
       </ContextMenuContent>
@@ -607,11 +615,16 @@ export function ProjectTreeNode({
 function TreeBranchGuide({ level }: { level: number }) {
   if (level <= 0) return null;
   return (
-    <span
-      aria-hidden
-      className="pointer-events-none absolute bottom-0 top-0 w-px bg-border/70"
-      style={{ left: `${Math.max(14, level * 18)}px` }}
-    />
+    <>
+      {Array.from({ length: level }).map((_, index) => (
+        <span
+          key={`guide-${index}`}
+          aria-hidden
+          className="pointer-events-none absolute bottom-0 top-0 w-px bg-border/70"
+          style={{ left: `${14 + index * 18}px` }}
+        />
+      ))}
+    </>
   );
 }
 
@@ -630,7 +643,9 @@ function NodeIcon({ node }: { node: TreeNode }) {
         <AgentFileIcon
           fileKind={node.file_kind}
           mimeType={node.mime_type}
-          role={typeof node.metadata?.role === "string" ? node.metadata.role : null}
+          role={
+            typeof node.metadata?.role === "string" ? node.metadata.role : null
+          }
           className={agentFileIconClass(node)}
         />
       );
@@ -673,7 +688,9 @@ function NodeIcon({ node }: { node: TreeNode }) {
       <AgentFileIcon
         fileKind={node.file_kind}
         mimeType={node.mime_type}
-        role={typeof node.metadata?.role === "string" ? node.metadata.role : null}
+        role={
+          typeof node.metadata?.role === "string" ? node.metadata.role : null
+        }
         className={agentFileIconClass(node)}
       />
     );
@@ -713,7 +730,8 @@ function treeNodeDisplayLabel(
   node: TreeNode,
   t: (key: "full_extract_note" | "generated_note") => string,
 ): string {
-  const role = typeof node.metadata?.role === "string" ? node.metadata.role : "";
+  const role =
+    typeof node.metadata?.role === "string" ? node.metadata.role : "";
   if (node.kind === "note" && role === "source_note") {
     if (node.label === "generated_note" || node.label === "생성된 노트") {
       return t("generated_note");
@@ -739,7 +757,7 @@ function NodeTypeBadge({
   return (
     <span
       data-testid="tree-node-type-badge"
-      className={`mr-0.5 shrink-0 rounded-[var(--radius-control)] border px-1.5 py-0.5 text-[10px] font-medium leading-none ${badgeClass(node)}`}
+      className={`mr-0.5 shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none ${badgeClass(node)}`}
     >
       {label}
     </span>
@@ -785,7 +803,7 @@ function badgeClass(node: TreeNode): string {
     const status =
       typeof node.metadata?.status === "string" ? node.metadata.status : "";
     if (status === "completed") {
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      return "border-transparent bg-transparent text-emerald-700";
     }
     if (status === "running" || status === "queued") {
       return "border-sky-200 bg-sky-50 text-sky-700";

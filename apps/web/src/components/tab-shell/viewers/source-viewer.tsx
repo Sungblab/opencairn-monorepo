@@ -192,13 +192,13 @@ export function SourceViewer({ tab }: { tab: Tab }) {
       className="oc-pdf-viewer flex h-full min-h-0 flex-col overflow-hidden bg-neutral-200 text-neutral-950 dark:bg-neutral-950 dark:text-neutral-50 xl:flex-row"
     >
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-        <PdfDrawingToolbar registry={registry} />
         <section
           id={viewerElementId}
           data-testid="source-pdf-area"
           aria-label={t("frameTitle", { title })}
-          className="h-full min-h-0 w-full flex-1 bg-neutral-100 dark:bg-neutral-950"
+          className="relative h-full min-h-0 w-full flex-1 bg-neutral-100 dark:bg-neutral-950"
         >
+          <PdfDrawingToolbar registry={registry} floating />
           <EmbedPDFViewer
             config={viewerConfig}
             onReady={onReady}

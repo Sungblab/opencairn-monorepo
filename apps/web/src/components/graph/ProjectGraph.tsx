@@ -4,14 +4,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import type { ViewType } from "@opencairn/shared";
+import { plan8AgentsApi, projectsApi } from "@/lib/api-client";
+import { usePanelStore } from "@/stores/panel-store";
 import {
-  plan8AgentsApi,
-  projectsApi,
-  type ProjectWikiIndex,
-  type ProjectWikiIndexHealthIssueKind,
-  type ProjectWikiIndexHealthStatus,
-} from "@/lib/api-client";
+  formatRecentWikiActivitySummary,
+  formatWikiHealthIssueSummary,
+  hasLibrarianRepairIssue,
+  WikiIndexHealthBadge,
+} from "@/components/wiki/wiki-index-health";
 import { ViewSwitcher } from "./ViewSwitcher";
 import { ViewRenderer } from "./ViewRenderer";
 import type { VisualizeDialogProps } from "./ai/VisualizeDialog";
@@ -40,6 +42,7 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
   const router = useRouter();
   const params = useSearchParams();
   const t = useTranslations("graph");
+  const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
 
   const { data: wikiIndex } = useQuery({
     queryKey: ["project-wiki-index", projectId],
@@ -57,6 +60,10 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
       await queryClient.invalidateQueries({
         queryKey: ["project-wiki-index", projectId],
       });
+      toast.success(t("health.refreshQueued"));
+    },
+    onError: () => {
+      toast.error(t("health.refreshFailed"));
     },
   });
   const runLibrarianMutation = useMutation({
@@ -69,7 +76,15 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
         queryClient.invalidateQueries({
           queryKey: ["project-wiki-index", projectId],
         }),
+        queryClient.invalidateQueries({
+          queryKey: ["workflow-console-runs", projectId],
+        }),
       ]);
+      toast.success(t("health.librarianStarted"));
+      openAgentPanelTab("activity");
+    },
+    onError: () => {
+      toast.error(t("health.librarianFailed"));
     },
   });
 
@@ -85,16 +100,18 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
     Boolean(wikiIndex) &&
     Boolean(canRepairWikiIndex) &&
     hasLibrarianRepairIssue(wikiIndex);
-  const healthIssueSummary = formatWikiHealthIssueSummary(wikiIndex, (kind, count) =>
-    t(`health.issues.${kind}`, { count }),
+  const healthIssueSummary = formatWikiHealthIssueSummary(
+    wikiIndex,
+    (kind, count) => t(`health.issues.${kind}`, { count }),
   );
   const recentWikiActivitySummary = formatRecentWikiActivitySummary(
     wikiIndex,
     t("health.recentActivity"),
   );
   const healthSummary =
-    [healthIssueSummary, recentWikiActivitySummary].filter(Boolean).join(" · ") ||
-    null;
+    [healthIssueSummary, recentWikiActivitySummary]
+      .filter(Boolean)
+      .join(" · ") || null;
 
   useEffect(() => {
     setHydrated(true);
@@ -137,7 +154,9 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
     >
       <ViewSwitcher onAiClick={() => setAiOpen(true)} />
       {wikiIndex ? (
-        <ProjectGraphWikiHealth
+        <WikiIndexHealthBadge
+          testId="project-graph-wiki-health"
+          className="flex min-h-10 flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-2 text-xs font-medium"
           label={t("health.label")}
           status={t(`health.status.${wikiIndex.health.status}`)}
           issueSummary={healthSummary}
@@ -166,127 +185,4 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
       ) : null}
     </div>
   );
-}
-
-function ProjectGraphWikiHealth({
-  label,
-  status,
-  issueSummary,
-  tone,
-  showRefresh,
-  refreshLabel,
-  refreshingLabel,
-  refreshPending,
-  onRefresh,
-  showRunLibrarian,
-  runLibrarianLabel,
-  runningLibrarianLabel,
-  runLibrarianPending,
-  onRunLibrarian,
-}: {
-  label: string;
-  status: string;
-  issueSummary: string | null;
-  tone: ProjectWikiIndexHealthStatus;
-  showRefresh: boolean;
-  refreshLabel: string;
-  refreshingLabel: string;
-  refreshPending: boolean;
-  onRefresh: () => void;
-  showRunLibrarian: boolean;
-  runLibrarianLabel: string;
-  runningLibrarianLabel: string;
-  runLibrarianPending: boolean;
-  onRunLibrarian: () => void;
-}) {
-  return (
-    <div
-      data-testid="project-graph-wiki-health"
-      className={`flex min-h-10 flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-2 text-xs font-medium ${getWikiHealthClassName(
-        tone,
-      )}`}
-    >
-      <span className="shrink-0">
-        {label} {status}
-      </span>
-      {issueSummary ? (
-        <span className="min-w-0 flex-1 truncate text-current/80">
-          {issueSummary}
-        </span>
-      ) : (
-        <span className="flex-1" />
-      )}
-      {showRefresh ? (
-        <button
-          type="button"
-          disabled={refreshPending}
-          onClick={onRefresh}
-          className="inline-flex min-h-7 items-center rounded-[var(--radius-control)] border border-current/25 bg-background/70 px-2 py-1 text-[11px] font-medium text-current hover:bg-background disabled:opacity-60"
-        >
-          {refreshPending ? refreshingLabel : refreshLabel}
-        </button>
-      ) : null}
-      {showRunLibrarian ? (
-        <button
-          type="button"
-          disabled={runLibrarianPending}
-          onClick={onRunLibrarian}
-          className="inline-flex min-h-7 items-center rounded-[var(--radius-control)] border border-current/25 bg-background/70 px-2 py-1 text-[11px] font-medium text-current hover:bg-background disabled:opacity-60"
-        >
-          {runLibrarianPending ? runningLibrarianLabel : runLibrarianLabel}
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
-const LIBRARIAN_REPAIR_ISSUES = new Set<ProjectWikiIndexHealthIssueKind>([
-  "duplicate_titles",
-  "unresolved_missing",
-  "unresolved_ambiguous",
-  "orphan_pages",
-]);
-
-function hasLibrarianRepairIssue(index: ProjectWikiIndex | undefined): boolean {
-  return Boolean(
-    index?.health.issues.some((issue) =>
-      LIBRARIAN_REPAIR_ISSUES.has(issue.kind),
-    ),
-  );
-}
-
-function formatWikiHealthIssueSummary(
-  index: ProjectWikiIndex | undefined,
-  format: (kind: ProjectWikiIndexHealthIssueKind, count: number) => string,
-): string | null {
-  if (!index || index.health.issues.length === 0) return null;
-  return index.health.issues
-    .slice(0, 2)
-    .map((issue) => format(issue.kind, issue.count))
-    .join(" · ");
-}
-
-function formatRecentWikiActivitySummary(
-  index: ProjectWikiIndex | undefined,
-  label: string,
-): string | null {
-  const log = index?.recentLogs[0];
-  if (!log) return null;
-  const reason = log.reason?.trim();
-  return reason
-    ? `${label}: ${log.noteTitle} - ${reason}`
-    : `${label}: ${log.noteTitle} ${log.action}`;
-}
-
-function getWikiHealthClassName(status: ProjectWikiIndexHealthStatus): string {
-  switch (status) {
-    case "blocked":
-      return "border-destructive/30 bg-destructive/5 text-destructive";
-    case "needs_attention":
-      return "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200";
-    case "updating":
-      return "border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-700/60 dark:bg-sky-950/30 dark:text-sky-200";
-    case "healthy":
-      return "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700/60 dark:bg-emerald-950/30 dark:text-emerald-200";
-  }
 }

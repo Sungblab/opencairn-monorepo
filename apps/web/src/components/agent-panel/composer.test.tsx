@@ -15,6 +15,7 @@ const PLACEHOLDER = "agentPanel.composer.placeholder";
 const INPUT_LABEL = "agentPanel.composer.input_aria";
 const VOICE_LABEL = "agentPanel.composer.voice_aria";
 const SEND_LABEL = "agentPanel.composer.send_aria";
+const STOP_LABEL = "agentPanel.composer.stop_aria";
 const ADD_MENU_LABEL = "agentPanel.composer.add_menu_aria";
 const ACTION_REQUIRE_LABEL = "agentPanel.composer.actionApproval.require_aria";
 const ACTION_AUTO_LABEL = "agentPanel.composer.actionApproval.auto_aria";
@@ -42,7 +43,9 @@ describe("Composer", () => {
     render(<Composer onSend={vi.fn()} />);
 
     const textarea = screen.getByLabelText(INPUT_LABEL);
-    expect(textarea.parentElement).toHaveClass("rounded-[var(--radius-control)]");
+    expect(textarea.parentElement).toHaveClass(
+      "rounded-[var(--radius-control)]",
+    );
     expect(textarea.parentElement).toHaveClass("relative");
     expect(screen.getByLabelText(VOICE_LABEL)).toHaveClass(
       "rounded-[var(--radius-control)]",
@@ -84,12 +87,7 @@ describe("Composer", () => {
       targetId: "note-1",
       parentId: null,
     };
-    render(
-      <Composer
-        onSend={vi.fn()}
-        onAttachTreeNode={onAttachTreeNode}
-      />,
-    );
+    render(<Composer onSend={vi.fn()} onAttachTreeNode={onAttachTreeNode} />);
 
     fireEvent.drop(screen.getByTestId("agent-composer"), {
       dataTransfer: {
@@ -147,6 +145,25 @@ describe("Composer", () => {
     expect(onToggleActionApprovalMode).toHaveBeenCalled();
   });
 
+  it("starts research from the add menu instead of the response mode selector", () => {
+    const onSend = vi.fn();
+    render(<Composer onSend={onSend} />);
+
+    fireEvent.click(screen.getByLabelText(ADD_MENU_LABEL));
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: /agentPanel\.composer\.addMenu\.research/,
+      }),
+    );
+    fireEvent.click(screen.getByLabelText(SEND_LABEL));
+
+    expect(onSend).toHaveBeenCalledWith({
+      content: "agentPanel.composer.slash.prompt.research",
+      mode: "research",
+      command: "research",
+    });
+  });
+
   it("shows the action approval mode as a visible composer toggle", () => {
     const onToggleActionApprovalMode = vi.fn();
     const { rerender } = render(
@@ -157,7 +174,18 @@ describe("Composer", () => {
       />,
     );
 
+    expect(
+      screen.getByRole("button", { name: ACTION_REQUIRE_LABEL }),
+    ).toHaveTextContent("agentPanel.composer.actionApproval.trigger_label");
+    expect(
+      screen.getByRole("button", { name: ACTION_REQUIRE_LABEL }),
+    ).toHaveTextContent("agentPanel.composer.actionApproval.require_short");
     fireEvent.click(screen.getByRole("button", { name: ACTION_REQUIRE_LABEL }));
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: /agentPanel\.composer\.actionApproval\.auto_safe_label/,
+      }),
+    );
     expect(onToggleActionApprovalMode).toHaveBeenCalled();
 
     rerender(
@@ -168,7 +196,21 @@ describe("Composer", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: ACTION_AUTO_LABEL })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: ACTION_AUTO_LABEL }),
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces response stop in the composer while an answer is streaming", () => {
+    const onStopResponse = vi.fn();
+    render(
+      <Composer onSend={vi.fn()} responding onStopResponse={onStopResponse} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: STOP_LABEL }));
+
+    expect(onStopResponse).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText(VOICE_LABEL)).not.toBeInTheDocument();
   });
 
   it("does not expose web search as a manual toggle", () => {
@@ -238,7 +280,9 @@ describe("Composer", () => {
         name: "agentPanel.composer.slash.menu_aria",
       }),
     ).toHaveClass("absolute");
-    expect(screen.getByRole("option", { name: /summarize/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: /summarize/i }),
+    ).toBeInTheDocument();
   });
 
   it("parses slash commands into a command id and cleaned content", () => {
@@ -270,6 +314,27 @@ describe("Composer", () => {
       mode: "auto",
       command: "summarize",
     });
+  });
+
+  it("lets the user cancel a selected slash command before sending", () => {
+    render(<Composer onSend={vi.fn()} />);
+    const ta = screen.getByPlaceholderText(PLACEHOLDER);
+
+    fireEvent.change(ta, { target: { value: "/" } });
+    fireEvent.click(screen.getByRole("option", { name: /summarize/i }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "agentPanel.composer.slash.clear_command_aria",
+      }),
+    );
+
+    expect(
+      screen.queryByRole("button", {
+        name: "agentPanel.composer.slash.clear_command_aria",
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(SEND_LABEL)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(VOICE_LABEL)).toBeInTheDocument();
   });
 
   it("discovers the figure generation slash command", () => {

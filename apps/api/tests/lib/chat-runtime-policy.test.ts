@@ -33,4 +33,20 @@ describe("selectChatRuntimePolicy", () => {
       workspaceEvidenceRequired: true,
     });
   });
+
+  it("auto escalates lecture material organization to quality study-note mode", () => {
+    expect(
+      selectChatRuntimePolicy({
+        mode: "auto",
+        userMessage: "이 pdf 강의자료를 자세한 강의노트로 정리해줘",
+      }),
+    ).toMatchObject({
+      thinkingLevel: "high",
+      workspaceEvidenceRequired: true,
+      verifierRequired: true,
+      modelProfile: "quality",
+      responseProfile: "study_note",
+      maxOutputTokens: 20000,
+    });
+  });
 });

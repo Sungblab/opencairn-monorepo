@@ -25,5 +25,8 @@ describe("ReadingViewer bundle boundary", () => {
 
     expect(body).toContain("useCollaborativeEditor");
     expect(body).toContain("PlateContent");
+    expect(body).toContain("CalloutPlugin");
+    expect(body).toContain("CodeBlockPlugin");
+    expect(body).toContain("tablePlugins");
   });
 });

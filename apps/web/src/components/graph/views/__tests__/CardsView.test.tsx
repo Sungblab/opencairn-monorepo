@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import type { ReactNode } from "react";
@@ -178,6 +178,15 @@ describe("CardsView", () => {
     expect(
       screen.getByTestId("concept-card-node-99999999-9999-4999-8999-999999999999"),
     ).toHaveAttribute("data-active", "false");
+    const hub = screen.getByTestId(
+      "concept-card-node-11111111-1111-4111-8111-111111111111",
+    );
+    const neighbor = screen.getByTestId(
+      "concept-card-node-22222222-2222-4222-8222-222222222222",
+    );
+    expect(Number.parseFloat(hub.style.left)).toBeLessThan(
+      Number.parseFloat(neighbor.style.left),
+    );
   });
 
   it("uses evidence-backed card titles when available", () => {
@@ -254,5 +263,66 @@ describe("CardsView", () => {
     expect(
       screen.getByTestId("concept-card-node-22222222-2222-4222-8222-222222222222"),
     ).toHaveAttribute("data-active", "true");
+  });
+
+  it("pans the card canvas by dragging the empty background", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "cards",
+        layout: "preset",
+        rootId: null,
+        nodes: [
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            name: "Hub",
+            description: "center",
+            degree: 1,
+          },
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            name: "Neighbor",
+            description: "linked",
+            degree: 1,
+          },
+        ],
+        edges: [
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            sourceId: "11111111-1111-4111-8111-111111111111",
+            targetId: "22222222-2222-4222-8222-222222222222",
+            relationType: "mentions",
+            weight: 1,
+          },
+        ],
+        truncated: false,
+        totalConcepts: 2,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(<CardsView projectId="p-1" />);
+    const viewport = screen.getByTestId("concept-card-viewport");
+    viewport.scrollLeft = 120;
+    viewport.scrollTop = 80;
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      pointerId: 1,
+      clientX: 100,
+      clientY: 100,
+    });
+    fireEvent.pointerMove(viewport, {
+      pointerId: 1,
+      clientX: 70,
+      clientY: 60,
+    });
+    fireEvent.pointerUp(viewport, {
+      pointerId: 1,
+      clientX: 70,
+      clientY: 60,
+    });
+
+    expect(viewport.scrollLeft).toBe(150);
+    expect(viewport.scrollTop).toBe(120);
   });
 });

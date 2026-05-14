@@ -169,7 +169,7 @@ describe("ProjectToolsPanel", () => {
   it("keeps upload as a shared upload dialog and sends one upload batch", () => {
     uploadManyMock.mockImplementation(() => new Promise(() => {}));
     const onOpenActivity = vi.fn();
-    const { container } = renderPanel({ onOpenActivity });
+    renderPanel({ onOpenActivity });
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -178,7 +178,7 @@ describe("ProjectToolsPanel", () => {
     );
     expect(screen.getByText("sidebar.upload.title")).toBeInTheDocument();
 
-    const input = container.querySelector('input[type="file"]');
+    const input = document.querySelector('input[type="file"]');
     expect(input).toBeInstanceOf(HTMLInputElement);
     const source = new File(["pdf"], "source.pdf", { type: "application/pdf" });
 

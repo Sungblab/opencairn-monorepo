@@ -28,6 +28,10 @@ vi.mock("../tab-shell/tab-shell", () => ({
   ),
 }));
 
+vi.mock("./project-main-drop-zone", () => ({
+  ProjectMainDropZone: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
 vi.mock("./shell-resize-handle", () => ({
   ShellResizeHandle: () => <div data-testid="resize-handle" />,
 }));

@@ -60,6 +60,17 @@ vi.mock("@/hooks/use-tree-keyboard", () => ({
 vi.mock("@/hooks/use-ingest-upload", () => ({
   useIngestUpload: () => ({
     upload: uploadMock,
+    uploadMany: async (
+      files: Iterable<File> | ArrayLike<File>,
+      projectId: string,
+    ) =>
+      Promise.all(
+        Array.from(files).map(async (file) => ({
+          file,
+          ok: true,
+          result: await uploadMock(file, projectId),
+        })),
+      ),
     isUploading: false,
     error: null,
   }),
@@ -127,12 +138,12 @@ describe("ProjectTree", () => {
     });
   });
 
-  it("uses a taller row height for readable Notion-style navigation", () => {
+  it("uses a compact row height for explorer-style navigation", () => {
     renderTree();
 
     expect(screen.getByTestId("arborist-tree")).toHaveAttribute(
       "data-row-height",
-      "34",
+      "28",
     );
   });
 
@@ -162,13 +173,15 @@ describe("ProjectTree", () => {
 
     expect(uploadMock).not.toHaveBeenCalled();
     expect(screen.getByText("sidebar.upload.title")).toBeInTheDocument();
-    expect(
-      screen.getByText("sidebar.upload.selected"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("sidebar.upload.selected")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "sidebar.upload.start" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.upload.start" }),
+    );
 
-    await waitFor(() => expect(uploadMock).toHaveBeenCalledWith(file, "proj-1"));
+    await waitFor(() =>
+      expect(uploadMock).toHaveBeenCalledWith(file, "proj-1"),
+    );
     const tabs = useTabsStore.getState().tabs;
     expect(tabs.some((tab) => tab.kind === "ingest")).toBe(false);
     expect(tabs).toEqual(
@@ -230,7 +243,9 @@ describe("ProjectTree", () => {
         credentials: "include",
       });
     });
-    expect(screen.queryByText("sidebar.tree_menu.confirm_delete_title")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("sidebar.tree_menu.confirm_delete_title"),
+    ).not.toBeInTheDocument();
     expect(toastMock.success).toHaveBeenCalledWith("sidebar.toasts.deleted");
   });
 

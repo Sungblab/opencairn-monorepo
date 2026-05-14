@@ -41,13 +41,19 @@ vi.mock("./message-bubble-loader", () => ({
 vi.mock("@/components/chat/chat-message-renderer-loader", () => ({
   ChatMessageRendererLoader: ({
     body,
+    citations = [],
     compact,
   }: {
     body: string;
+    citations?: Array<{ index: number }>;
     compact?: boolean;
   }) => (
     <div data-testid="live-body" data-compact={compact ? "true" : "false"}>
-      {body}
+      {body.replace(/\[\^(\d+)\]/g, (match, index: string) =>
+        citations.some((citation) => citation.index === Number(index))
+          ? `[${index}]`
+          : match,
+      )}
     </div>
   ),
 }));
@@ -161,6 +167,24 @@ describe("Conversation durable run resume", () => {
     expect(screen.queryByTestId("conversation-scroll")).not.toBeInTheDocument();
   });
 
+  it("nudges long threads toward a new chat after 20 user turns", () => {
+    messages = Array.from({ length: 20 }, (_, index) =>
+      message({ id: `user-${index}`, role: "user" }),
+    );
+    const onStartNewThread = vi.fn();
+
+    render(
+      <Conversation
+        threadId="thread-1"
+        onStartNewThread={onStartNewThread}
+      />,
+    );
+
+    expect(screen.getByText("long_thread_title")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "long_thread_cta" }));
+    expect(onStartNewThread).toHaveBeenCalledTimes(1);
+  });
+
   it("clears an unavailable active thread", async () => {
     const onThreadUnavailable = vi.fn();
     messagesError = new ApiError(404, "not_found");
@@ -208,7 +232,7 @@ describe("Conversation durable run resume", () => {
     expect(live).toHaveAttribute("data-compact", "true");
   });
 
-  it("renders live citations and hides matching footnote markers", () => {
+  it("renders live citations as inline anchors and source chips", () => {
     render(
       <Conversation
         threadId="thread-1"
@@ -235,7 +259,7 @@ describe("Conversation durable run resume", () => {
     );
 
     expect(screen.getByTestId("live-body")).toHaveTextContent(
-      "자료에서 확인했습니다.",
+      "자료에서 확인했습니다.[1]",
     );
     expect(screen.queryByText(/\[\^1\]/)).not.toBeInTheDocument();
     expect(screen.getByText("운영체제.pdf")).toBeInTheDocument();

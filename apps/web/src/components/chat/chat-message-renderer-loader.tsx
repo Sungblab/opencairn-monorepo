@@ -1,9 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { Citation } from "@/components/agent-panel/citation-chips";
 
 export type ChatMessageRendererLoaderProps = {
   body: string;
+  citations?: Citation[];
   streaming?: boolean;
   compact?: boolean;
 };

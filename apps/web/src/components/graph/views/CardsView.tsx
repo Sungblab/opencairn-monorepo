@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { type PointerEvent, useCallback, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
 import { LocateFixed, Minus, Plus, RotateCcw } from "lucide-react";
@@ -15,8 +15,12 @@ interface Props {
 }
 
 const CARD_WIDTH = 260;
-const CARD_HEIGHT = 178;
+const CARD_HEIGHT = 236;
 const CARD_PADDING = 24;
+const CARD_COLUMN_GAP = 150;
+const CARD_ROW_GAP = 48;
+
+type CardPosition = { x: number; y: number };
 
 function cardGraphLayout(
   nodes: Array<{ id: string; degree?: number }>,
@@ -35,7 +39,7 @@ function cardGraphLayout(
     return (b.degree ?? 0) - (a.degree ?? 0);
   })[0]?.id;
   const resolvedFocusId = focusedId && nodeIds.includes(focusedId) ? focusedId : defaultFocusId;
-  const positions = new Map<string, { x: number; y: number }>();
+  const positions = new Map<string, CardPosition>();
   if (!resolvedFocusId) {
     return { positions, width: 800, height: 420, focusId: null, activeEdgeIds: new Set<string>() };
   }
@@ -52,28 +56,29 @@ function cardGraphLayout(
     }
   }
 
-  const focusX = CARD_PADDING + 360;
-  const focusY = CARD_PADDING + 240;
+  const neighborStackHeight = Math.max(
+    CARD_HEIGHT,
+    neighborIds.length * CARD_HEIGHT + Math.max(0, neighborIds.length - 1) * CARD_ROW_GAP,
+  );
+  const focusX = CARD_PADDING + 56;
+  const focusY = CARD_PADDING + Math.max(0, (neighborStackHeight - CARD_HEIGHT) / 2);
   positions.set(resolvedFocusId, { x: focusX, y: focusY });
 
-  const ringRadiusX = 390;
-  const ringRadiusY = 260;
   neighborIds.forEach((id, index) => {
-    const angle = -Math.PI / 2 + (index / Math.max(1, neighborIds.length)) * Math.PI * 2;
     positions.set(id, {
-      x: focusX + Math.cos(angle) * ringRadiusX,
-      y: focusY + Math.sin(angle) * ringRadiusY,
+      x: focusX + CARD_WIDTH + CARD_COLUMN_GAP,
+      y: CARD_PADDING + index * (CARD_HEIGHT + CARD_ROW_GAP),
     });
   });
 
   const secondaryIds = nodeIds.filter((id) => id !== resolvedFocusId && !positions.has(id));
-  const secondaryColumns = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(secondaryIds.length))));
+  const secondaryColumns = Math.max(1, Math.min(2, Math.ceil(secondaryIds.length / 5)));
   secondaryIds.forEach((id, index) => {
-    const row = Math.floor(index / secondaryColumns);
-    const col = index % secondaryColumns;
+    const row = index % 5;
+    const col = Math.floor(index / 5);
     positions.set(id, {
-      x: CARD_PADDING + col * (CARD_WIDTH + 36),
-      y: focusY + ringRadiusY + 170 + row * (CARD_HEIGHT + 36),
+      x: focusX + (col + 2) * (CARD_WIDTH + CARD_COLUMN_GAP),
+      y: CARD_PADDING + row * (CARD_HEIGHT + CARD_ROW_GAP),
     });
   });
 
@@ -105,15 +110,17 @@ function edgePath(
   const source = positions.get(edge.sourceId);
   const target = positions.get(edge.targetId);
   if (!source || !target) return null;
-  const x1 = source.x + CARD_WIDTH / 2;
+  const x1 = source.x + CARD_WIDTH;
   const y1 = source.y + CARD_HEIGHT / 2;
-  const x2 = target.x + CARD_WIDTH / 2;
+  const x2 = target.x;
   const y2 = target.y + CARD_HEIGHT / 2;
+  const bend = Math.max(72, Math.abs(x2 - x1) * 0.45);
   return {
     x1,
     y1,
     x2,
     y2,
+    d: `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`,
     labelX: (x1 + x2) / 2,
     labelY: (y1 + y2) / 2,
   };
@@ -134,7 +141,15 @@ export default function CardsView({ projectId }: Props) {
   });
   const [focusedConceptId, setFocusedConceptId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(0.72);
+  const [isPanning, setIsPanning] = useState(false);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const panRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    scrollLeft: number;
+    scrollTop: number;
+  } | null>(null);
 
   const displayData = useMemo(
     () =>
@@ -188,6 +203,39 @@ export default function CardsView({ projectId }: Props) {
     );
   }, [clampZoom, layout.height, layout.width]);
 
+  const startPan = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("[data-card-node='true'],button,a")) return;
+    const viewport = event.currentTarget;
+    panRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+    };
+    setIsPanning(true);
+    viewport.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  }, []);
+
+  const movePan = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const pan = panRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    const viewport = event.currentTarget;
+    viewport.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+    viewport.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
+  }, []);
+
+  const stopPan = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const pan = panRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    panRef.current = null;
+    setIsPanning(false);
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }, []);
+
   if (isLoading) {
     return <div className="p-6 text-sm text-muted-foreground">…</div>;
   }
@@ -210,7 +258,14 @@ export default function CardsView({ projectId }: Props) {
     <div className="flex h-full flex-col overflow-hidden bg-background">
       <div
         ref={viewportRef}
-        className="relative min-h-0 flex-1 overflow-auto bg-background"
+        data-testid="concept-card-viewport"
+        className={`relative min-h-0 flex-1 overflow-auto bg-background ${
+          isPanning ? "cursor-grabbing select-none" : "cursor-grab"
+        }`}
+        onPointerDown={startPan}
+        onPointerMove={movePan}
+        onPointerUp={stopPan}
+        onPointerCancel={stopPan}
       >
         <ViewZoomControls
           onFit={fitCards}
@@ -260,12 +315,10 @@ export default function CardsView({ projectId }: Props) {
               const active = layout.activeEdgeIds.has(edge.id);
               return (
                 <g key={edge.id ?? `${edge.sourceId}-${edge.targetId}`}>
-                  <line
+                  <path
                     data-testid="concept-card-edge"
-                    x1={path.x1}
-                    y1={path.y1}
-                    x2={path.x2}
-                    y2={path.y2}
+                    d={path.d}
+                    fill="none"
                     className={
                       edge.surfaceType === "co_mention"
                         ? active
@@ -332,6 +385,7 @@ export default function CardsView({ projectId }: Props) {
           return (
             <div
               key={node.id}
+              data-card-node="true"
               data-testid={`concept-card-node-${node.id}`}
               className="absolute rounded-lg transition data-[active=true]:shadow-lg data-[active=true]:ring-2 data-[active=true]:ring-foreground/60"
               style={{

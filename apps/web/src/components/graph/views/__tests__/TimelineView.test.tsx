@@ -65,7 +65,7 @@ describe("TimelineView", () => {
       error: null,
     });
     const { container } = wrap(<TimelineView projectId="p-1" />);
-    expect(container.querySelectorAll("circle")).toHaveLength(2);
+    expect(container.querySelectorAll('svg[role="img"] circle')).toHaveLength(2);
   });
 
   it("renders standalone note wiki links in the undated lane", () => {
@@ -201,5 +201,48 @@ describe("TimelineView", () => {
         targetId: "11111111-1111-4111-8111-111111111111",
       }),
     );
+  });
+
+  it("pans the timeline canvas by dragging empty background", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "timeline",
+        layout: "preset",
+        rootId: null,
+        nodes: [
+          { id: "a", name: "Start", eventYear: 1990 },
+          { id: "b", name: "End", eventYear: 2026 },
+        ],
+        edges: [],
+        truncated: false,
+        totalConcepts: 2,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(<TimelineView projectId="p-1" />);
+    const viewport = screen.getByTestId("timeline-viewport");
+    viewport.scrollLeft = 80;
+    viewport.scrollTop = 40;
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      pointerId: 1,
+      clientX: 100,
+      clientY: 100,
+    });
+    fireEvent.pointerMove(viewport, {
+      pointerId: 1,
+      clientX: 75,
+      clientY: 65,
+    });
+    fireEvent.pointerUp(viewport, {
+      pointerId: 1,
+      clientX: 75,
+      clientY: 65,
+    });
+
+    expect(viewport.scrollLeft).toBe(105);
+    expect(viewport.scrollTop).toBe(75);
   });
 });

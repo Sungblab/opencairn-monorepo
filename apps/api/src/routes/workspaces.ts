@@ -12,6 +12,7 @@ import {
   notes,
   pagePermissions,
   researchRuns,
+  creditBalances,
   user,
   userPreferences,
   and,
@@ -27,7 +28,7 @@ import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceRole } from "../middleware/require-role";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
-import { DEFAULT_PROJECT_NAME } from "@opencairn/shared";
+import { billingPlanConfigs, DEFAULT_PROJECT_NAME } from "@opencairn/shared";
 
 // Keep in sync with apps/web/src/lib/slug.ts RESERVED_SLUGS.
 const RESERVED_SLUGS: ReadonlySet<string> = new Set([
@@ -91,16 +92,41 @@ workspaceRoutes.get("/", async (c) => {
 // pending = acceptedAt IS NULL AND expiresAt > now(). 이메일 매칭.
 workspaceRoutes.get("/me", async (c) => {
   const u = c.get("user");
-  const ws = await db
-    .select({
-      id: workspaces.id,
-      slug: workspaces.slug,
-      name: workspaces.name,
-      role: workspaceMembers.role,
-    })
-    .from(workspaceMembers)
-    .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
-    .where(eq(workspaceMembers.userId, u.id));
+  const [ws, planRows, balanceRows] = await Promise.all([
+    db
+      .select({
+        id: workspaces.id,
+        slug: workspaces.slug,
+        name: workspaces.name,
+        role: workspaceMembers.role,
+      })
+      .from(workspaceMembers)
+      .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
+      .where(eq(workspaceMembers.userId, u.id)),
+    db
+      .select({ plan: user.plan })
+      .from(user)
+      .where(eq(user.id, u.id))
+      .limit(1),
+    db
+      .select({
+        plan: creditBalances.plan,
+        balanceCredits: creditBalances.balanceCredits,
+        monthlyGrantCredits: creditBalances.monthlyGrantCredits,
+      })
+      .from(creditBalances)
+      .where(eq(creditBalances.userId, u.id))
+      .limit(1),
+  ]);
+  const plan = planRows[0]?.plan ?? balanceRows[0]?.plan ?? "free";
+  const planConfig = billingPlanConfigs[plan];
+  const billing = {
+    plan,
+    balanceCredits: balanceRows[0]?.balanceCredits ?? 0,
+    monthlyGrantCredits:
+      balanceRows[0]?.monthlyGrantCredits ?? planConfig.includedMonthlyCredits,
+    managedLlm: planConfig.managedLlm,
+  };
 
   const email = (u as { email?: string | null }).email;
   const invites = email
@@ -124,7 +150,7 @@ workspaceRoutes.get("/me", async (c) => {
         )
     : [];
 
-  return c.json({ workspaces: ws, invites });
+  return c.json({ workspaces: ws, invites, billing });
 });
 
 // slug → workspace 조회 (멤버만 접근). /:locale/workspace/:wsSlug redirect chain 용.

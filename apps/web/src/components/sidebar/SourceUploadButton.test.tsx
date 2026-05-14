@@ -34,6 +34,14 @@ vi.mock("next-intl", () => ({
 vi.mock("@/hooks/use-ingest-upload", () => ({
   useIngestUpload: () => ({
     upload: uploadMock,
+    uploadMany: async (files: Iterable<File> | ArrayLike<File>, projectId: string) =>
+      Promise.all(
+        Array.from(files).map(async (file) => ({
+          file,
+          ok: true,
+          result: await uploadMock(file, projectId),
+        })),
+      ),
     isUploading: false,
     error: null,
   }),

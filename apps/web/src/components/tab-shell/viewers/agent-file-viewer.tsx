@@ -600,33 +600,33 @@ function SourceMaterialPanel({
     router.push(urls.workspace.projectGraph(locale, wsSlug, file.projectId));
   };
 
+  const statusDetail =
+    file.ingestStatus === "completed"
+      ? t("statusDetail.completed")
+      : file.ingestStatus === "failed"
+        ? t("statusDetail.failed")
+        : isAnalyzing
+          ? t("statusDetail.running")
+          : t("statusDetail.notStarted");
+
   return (
-    <div className="border-b bg-background/95 px-3 py-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-medium">{file.filename}</span>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                statusTone,
-              )}
-            >
-              {isAnalyzing ? (
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-              ) : null}
-              {t(`status.${file.ingestStatus}`)}
-            </span>
-          </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {file.ingestStatus === "completed"
-              ? t("statusDetail.completed")
-              : file.ingestStatus === "failed"
-                ? t("statusDetail.failed")
-                : isAnalyzing
-                  ? t("statusDetail.running")
-                  : t("statusDetail.notStarted")}
-          </p>
+    <div className="border-b bg-background/95 px-3 py-1.5">
+      <div className="flex min-h-9 flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="truncate text-sm font-medium">{file.filename}</span>
+          <span
+            title={statusDetail}
+            aria-label={`${t(`status.${file.ingestStatus}`)}: ${statusDetail}`}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+              statusTone,
+            )}
+          >
+            {isAnalyzing ? (
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            ) : null}
+            {t(`status.${file.ingestStatus}`)}
+          </span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <Button
@@ -668,36 +668,50 @@ function SourceMaterialPanel({
               ? t("actions.retry")
               : t("actions.reanalyze")}
           </Button>
+          <details className="group relative text-xs text-muted-foreground">
+            <summary
+              className={cn(
+                buttonVariants({ size: "sm", variant: "ghost" }),
+                "cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden",
+              )}
+            >
+              {t("advanced")}
+            </summary>
+            <div className="absolute right-0 top-full z-30 mt-2 flex min-w-48 flex-col gap-1 rounded-md border bg-background p-2 shadow-lg">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={openSourceNote}
+                disabled={!canOpenSourceNote}
+                className="justify-start"
+              >
+                <Eye className="mr-1.5 h-4 w-4" />
+                {t("actions.openExtract")}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={openProjectGraph}
+                className="justify-start"
+              >
+                <GitBranch className="mr-1.5 h-4 w-4" />
+                {t("actions.openGraph")}
+              </Button>
+              <a
+                href={fileUrl}
+                download={file.filename}
+                className={cn(
+                  buttonVariants({ size: "sm", variant: "ghost" }),
+                  "justify-start",
+                )}
+              >
+                <Download className="mr-1.5 h-4 w-4" />
+                {t("actions.download")}
+              </a>
+            </div>
+          </details>
         </div>
       </div>
-      <details className="mt-2 text-xs text-muted-foreground">
-        <summary className="cursor-pointer select-none text-xs font-medium text-foreground">
-          {t("advanced")}
-        </summary>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={openSourceNote}
-            disabled={!canOpenSourceNote}
-          >
-            <Eye className="mr-1.5 h-4 w-4" />
-            {t("actions.openExtract")}
-          </Button>
-          <Button size="sm" variant="outline" onClick={openProjectGraph}>
-            <GitBranch className="mr-1.5 h-4 w-4" />
-            {t("actions.openGraph")}
-          </Button>
-          <a
-            href={fileUrl}
-            download={file.filename}
-            className={buttonVariants({ size: "sm", variant: "outline" })}
-          >
-            <Download className="mr-1.5 h-4 w-4" />
-            {t("actions.download")}
-          </a>
-        </div>
-      </details>
     </div>
   );
 }
@@ -749,8 +763,8 @@ function AgentFilePdfViewer({
         onIngest={onIngest}
         ingestPending={ingestPending}
       />
-      <PdfDrawingToolbar registry={registry} />
-      <div className="min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1">
+        <PdfDrawingToolbar registry={registry} floating />
         <EmbedPDFViewer
           config={config}
           onReady={onReady}

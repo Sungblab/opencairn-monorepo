@@ -1396,10 +1396,14 @@ async function handleAgentActionChunk(input: {
   const payload = input.payload as {
     actions: Array<Parameters<typeof createAgentAction>[2]>;
   };
+  const defaultFolderId = await defaultNoteFolderIdFromScope(
+    input.scope,
+    projectId,
+  );
   const created = [];
   for (const proposed of payload.actions) {
     const { action } = await createAgentAction(projectId, input.run.userId, {
-      ...proposed,
+      ...withDefaultNoteFolder(proposed, defaultFolderId),
       sourceRunId: input.run.id,
       approvalMode,
     });
@@ -1411,6 +1415,81 @@ async function handleAgentActionChunk(input: {
     ...((input.meta.agent_actions as unknown[]) ?? []),
     ...created,
   ];
+}
+
+function withDefaultNoteFolder(
+  proposed: Parameters<typeof createAgentAction>[2],
+  folderId: string | null,
+): Parameters<typeof createAgentAction>[2] {
+  if (!folderId) return proposed;
+  if (
+    proposed.kind !== "note.create" &&
+    proposed.kind !== "note.create_from_markdown"
+  ) {
+    return proposed;
+  }
+  const input = proposed.input;
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return proposed;
+  }
+  if ("folderId" in input && input.folderId !== null && input.folderId !== undefined) {
+    return proposed;
+  }
+  return {
+    ...proposed,
+    input: {
+      ...input,
+      folderId,
+    },
+  };
+}
+
+async function defaultNoteFolderIdFromScope(
+  scope: unknown,
+  projectId: string,
+): Promise<string | null> {
+  const noteId = await noteIdFromScope(scope);
+  if (!noteId) return null;
+  const [note] = await db
+    .select({ projectId: notes.projectId, folderId: notes.folderId })
+    .from(notes)
+    .where(and(eq(notes.id, noteId), isNull(notes.deletedAt)))
+    .limit(1);
+  if (!note || note.projectId !== projectId) return null;
+  return note.folderId ?? null;
+}
+
+async function noteIdFromScope(scope: unknown): Promise<string | null> {
+  if (!scope || typeof scope !== "object" || Array.isArray(scope)) return null;
+  const obj = scope as Record<string, unknown>;
+  const invocationContext = obj.invocationContext;
+  if (
+    invocationContext &&
+    typeof invocationContext === "object" &&
+    !Array.isArray(invocationContext)
+  ) {
+    const context = invocationContext as Record<string, unknown>;
+    if (context.kind === "source" && typeof context.sourceId === "string") {
+      return context.sourceId;
+    }
+    if (context.kind === "note" && typeof context.noteId === "string") {
+      return context.noteId;
+    }
+  }
+  const manifest = obj.manifest;
+  if (manifest && typeof manifest === "object" && !Array.isArray(manifest)) {
+    const activeArtifact = (manifest as Record<string, unknown>).activeArtifact;
+    if (
+      activeArtifact &&
+      typeof activeArtifact === "object" &&
+      !Array.isArray(activeArtifact) &&
+      (activeArtifact as Record<string, unknown>).type === "note" &&
+      typeof (activeArtifact as Record<string, unknown>).id === "string"
+    ) {
+      return (activeArtifact as Record<string, string>).id;
+    }
+  }
+  return null;
 }
 
 async function handleAgentFileChunk(input: {

@@ -129,7 +129,7 @@
       },
       "mindMap": {
         "title": "Mind Map",
-        "description": "Open the focused mindmap view from the project graph."
+        "description": "Open the focused mindmap view from the project knowledge map."
       },
       "agents": {
         "title": "Delegate to agent",
@@ -231,7 +231,7 @@
       "description": "Search papers and save selected sources into the project."
     },
     "graph": {
-      "title": "Project graph",
+      "title": "Project knowledge map",
       "description": "Explore how notes and sources connect."
     },
     "agents": {
@@ -285,8 +285,12 @@
       },
       "refresh": "Refresh index",
       "refreshing": "Refreshing",
+      "refreshQueued": "Index refresh queued.",
+      "refreshFailed": "Could not queue the index refresh.",
       "runLibrarian": "Run organizer agent",
-      "runningLibrarian": "Starting agent"
+      "runningLibrarian": "Starting agent",
+      "librarianStarted": "Organizer agent started. Check progress in the activity panel.",
+      "librarianFailed": "Could not start the organizer agent."
     },
     "actions": {
       "map": "Open relationship map",

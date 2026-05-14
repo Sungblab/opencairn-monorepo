@@ -44,6 +44,7 @@ vi.mock("@google/genai", () => {
 const originalKey = process.env.GEMINI_API_KEY;
 const originalGoogleKey = process.env.GOOGLE_API_KEY;
 const originalChatModel = process.env.GEMINI_CHAT_MODEL;
+const originalQualityChatModel = process.env.GEMINI_CHAT_MODEL_QUALITY;
 const originalGeminiEmbedModel = process.env.GEMINI_EMBED_MODEL;
 const originalEmbedModel = process.env.EMBED_MODEL;
 const originalVectorDim = process.env.VECTOR_DIM;
@@ -65,6 +66,11 @@ function restoreEnv() {
     delete process.env.GEMINI_CHAT_MODEL;
   } else {
     process.env.GEMINI_CHAT_MODEL = originalChatModel;
+  }
+  if (originalQualityChatModel === undefined) {
+    delete process.env.GEMINI_CHAT_MODEL_QUALITY;
+  } else {
+    process.env.GEMINI_CHAT_MODEL_QUALITY = originalQualityChatModel;
   }
   if (originalGeminiEmbedModel === undefined) {
     delete process.env.GEMINI_EMBED_MODEL;
@@ -428,6 +434,60 @@ describe("GeminiProvider.streamGenerate", () => {
     );
     // No inline delete needed — afterEach restoreEnv() handles cleanup
     // unconditionally, so even if assertions above throw, the env is reset.
+  });
+
+  it("upgrades the legacy 2.5 Flash chat env to the current default model", async () => {
+    process.env.GEMINI_CHAT_MODEL = "gemini-2.5-flash";
+    async function* one() {
+      yield {
+        text: "ok",
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+      };
+    }
+    fakeStream.mockReturnValue(one());
+
+    const provider = getGeminiProvider();
+    const out: StreamChunk[] = [];
+    for await (const c of provider.streamGenerate({
+      messages: [{ role: "user", content: "x" }],
+    })) {
+      out.push(c);
+    }
+
+    expect(fakeStream).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gemini-3-flash-preview" }),
+    );
+    expect(out.at(-1)).toEqual({
+      usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" },
+    });
+  });
+
+  it("uses the configured quality model for quality-profile streaming", async () => {
+    process.env.GEMINI_CHAT_MODEL = "gemini-3-flash-preview";
+    process.env.GEMINI_CHAT_MODEL_QUALITY = "gemini-3.1-pro-preview";
+    async function* one() {
+      yield {
+        text: "ok",
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+      };
+    }
+    fakeStream.mockReturnValue(one());
+
+    const provider = getGeminiProvider();
+    const out: StreamChunk[] = [];
+    for await (const c of provider.streamGenerate({
+      messages: [{ role: "user", content: "x" }],
+      modelProfile: "quality",
+    })) {
+      out.push(c);
+    }
+
+    expect(fakeStream).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gemini-3.1-pro-preview" }),
+    );
+    expect(out.at(-1)).toEqual({
+      usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3.1-pro-preview" },
+    });
   });
 
   it("yields fallback usage chunk when SDK never emits usageMetadata", async () => {

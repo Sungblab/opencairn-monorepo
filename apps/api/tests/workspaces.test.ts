@@ -10,6 +10,7 @@ import {
   researchRuns,
   userPreferences,
   user,
+  creditBalances,
   eq,
 } from "@opencairn/db";
 import { createApp } from "../src/app.js";
@@ -321,9 +322,51 @@ describe("GET /api/workspaces/me", () => {
     const body = (await res.json()) as {
       workspaces: unknown[];
       invites: unknown[];
+      billing: {
+        plan: string;
+        balanceCredits: number;
+        monthlyGrantCredits: number;
+        managedLlm: boolean;
+      };
     };
     expect(body.workspaces).toEqual([]);
     expect(body.invites).toEqual([]);
+    expect(body.billing).toEqual({
+      plan: "free",
+      balanceCredits: 0,
+      monthlyGrantCredits: 500,
+      managedLlm: true,
+    });
+  });
+
+  it("includes plan and remaining credit summary for the sidebar footer", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    await db.update(user).set({ plan: "pro" }).where(eq(user.id, u.id));
+    await db.insert(creditBalances).values({
+      userId: u.id,
+      plan: "pro",
+      balanceCredits: 1234,
+      monthlyGrantCredits: 8000,
+    });
+
+    const res = await authedGet("/api/workspaces/me", u.id);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      billing: {
+        plan: string;
+        balanceCredits: number;
+        monthlyGrantCredits: number;
+        managedLlm: boolean;
+      };
+    };
+    expect(body.billing).toEqual({
+      plan: "pro",
+      balanceCredits: 1234,
+      monthlyGrantCredits: 8000,
+      managedLlm: true,
+    });
   });
 
   it("returns workspaces the user is a member of with role", async () => {

@@ -1,7 +1,7 @@
 {
   "viewer": {
-    "title": "그래프",
-    "missing": "그래프를 표시할 프로젝트가 선택되지 않았습니다."
+    "title": "지식 맵",
+    "missing": "지식 맵을 표시할 프로젝트가 선택되지 않았습니다."
   },
   "health": {
     "label": "인덱스 상태",
@@ -23,9 +23,13 @@
     },
     "refresh": "인덱스 갱신",
     "refreshing": "갱신 요청 중",
+    "refreshQueued": "인덱스 갱신을 요청했습니다.",
+    "refreshFailed": "인덱스 갱신 요청에 실패했습니다.",
     "recentActivity": "최근 활동",
     "runLibrarian": "정리 에이전트 실행",
-    "runningLibrarian": "실행 요청 중"
+    "runningLibrarian": "실행 요청 중",
+    "librarianStarted": "정리 에이전트를 시작했습니다.",
+    "librarianFailed": "정리 에이전트를 시작하지 못했습니다."
   },
   "filters": {
     "searchPlaceholder": "개념 이름으로 검색…",
@@ -40,11 +44,11 @@
     "expand": "주변 펼치기"
   },
   "empty": {
-    "title": "아직 그래프가 비어 있습니다",
+    "title": "아직 지식 맵이 비어 있습니다",
     "body": "노트가 인제스트되면 자동으로 개념이 추출되어 여기에 나타납니다."
   },
   "errors": {
-    "loadFailed": "그래프를 불러오지 못했습니다.",
+    "loadFailed": "지식 맵을 불러오지 못했습니다.",
     "tooManyHops": "이웃 펼치기 단계는 최대 3까지 가능합니다.",
     "forbidden": "이 프로젝트에 접근 권한이 없습니다.",
     "notFound": "찾을 수 없는 개념입니다.",

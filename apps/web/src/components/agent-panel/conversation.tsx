@@ -20,6 +20,7 @@ import { useTranslations } from "next-intl";
 import { stripAgentDirectiveFences } from "@opencairn/shared";
 import { ArrowDown } from "lucide-react";
 import { Square } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 
 import { ChatMessageRendererLoader } from "@/components/chat/chat-message-renderer-loader";
 import { useChatMessages } from "@/hooks/use-chat-messages";
@@ -41,7 +42,6 @@ import { ThoughtBubble } from "./thought-bubble";
 import {
   CitationChips,
   asCitations,
-  stripRenderedCitationMarkers,
 } from "./citation-chips";
 import {
   isAgentInteractionCard,
@@ -64,6 +64,7 @@ interface Props {
   onSaveSuggestion?: (payload: unknown) => void;
   onInteractionCardSubmit?: (input: InteractionCardSubmit) => void;
   onThreadUnavailable?: () => void;
+  onStartNewThread?: () => void;
   emptyState?: ReactNode;
   workflowCard?: ReactNode;
 }
@@ -77,6 +78,7 @@ export function Conversation({
   onSaveSuggestion,
   onInteractionCardSubmit,
   onThreadUnavailable,
+  onStartNewThread,
   emptyState,
   workflowCard,
 }: Props) {
@@ -90,12 +92,7 @@ export function Conversation({
   const liveCitations = asCitations(live?.citations);
   const liveSaveSuggestion = asSaveSuggestion(live?.save_suggestion);
   const liveAgentActions = asAgentActionCards(live?.agent_actions);
-  const liveBody = live
-    ? stripRenderedCitationMarkers(
-        stripAgentDirectiveFences(live.body),
-        liveCitations,
-      )
-    : "";
+  const liveBody = live ? stripAgentDirectiveFences(live.body) : "";
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const liveActiveRef = useRef(false);
@@ -122,6 +119,10 @@ export function Conversation({
     !visiblePendingUser &&
     !live &&
     !workflowCard;
+  const userTurnCount =
+    messages.filter((message) => message.role === "user").length +
+    (visiblePendingUser?.role === "user" ? 1 : 0);
+  const showLongThreadNudge = userTurnCount >= 20;
 
   const updatePinnedState = useCallback(() => {
     const node = scrollAreaRef.current;
@@ -270,6 +271,34 @@ export function Conversation({
               onInteractionCardSubmit={submitInteractionCard}
             />
           ) : null}
+          {showLongThreadNudge ? (
+            <div
+              data-testid="long-thread-nudge"
+              className="flex items-start gap-3 rounded-[var(--radius-card)] border border-border/70 bg-muted/35 px-3 py-2 text-xs text-muted-foreground"
+            >
+              <MessageSquarePlus
+                aria-hidden
+                className="mt-0.5 h-4 w-4 shrink-0 text-foreground"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-foreground">
+                  {t("long_thread_title")}
+                </div>
+                <div className="mt-0.5 leading-5">
+                  {t("long_thread_body")}
+                </div>
+              </div>
+              {onStartNewThread ? (
+                <button
+                  type="button"
+                  onClick={onStartNewThread}
+                  className="shrink-0 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground transition hover:bg-muted"
+                >
+                  {t("long_thread_cta")}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {live ? (
             <div className="flex flex-col gap-2">
               <LiveRunSummary
@@ -284,7 +313,12 @@ export function Conversation({
               ) : null}
               {live.body ? (
                 <div className="rounded-[var(--radius-card)] border border-border/60 bg-background/80 px-3 py-2 shadow-sm">
-                  <ChatMessageRendererLoader body={liveBody} streaming compact />
+                  <ChatMessageRendererLoader
+                    body={liveBody}
+                    citations={liveCitations}
+                    streaming
+                    compact
+                  />
                   <span
                     aria-hidden
                     className="mt-1 inline-block h-2 w-2 animate-pulse rounded-full bg-foreground/45"

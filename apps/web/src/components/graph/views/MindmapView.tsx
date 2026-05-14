@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import cytoscape from "cytoscape";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { LocateFixed, Minus, Plus, RotateCcw } from "lucide-react";
 import { urls } from "@/lib/urls";
 import { useTabsStore } from "@/stores/tabs-store";
 import { useProjectGraph } from "../useProjectGraph";
@@ -130,6 +131,27 @@ export default function MindmapView({ projectId, root }: Props) {
   );
 
   const cyRef = useRef<cytoscape.Core | null>(null);
+
+  const fitMindmap = useCallback(() => {
+    cyRef.current?.fit(undefined, 72);
+  }, []);
+  const zoomMindmapBy = useCallback((factor: number) => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.zoom({
+      level: Math.max(0.25, Math.min(3, cy.zoom() * factor)),
+      renderedPosition: {
+        x: cy.width() / 2,
+        y: cy.height() / 2,
+      },
+    });
+  }, []);
+  const resetMindmap = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.zoom(1);
+    cy.center();
+  }, []);
 
   useEffect(() => {
     if (!selectedEdgeParam) {
@@ -347,6 +369,12 @@ export default function MindmapView({ projectId, root }: Props) {
         minHeight: presetLayout.height,
       }}
       />
+      <ViewZoomControls
+        onFit={fitMindmap}
+        onZoomIn={() => zoomMindmapBy(1.18)}
+        onZoomOut={() => zoomMindmapBy(1 / 1.18)}
+        onReset={resetMindmap}
+      />
       {selectedEdge && (
         <EdgeEvidencePanel
           edge={selectedEdge}
@@ -365,6 +393,42 @@ export default function MindmapView({ projectId, root }: Props) {
           onOpenNote={openSourceNote}
         />
       )}
+    </div>
+  );
+}
+
+function ViewZoomControls({
+  onFit,
+  onZoomIn,
+  onZoomOut,
+  onReset,
+}: {
+  onFit: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+}) {
+  const t = useTranslations("graph.controls");
+  const buttons = [
+    { label: t("fit"), icon: LocateFixed, onClick: onFit },
+    { label: t("zoomIn"), icon: Plus, onClick: onZoomIn },
+    { label: t("zoomOut"), icon: Minus, onClick: onZoomOut },
+    { label: t("reset"), icon: RotateCcw, onClick: onReset },
+  ];
+  return (
+    <div className="absolute right-3 top-3 z-20 flex items-center gap-1 rounded-lg border border-border bg-background/90 p-1 shadow-sm backdrop-blur">
+      {buttons.map(({ label, icon: Icon, onClick }) => (
+        <button
+          key={label}
+          type="button"
+          aria-label={label}
+          title={label}
+          onClick={onClick}
+          className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
+        >
+          <Icon aria-hidden className="size-4" />
+        </button>
+      ))}
     </div>
   );
 }

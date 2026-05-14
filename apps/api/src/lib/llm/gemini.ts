@@ -8,6 +8,7 @@ import {
   type ChatMsg,
   type GroundedSearchResult,
   type LLMProvider,
+  type ModelProfile,
   type ThinkingLevel,
   type Usage,
 } from "./provider";
@@ -15,6 +16,10 @@ import {
 // ── Factory ──────────────────────────────────────────────────────────────
 
 const CHAT_MODEL_DEFAULT = "gemini-3-flash-preview";
+const LEGACY_CHAT_MODEL_ALIASES: Record<string, string> = {
+  "gemini-2.5-flash": CHAT_MODEL_DEFAULT,
+  "models/gemini-2.5-flash": CHAT_MODEL_DEFAULT,
+};
 const EMBED_MODEL_DEFAULT = "gemini-embedding-001";
 const EMBED_DIM_DEFAULT = 768; // ADR-007
 const GEMINI_THINKING_LEVEL: Record<ThinkingLevel, GeminiThinkingLevel> = {
@@ -50,6 +55,36 @@ function readServiceTier(): GeminiServiceTier | undefined {
     );
   }
   return tier;
+}
+
+function normalizeChatModel(model: string): string {
+  const trimmed = model.trim();
+  if (process.env.GEMINI_ALLOW_LEGACY_CHAT_MODEL === "true") return trimmed;
+  return LEGACY_CHAT_MODEL_ALIASES[trimmed] ?? trimmed;
+}
+
+function firstConfiguredModel(candidates: Array<string | undefined>): string {
+  const model = candidates.find((candidate) => candidate?.trim()) ?? CHAT_MODEL_DEFAULT;
+  return normalizeChatModel(model);
+}
+
+function chatModelForProfile(profile: ModelProfile | undefined): string {
+  if (profile === "quality") {
+    return firstConfiguredModel([
+      process.env.GEMINI_CHAT_MODEL_QUALITY,
+      process.env.GEMINI_CHAT_MODEL_PRO,
+      process.env.GEMINI_CHAT_MODEL,
+      CHAT_MODEL_DEFAULT,
+    ]);
+  }
+  if (profile === "fast") {
+    return firstConfiguredModel([
+      process.env.GEMINI_CHAT_MODEL_FAST,
+      process.env.GEMINI_CHAT_MODEL,
+      CHAT_MODEL_DEFAULT,
+    ]);
+  }
+  return firstConfiguredModel([process.env.GEMINI_CHAT_MODEL, CHAT_MODEL_DEFAULT]);
 }
 
 function thinkingConfig(
@@ -94,7 +129,6 @@ export function getGeminiProvider(): LLMProvider {
   }
 
   const client = new GoogleGenAI({ apiKey });
-  const chatModel = process.env.GEMINI_CHAT_MODEL ?? CHAT_MODEL_DEFAULT;
   const embedModel =
     process.env.GEMINI_EMBED_MODEL ??
     process.env.EMBED_MODEL ??
@@ -132,6 +166,7 @@ export function getGeminiProvider(): LLMProvider {
         ...(opts?.cachedContent ? { cachedContent: opts.cachedContent } : {}),
         ...(opts?.signal ? { abortSignal: opts.signal } : {}),
       };
+      const chatModel = chatModelForProfile(opts?.modelProfile);
       let res;
       try {
         res = await client.models.generateContent({
@@ -185,8 +220,10 @@ export function getGeminiProvider(): LLMProvider {
         maxOutputTokens,
         temperature,
         thinkingLevel,
+        modelProfile,
         cachedContent,
       } = opts;
+      const chatModel = chatModelForProfile(modelProfile);
 
       // Gemini chat is "single-turn with history" via `contents` array. We
       // collapse system messages into a leading systemInstruction (the SDK

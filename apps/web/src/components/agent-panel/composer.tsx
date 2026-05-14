@@ -21,11 +21,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
   Check,
+  ChevronDown,
   FilePlus,
   FileText,
   Mic,
   Plus,
+  Search,
   Sparkles,
+  Square,
+  X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -67,6 +71,8 @@ interface Props {
   onToggleActiveContext?(): void;
   actionApprovalMode?: ActionApprovalMode;
   onToggleActionApprovalMode?(): void;
+  responding?: boolean;
+  onStopResponse?(): void;
   attachDisabled?: boolean;
   disabled?: boolean;
   focusKey?: number;
@@ -82,6 +88,8 @@ export function Composer({
   onToggleActiveContext,
   actionApprovalMode = "require",
   onToggleActionApprovalMode,
+  responding = false,
+  onStopResponse,
   attachDisabled,
   disabled,
   focusKey,
@@ -210,9 +218,24 @@ export function Composer({
       }}
     >
       {selectedCommand ? (
-        <div className="inline-flex w-fit items-center gap-1 rounded-[var(--radius-control)] border border-border bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
-          <span>{selectedCommand.aliases[0]}</span>
-          <span>{t(`slash.command.${selectedCommand.id}`)}</span>
+        <div className="inline-flex w-fit max-w-full items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
+          <span className="shrink-0 font-medium text-foreground">
+            {selectedCommand.aliases[0]}
+          </span>
+          <span className="min-w-0 truncate">
+            {t(`slash.command.${selectedCommand.id}`)}
+          </span>
+          <button
+            type="button"
+            aria-label={t("slash.clear_command_aria")}
+            onClick={() => {
+              setSelectedCommand(null);
+              ref.current?.focus();
+            }}
+            className="grid h-4 w-4 shrink-0 place-items-center rounded-[var(--radius-control)] hover:bg-background hover:text-foreground"
+          >
+            <X aria-hidden className="h-3 w-3" />
+          </button>
         </div>
       ) : null}
       <textarea
@@ -270,32 +293,41 @@ export function Composer({
               ? `agent-command-${slashCommands[activeCommandIndex].id}`
               : undefined
           }
-          className="app-scrollbar-thin absolute bottom-full left-0 right-0 z-20 mb-2 max-h-56 overflow-auto rounded-[var(--radius-card)] border border-border bg-background p-1 text-sm shadow-sm"
+          className="absolute bottom-full left-0 right-0 z-20 mb-2 overflow-hidden rounded-[var(--radius-card)] border border-border bg-background text-sm shadow-lg"
         >
-          {slashCommands.map((command, index) => (
-            <button
-              key={command.id}
-              id={`agent-command-${command.id}`}
-              type="button"
-              role="option"
-              aria-selected={index === activeCommandIndex}
-              className={`app-hover flex w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left ${
-                index === activeCommandIndex ? "bg-muted text-foreground" : ""
-              }`}
-              onMouseEnter={() => setActiveCommandIndex(index)}
-              onClick={() => chooseCommand(command)}
-            >
-              <span className="w-24 shrink-0 font-medium text-foreground">
-                {command.aliases[0]}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {t(`slash.command.${command.id}`)}
-              </span>
-            </button>
-          ))}
-          {slashCommands.length === 0 ? (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">
-              {t("slash.empty")}
+          <div className="app-scrollbar-thin max-h-56 overflow-auto p-1">
+            {slashCommands.map((command, index) => (
+              <button
+                key={command.id}
+                id={`agent-command-${command.id}`}
+                type="button"
+                role="option"
+                aria-selected={index === activeCommandIndex}
+                className={`grid w-full grid-cols-[92px_1fr] items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left transition-colors hover:bg-muted hover:text-foreground ${
+                  index === activeCommandIndex
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground"
+                }`}
+                onMouseEnter={() => setActiveCommandIndex(index)}
+                onClick={() => chooseCommand(command)}
+              >
+                <span className="min-w-0 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[12px] font-medium text-foreground">
+                  {command.aliases[0]}
+                </span>
+                <span className="min-w-0 truncate font-medium">
+                  {t(`slash.command.${command.id}`)}
+                </span>
+              </button>
+            ))}
+            {slashCommands.length === 0 ? (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                {t("slash.empty")}
+              </div>
+            ) : null}
+          </div>
+          {slashCommands.length > 0 ? (
+            <div className="border-t border-border bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">
+              {t("slash.hint")}
             </div>
           ) : null}
         </div>
@@ -306,9 +338,11 @@ export function Composer({
             type="button"
             aria-label={t("add_menu_aria")}
             disabled={disabled}
-            className="rounded-[var(--radius-control)] border border-transparent p-1 text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:opacity-50"
+            className="inline-flex min-h-7 items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-foreground hover:bg-muted disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
+            <span>{t("add_button")}</span>
+            <ChevronDown aria-hidden className="h-3 w-3" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
@@ -321,42 +355,78 @@ export function Composer({
               className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5 text-sm hover:bg-muted focus:bg-muted"
             >
               <FilePlus aria-hidden className="h-4 w-4" />
-              {t("addMenu.file")}
+              <MenuItemText
+                label={t("addMenu.file")}
+                description={t("addMenu.file_description")}
+              />
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={disabled}
+              onClick={() => {
+                const command = getAgentCommand("research");
+                if (command) chooseCommand(command);
+              }}
+              className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5 text-sm hover:bg-muted focus:bg-muted"
+            >
+              <Search aria-hidden className="h-4 w-4" />
+              <MenuItemText
+                label={t("addMenu.research")}
+                description={t("addMenu.research_description")}
+              />
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuCheckboxItem
               checked={activeContextEnabled}
               disabled={!activeContextLabel || disabled}
-              onCheckedChange={() => onToggleActiveContext?.()}
-              className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5 text-sm hover:bg-muted focus:bg-muted"
-            >
-              <FileText aria-hidden className="h-4 w-4" />
-              {t(
+              aria-label={t(
                 activeContextEnabled
                   ? "addMenu.activeTabOn"
                   : "addMenu.activeTabOff",
               )}
+              onCheckedChange={() => onToggleActiveContext?.()}
+              className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5 text-sm hover:bg-muted focus:bg-muted"
+            >
+              <FileText aria-hidden className="h-4 w-4" />
+              <MenuItemText
+                label={t(
+                  activeContextEnabled
+                    ? "addMenu.activeTabOn"
+                    : "addMenu.activeTabOff",
+                )}
+                description={t("addMenu.activeTab_description")}
+              />
             </DropdownMenuCheckboxItem>
             <DropdownMenuItem
               onClick={() => applyContextCommand("memory_off")}
               className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5 text-sm hover:bg-muted focus:bg-muted"
             >
               <Sparkles aria-hidden className="h-4 w-4" />
-              {t("addMenu.memoryOff")}
+              <MenuItemText
+                label={t("addMenu.memoryOff")}
+                description={t("addMenu.memoryOff_description")}
+              />
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuCheckboxItem
               checked={actionApprovalMode === "auto_safe"}
               disabled={disabled}
-              onCheckedChange={() => onToggleActionApprovalMode?.()}
-              className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5 text-sm hover:bg-muted focus:bg-muted"
-            >
-              <Sparkles aria-hidden className="h-4 w-4" />
-              {t(
+              aria-label={t(
                 actionApprovalMode === "auto_safe"
                   ? "addMenu.autoApplyOn"
                   : "addMenu.autoApplyOff",
               )}
+              onCheckedChange={() => onToggleActionApprovalMode?.()}
+              className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5 text-sm hover:bg-muted focus:bg-muted"
+            >
+              <Sparkles aria-hidden className="h-4 w-4" />
+              <MenuItemText
+                label={t(
+                  actionApprovalMode === "auto_safe"
+                    ? "addMenu.autoApplyOn"
+                    : "addMenu.autoApplyOff",
+                )}
+                description={t("addMenu.autoApply_description")}
+              />
             </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -379,7 +449,17 @@ export function Composer({
           disabled={disabled}
         />
         <ModeSelector value={mode} onChange={setMode} />
-        {hasText ? (
+        {responding ? (
+          <button
+            type="button"
+            aria-label={t("stop_aria")}
+            onClick={onStopResponse}
+            disabled={!onStopResponse}
+            className="ml-1 flex h-7 w-7 items-center justify-center rounded-[var(--radius-control)] border border-destructive/50 bg-destructive/10 text-destructive transition hover:bg-destructive/15 disabled:opacity-50"
+          >
+            <Square className="h-3.5 w-3.5 fill-current" />
+          </button>
+        ) : hasText ? (
           <button
             type="button"
             aria-label={t("send_aria")}
@@ -403,6 +483,23 @@ export function Composer({
   );
 }
 
+function MenuItemText({
+  label,
+  description,
+}: {
+  label: string;
+  description: string;
+}) {
+  return (
+    <span className="min-w-0">
+      <span className="block font-medium text-foreground">{label}</span>
+      <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">
+        {description}
+      </span>
+    </span>
+  );
+}
+
 function ActionApprovalSelector({
   value,
   onToggle,
@@ -419,11 +516,13 @@ function ActionApprovalSelector({
     <DropdownMenu>
       <DropdownMenuTrigger
         type="button"
-        aria-label={t("trigger_aria")}
+        aria-label={t(value === "require" ? "require_aria" : "auto_aria")}
         disabled={disabled}
-        className="inline-flex min-h-7 items-center rounded-[var(--radius-control)] border border-border bg-background px-2.5 py-1 text-xs transition-colors hover:border-foreground hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none disabled:opacity-50"
+        className="inline-flex min-h-7 items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-background px-2.5 py-1 text-xs font-medium transition-colors hover:border-foreground hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none disabled:opacity-50"
       >
-        {t(value)}
+        <span className="text-muted-foreground">{t("trigger_label")}</span>
+        <span>{t(`${value}_short`)}</span>
+        <ChevronDown aria-hidden className="h-3 w-3 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -433,7 +532,7 @@ function ActionApprovalSelector({
         {options.map((option) => (
           <DropdownMenuItem
             key={option}
-            onSelect={() => {
+            onClick={() => {
               if (option !== value) onToggle?.();
             }}
             className={`flex min-h-10 items-start gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-xs transition-colors hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground ${

@@ -7,6 +7,11 @@ import type { Tab } from "@/stores/tabs-store";
 import { useTabsStore } from "@/stores/tabs-store";
 import { AgentFileViewer } from "./agent-file-viewer";
 
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ wsSlug: "acme" }),
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 const pdfViewerMock = vi.hoisted(() => ({
   props: [] as Array<{
     config: {
@@ -156,6 +161,35 @@ const messages = {
       googleExport: "Google Workspace로 내보내기",
       googleExportConnectRequired: "Google Drive 연결 필요",
       googleSettingsTitle: "Google Drive 설정",
+      advanced: "고급 보기",
+      material: {
+        status: {
+          not_started: "분석 전",
+          queued: "분석 대기",
+          running: "분석 중",
+          completed: "분석 완료",
+          failed: "분석 실패",
+        },
+        statusDetail: {
+          notStarted: "자료 분석을 시작할 수 있습니다.",
+          running: "자료를 분석하는 중입니다.",
+          completed: "이 자료는 분석되어 에이전트 질문과 노트 생성에 바로 사용할 수 있습니다.",
+          failed: "분석이 실패했습니다. 다시 분석을 실행하거나 원본 파일을 확인해 주세요.",
+        },
+        sourceNoteTab: "정리 노트",
+        graphTab: "개념 위키",
+        advanced: "고급 보기",
+        actions: {
+          note: "정리 노트",
+          wiki: "개념 위키",
+          quiz: "퀴즈",
+          reanalyze: "다시 분석",
+          retry: "다시 시도",
+          openExtract: "추출 노트 열기",
+          openGraph: "그래프 열기",
+          download: "다운로드",
+        },
+      },
       compileStatus: {
         not_started: "컴파일 대기",
         queued: "컴파일 대기열",
@@ -170,6 +204,21 @@ const messages = {
         running: "인제스트 중",
         completed: "인제스트 완료",
         failed: "인제스트 실패",
+      },
+    },
+  },
+  appShell: {
+    viewers: {
+      source: {
+        drawing: {
+          label: "PDF 그리기 도구",
+          move: "이동",
+          pen: "펜",
+          highlighter: "형광펜",
+          hintMove: "문서를 이동하거나 선택합니다.",
+          hintPen: "PDF 위에 필기합니다.",
+          hintHighlighter: "PDF 위에 형광펜으로 표시합니다.",
+        },
       },
     },
   },
@@ -382,7 +431,7 @@ describe("AgentFileViewer", () => {
     });
   });
 
-  it("renders PDFs without the outer file toolbar above EmbedPDF", async () => {
+  it("renders PDFs with a compact material header and floating drawing tools", async () => {
     const file = fileSummary({
       title: "분석 보고서",
       filename: "analysis.pdf",
@@ -398,7 +447,13 @@ describe("AgentFileViewer", () => {
       "data-src",
       `/api/agent-files/${file.id}/file`,
     );
-    expect(screen.queryByText("analysis.pdf")).not.toBeInTheDocument();
+    expect(screen.getByText("analysis.pdf")).toBeInTheDocument();
+    expect(screen.getByText("분석 완료")).toHaveAttribute(
+      "title",
+      "이 자료는 분석되어 에이전트 질문과 노트 생성에 바로 사용할 수 있습니다.",
+    );
+    expect(screen.getByLabelText("PDF 그리기 도구")).toHaveClass("absolute");
+    expect(screen.getByRole("button", { name: "이동" })).toHaveClass("w-8");
     expect(screen.queryByText("pdf · v3 · 2.0 KB")).not.toBeInTheDocument();
     expect(screen.queryByText("인제스트 완료")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("원본 다운로드")).not.toBeInTheDocument();

@@ -54,6 +54,7 @@ type RawAgentScope = {
   strict?: unknown;
   chips?: unknown;
   manifest?: unknown;
+  invocationContext?: unknown;
 };
 
 type AgentMemoryPolicy = "auto" | "off";
@@ -80,13 +81,36 @@ export function resolveAgentRetrievalOptions(opts: {
   ragMode: RagMode;
 } {
   const raw = isRecord(opts.rawScope) ? (opts.rawScope as RawAgentScope) : {};
-  const chips = Array.isArray(raw.chips)
+  const manifest = isRecord(raw.manifest) ? raw.manifest : {};
+  const invocationPage = readInvocationPage(raw.invocationContext);
+  let chips = Array.isArray(raw.chips)
     ? raw.chips.flatMap((chip) =>
         normalizeRetrievalChip(chip, opts.workspaceId),
       )
     : [];
+  if (invocationPage?.hasSelection) {
+    chips = [{ type: "page", id: invocationPage.noteId }];
+  }
+  const sourcePolicy =
+    typeof manifest.sourcePolicy === "string" ? manifest.sourcePolicy : null;
+  const manifestProjectId =
+    typeof manifest.projectId === "string" ? manifest.projectId : null;
+  const scope =
+    invocationPage && (invocationPage.hasSelection || sourcePolicy === "current_only")
+      ? ({
+          type: "page",
+          workspaceId: opts.workspaceId,
+          noteId: invocationPage.noteId,
+        } as RetrievalScope)
+      : manifestProjectId && sourcePolicy !== "workspace"
+        ? ({
+            type: "project",
+            workspaceId: opts.workspaceId,
+            projectId: manifestProjectId,
+          } as RetrievalScope)
+        : ({ type: "workspace", workspaceId: opts.workspaceId } as RetrievalScope);
   return {
-    scope: { type: "workspace", workspaceId: opts.workspaceId },
+    scope,
     chips,
     ragMode: opts.ragMode ?? (raw.strict === "loose" ? "expand" : "strict"),
   };
@@ -221,6 +245,24 @@ function normalizeRetrievalChip(
     return [{ type: "workspace", id: raw.id }];
   }
   return [];
+}
+
+function readInvocationPage(
+  raw: unknown,
+): { noteId: string; hasSelection: boolean } | null {
+  if (!isRecord(raw)) return null;
+  const noteId =
+    raw.kind === "note" && typeof raw.noteId === "string"
+      ? raw.noteId
+      : raw.kind === "source" && typeof raw.sourceId === "string"
+        ? raw.sourceId
+        : null;
+  if (!noteId) return null;
+  return {
+    noteId,
+    hasSelection:
+      typeof raw.selectionText === "string" && raw.selectionText.trim().length > 0,
+  };
 }
 
 async function resolveDurableThreadMemoryContext(opts: {

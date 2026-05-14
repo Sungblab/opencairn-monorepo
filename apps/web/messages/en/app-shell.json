@@ -109,7 +109,7 @@
         "wikiBacklinksEmpty": "No wiki links point back to this PDF yet.",
         "wikiGraphTitle": "Project knowledge map",
         "wikiGraphSummary": "{count, number} concepts · {edgeCount, number} relations",
-        "wikiGraphOpen": "Open graph",
+        "wikiGraphOpen": "Open knowledge map",
         "wikiConceptsTitle": "Top concepts",
         "wikiConceptsEmpty": "Top concepts will appear here after ingest finishes.",
         "selectionTitle": "Selection",

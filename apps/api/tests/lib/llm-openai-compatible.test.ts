@@ -8,12 +8,14 @@ import { LLMNotConfiguredError, type StreamChunk } from "../../src/lib/llm/provi
 const originalBaseUrl = process.env.OPENAI_COMPAT_BASE_URL;
 const originalApiKey = process.env.OPENAI_COMPAT_API_KEY;
 const originalChatModel = process.env.OPENAI_COMPAT_CHAT_MODEL;
+const originalQualityChatModel = process.env.OPENAI_COMPAT_CHAT_MODEL_QUALITY;
 const originalEmbedModel = process.env.OPENAI_COMPAT_EMBED_MODEL;
 
 function restoreEnv() {
   restore("OPENAI_COMPAT_BASE_URL", originalBaseUrl);
   restore("OPENAI_COMPAT_API_KEY", originalApiKey);
   restore("OPENAI_COMPAT_CHAT_MODEL", originalChatModel);
+  restore("OPENAI_COMPAT_CHAT_MODEL_QUALITY", originalQualityChatModel);
   restore("OPENAI_COMPAT_EMBED_MODEL", originalEmbedModel);
 }
 
@@ -137,6 +139,45 @@ describe("getOpenAICompatibleProvider", () => {
       { delta: "ok" },
       { usage: { tokensIn: 0, tokensOut: 0, model: "qwen" } },
     ]);
+  });
+
+  it("uses the configured quality model for quality-profile streaming", async () => {
+    process.env.OPENAI_COMPAT_CHAT_MODEL_QUALITY = "gpt-5.1";
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const body = new ReadableStream({
+      start(ctrl) {
+        ctrl.enqueue(
+          new TextEncoder().encode(
+            'data: {"choices":[{"delta":{"content":"ok"}}],"usage":{"prompt_tokens":4,"completion_tokens":2}}\n\n',
+          ),
+        );
+        ctrl.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+        ctrl.close();
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init) => {
+        calls.push({ url: String(url), init: init as RequestInit });
+        return new Response(body, { status: 200 });
+      }),
+    );
+
+    const provider = getOpenAICompatibleProvider();
+    const out: StreamChunk[] = [];
+    for await (const chunk of provider.streamGenerate({
+      messages: [{ role: "user", content: "hi" }],
+      modelProfile: "quality",
+    })) {
+      out.push(chunk);
+    }
+
+    expect(JSON.parse(String(calls[0].init.body))).toMatchObject({
+      model: "gpt-5.1",
+    });
+    expect(out).toContainEqual({
+      usage: { tokensIn: 4, tokensOut: 2, model: "gpt-5.1" },
+    });
   });
 
   it("grounds latest-answer requests through the Responses web_search tool", async () => {

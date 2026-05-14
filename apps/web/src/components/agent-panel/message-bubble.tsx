@@ -11,11 +11,7 @@ import { useTranslations } from "next-intl";
 import { stripAgentDirectiveFences } from "@opencairn/shared";
 import type { ChatMessage } from "@/lib/api-client";
 import { ChatMessageRendererLoader } from "../chat/chat-message-renderer-loader";
-import {
-  CitationChips,
-  asCitations,
-  stripRenderedCitationMarkers,
-} from "./citation-chips";
+import { CitationChips, asCitations } from "./citation-chips";
 import { MessageActions } from "./message-actions";
 import { SaveSuggestionCard } from "./save-suggestion-card";
 import { StatusLine } from "./status-line";
@@ -148,10 +144,7 @@ export function MessageBubble({
       ? msg.content.status.phrase
       : null;
   const citations = asCitations(msg.content.citations);
-  const body = stripRenderedCitationMarkers(
-    stripAgentDirectiveFences(String(msg.content.body ?? "")),
-    citations,
-  );
+  const body = stripAgentDirectiveFences(String(msg.content.body ?? ""));
   const saveSuggestion = asSaveSuggestion(msg.content.save_suggestion);
   const error = asAgentError(msg.content.error);
   const agentFiles = asAgentFileCards(
@@ -177,6 +170,7 @@ export function MessageBubble({
       {status ? <StatusLine phrase={status} /> : null}
       <ChatMessageRendererLoader
         body={body}
+        citations={citations}
         streaming={msg.status === "streaming"}
         compact
       />

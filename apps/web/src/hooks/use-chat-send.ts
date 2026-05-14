@@ -215,6 +215,20 @@ export function useChatSend(threadId: string | null) {
                   : prev;
               case "agent_action_created":
                 void qc.invalidateQueries({ queryKey: ["agent-actions"] });
+                if (
+                  isObj(payload) &&
+                  isObj(payload.action) &&
+                  typeof payload.action.projectId === "string" &&
+                  typeof payload.action.kind === "string" &&
+                  typeof payload.action.status === "string" &&
+                  payload.action.status === "completed" &&
+                  (payload.action.kind.startsWith("note.") ||
+                    payload.action.kind.startsWith("file."))
+                ) {
+                  void qc.invalidateQueries({
+                    queryKey: ["project-tree", payload.action.projectId],
+                  });
+                }
                 return isObj(payload)
                   ? {
                       ...prev,

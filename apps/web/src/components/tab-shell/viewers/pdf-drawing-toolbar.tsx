@@ -19,6 +19,7 @@ function getAnnotationCapability(
   registry: PluginRegistry | null,
 ): Readonly<AnnotationCapability> | null {
   if (!registry) return null;
+  if (typeof registry.getCapabilityProvider !== "function") return null;
   const provider = registry.getCapabilityProvider(
     "annotation",
   ) as AnnotationProvider | null;
@@ -30,9 +31,11 @@ type DrawingTool = "move" | "ink" | "inkHighlighter";
 export function PdfDrawingToolbar({
   registry,
   className,
+  floating = false,
 }: {
   registry: PluginRegistry | null;
   className?: string;
+  floating?: boolean;
 }) {
   const t = useTranslations("appShell.viewers.source.drawing");
   const [activeTool, setActiveTool] = useState<DrawingTool>("move");
@@ -52,10 +55,13 @@ export function PdfDrawingToolbar({
   return (
     <div
       className={cn(
-        "flex min-h-10 items-center gap-1 border-b bg-background px-2 py-1 text-foreground",
+        floating
+          ? "absolute left-3 top-16 z-20 flex flex-col items-center gap-1 rounded-md border bg-background/95 p-1 text-foreground shadow-md backdrop-blur"
+          : "flex min-h-10 items-center gap-1 border-b bg-background px-2 py-1 text-foreground",
         className,
       )}
       aria-label={t("label")}
+      aria-orientation={floating ? "vertical" : "horizontal"}
     >
       <ToolButton
         active={activeTool === "move"}
@@ -81,13 +87,15 @@ export function PdfDrawingToolbar({
       >
         <Highlighter className="h-4 w-4" aria-hidden />
       </ToolButton>
-      <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">
-        {activeTool === "ink"
-          ? t("hintPen")
-          : activeTool === "inkHighlighter"
-            ? t("hintHighlighter")
-            : t("hintMove")}
-      </span>
+      {!floating ? (
+        <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">
+          {activeTool === "ink"
+            ? t("hintPen")
+            : activeTool === "inkHighlighter"
+              ? t("hintHighlighter")
+              : t("hintMove")}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -112,10 +120,11 @@ function ToolButton({
       disabled={disabled}
       onClick={onClick}
       aria-pressed={active}
-      className="h-8 gap-1.5"
+      aria-label={label}
+      title={label}
+      className="h-8 w-8 p-0"
     >
       {children}
-      {label}
     </Button>
   );
 }

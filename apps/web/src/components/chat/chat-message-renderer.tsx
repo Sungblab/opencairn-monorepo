@@ -5,6 +5,10 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { proseClasses } from "@/lib/markdown/shared-prose";
 import { sanitizeHtml } from "@/lib/markdown/sanitize-html";
+import {
+  InlineCitationMarker,
+  type Citation,
+} from "@/components/agent-panel/citation-chips";
 import { CodeBlock } from "./renderers/code-block";
 import { CalloutBlockquote } from "./renderers/callout-blockquote";
 import { StreamingCursor } from "./streaming-text";
@@ -39,6 +43,7 @@ const compactChatProseClasses = [
 
 interface ChatMessageRendererProps {
   body: string;
+  citations?: Citation[];
   /** True while the message is mid-stream — appends a blinking cursor. */
   streaming?: boolean;
   compact?: boolean;
@@ -60,12 +65,29 @@ function hasMathSyntax(body: string): boolean {
   return /(^|[^\\])\$\$?/.test(body) || /\\\(|\\\[/.test(body);
 }
 
+function linkifyCitationMarkers(body: string, citations: Citation[]): string {
+  if (citations.length === 0) return body;
+  const citationIndexes = new Set(citations.map((citation) => citation.index));
+  return body.replace(/\[\^(\d+)\]/g, (match, index: string) => {
+    const citationIndex = Number(index);
+    if (!citationIndexes.has(citationIndex)) return match;
+    return `[[${citationIndex}]](#opencairn-citation-${citationIndex})`;
+  });
+}
+
+function citationIndexFromHref(href: unknown): number | null {
+  if (typeof href !== "string") return null;
+  const match = href.match(/^#opencairn-citation-(\d+)$/);
+  return match ? Number(match[1]) : null;
+}
+
 export function ChatMessageRenderer({
   body,
+  citations = [],
   streaming,
   compact,
 }: ChatMessageRendererProps) {
-  const safeBody = sanitizeHtml(body);
+  const safeBody = sanitizeHtml(linkifyCitationMarkers(body, citations));
   const needsMath = hasMathSyntax(safeBody);
   const [mathPlugins, setMathPlugins] = useState<MathPlugins | null>(null);
 
@@ -115,11 +137,19 @@ export function ChatMessageRenderer({
             <table className={proseClasses.table}>{children}</table>
           ),
           blockquote: CalloutBlockquote,
-          a: ({ children, ...props }) => (
-            <a {...props} target="_blank" rel="noopener noreferrer">
-              {children}
-            </a>
-          ),
+          a: ({ children, ...props }) => {
+            const citationIndex = citationIndexFromHref(props.href);
+            const citation =
+              citationIndex !== null
+                ? citations.find((item) => item.index === citationIndex)
+                : null;
+            if (citation) return <InlineCitationMarker citation={citation} />;
+            return (
+              <a {...props} target="_blank" rel="noopener noreferrer">
+                {children}
+              </a>
+            );
+          },
           img: ({ alt, ...props }) => (
             <img
               {...props}

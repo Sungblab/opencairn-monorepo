@@ -38,7 +38,7 @@
     "workbench": "Workbench",
     "tools": "Tools",
     "notifications": "Notifications",
-    "graph": "Project graph",
+    "graph": "Knowledge map",
     "agents": "Agents",
     "learn": "Learn",
     "atlas": "Ontology Atlas",
@@ -121,7 +121,10 @@
     "guest_name": "Guest",
     "workspace_loading": "Space",
     "plan_free": "Personal",
+    "plan_pro": "Pro",
+    "plan_max": "Max",
     "plan_byok": "BYOK",
+    "credits_remaining": "{credits} credits",
     "credits_amount": "₩{value, number}"
   },
   "search": {
@@ -131,6 +134,7 @@
     "title": "Upload file",
     "description": "When multiple files are uploaded together, the original opens first while analysis runs in parallel in the background.",
     "drop": "Drag files here or click to choose",
+    "dropMain": "Upload files to this project",
     "hint": "PDF, documents, images, audio, video, Markdown",
     "selected": "Selected: {name}",
     "selected_many": "{count} files selected",
@@ -161,9 +165,9 @@
     "confirm_delete_body": "\"{label}\" will be removed from the project tree."
   },
   "tree_badges": {
-    "analysis_completed": "Analyzed",
+    "analysis_completed": "Done",
     "analysis_running": "Analyzing",
-    "analysis_failed": "Analysis failed"
+    "analysis_failed": "Failed"
   },
   "toasts": {
     "move_failed": "Couldn't move. Please try again.",
@@ -175,7 +179,7 @@
     "delete_failed": "Couldn't delete. Please try again."
   },
   "graph": {
-    "entry": "View this project's graph"
+    "entry": "View this project's knowledge map"
   },
   "agents": {
     "entry": "View this project's agents"

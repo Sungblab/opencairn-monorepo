@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 type WorkspaceRole = "owner" | "admin" | "member" | "guest";
+type UserPlan = "free" | "pro" | "max" | "byok";
 
 interface MyWorkspace {
   id: string;
@@ -48,9 +49,17 @@ interface MyInvite {
   expiresAt: string;
 }
 
+interface MyBillingSummary {
+  plan: UserPlan;
+  balanceCredits: number;
+  monthlyGrantCredits: number;
+  managedLlm: boolean;
+}
+
 interface MyResponse {
   workspaces: MyWorkspace[];
   invites: MyInvite[];
+  billing?: MyBillingSummary;
 }
 
 interface AuthMeResponse {
@@ -106,7 +115,19 @@ export function SidebarFooter() {
     isSiteAdmin?: boolean;
   };
   const isSiteAdmin = Boolean(user.isSiteAdmin || authMe.data?.isSiteAdmin);
-  const planLabel = byok.data?.registered ? t("plan_byok") : t("plan_free");
+  const billing = workspaces.data?.billing;
+  const planLabel = billing
+    ? t(planLabelKey(billing.plan))
+    : byok.data?.registered
+      ? t("plan_byok")
+      : t("plan_free");
+  const creditLabel = billing?.managedLlm
+    ? t("credits_remaining", {
+        credits: new Intl.NumberFormat(locale).format(
+          Math.max(0, billing.balanceCredits),
+        ),
+      })
+    : null;
   const currentWorkspace =
     workspaces.data?.workspaces.find((w) => w.slug === wsSlug) ??
     workspaces.data?.workspaces[0];
@@ -148,8 +169,16 @@ export function SidebarFooter() {
             <div className="truncate text-xs leading-tight">
               {workspaceName}
             </div>
-            <div className="truncate text-[10px] leading-tight text-muted-foreground">
-              {planLabel}
+            <div className="flex min-w-0 items-center gap-1 truncate text-[10px] leading-tight text-muted-foreground">
+              <span className="truncate">{planLabel}</span>
+              {creditLabel ? (
+                <>
+                  <span aria-hidden className="shrink-0">
+                    ·
+                  </span>
+                  <span className="truncate">{creditLabel}</span>
+                </>
+              ) : null}
             </div>
           </div>
           <ChevronDown
@@ -173,6 +202,11 @@ export function SidebarFooter() {
               <span className="block truncate text-xs font-normal text-muted-foreground">
                 {planLabel}
               </span>
+              {creditLabel ? (
+                <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
+                  {creditLabel}
+                </span>
+              ) : null}
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
@@ -314,6 +348,20 @@ export function SidebarFooter() {
       </button>
     </div>
   );
+}
+
+function planLabelKey(plan: UserPlan) {
+  switch (plan) {
+    case "pro":
+      return "plan_pro";
+    case "max":
+      return "plan_max";
+    case "byok":
+      return "plan_byok";
+    case "free":
+    default:
+      return "plan_free";
+  }
 }
 
 function ThemeMenuItem({

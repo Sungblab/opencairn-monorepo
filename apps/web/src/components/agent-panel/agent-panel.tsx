@@ -761,6 +761,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
               onSaveSuggestion={handleSaveSuggestion}
               onInteractionCardSubmit={handleInteractionCardSubmit}
               onThreadUnavailable={() => setActive(null)}
+              onStartNewThread={startNewThread}
               workflowCard={workflowCard}
               emptyState={
                 <AgentPanelEmptyState
@@ -809,6 +810,8 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
               onCommand={handleCommand}
               onAttachFile={handleAttachFile}
               onAttachTreeNode={handleAttachTreeNode}
+              responding={Boolean(live)}
+              onStopResponse={stopResponse}
               activeContextLabel={
                 activeTab?.targetId ? activeTab.title : undefined
               }

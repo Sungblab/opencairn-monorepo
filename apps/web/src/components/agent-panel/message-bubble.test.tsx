@@ -29,10 +29,20 @@ vi.mock("next/navigation", () => ({
 vi.mock("../chat/chat-message-renderer-loader", () => ({
   ChatMessageRendererLoader: ({
     body,
+    citations = [],
   }: {
     body: string;
+    citations?: Array<{ index: number }>;
     streaming: boolean;
-  }) => <div>{body}</div>,
+  }) => (
+    <div>
+      {body.replace(/\[\^(\d+)\]/g, (match, index: string) =>
+        citations.some((citation) => citation.index === Number(index))
+          ? `[${index}]`
+          : match,
+      )}
+    </div>
+  ),
 }));
 
 const requestId = "00000000-0000-4000-8000-000000000020";
@@ -143,7 +153,7 @@ describe("message bubble status", () => {
 });
 
 describe("message bubble citations", () => {
-  it("hides rendered footnote markers when citation chips carry the source", () => {
+  it("keeps citations anchored inline while also showing source chips", () => {
     render(
       <MessageBubble
         msg={{
@@ -165,9 +175,7 @@ describe("message bubble citations", () => {
       />,
     );
 
-    expect(
-      screen.getByText('음, "테스트"라고 말씀하셨는데요.'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('음, "테스트"라고 말씀하셨는데요.[1]')).toBeInTheDocument();
     expect(screen.queryByText(/\[\^1\]/)).not.toBeInTheDocument();
     expect(screen.getByText("출처 1")).toBeInTheDocument();
   });
@@ -210,7 +218,7 @@ describe("message bubble agent actions", () => {
     useTabsStore.getState().setWorkspace("ws-test");
   });
 
-  it("renders completed generated-note actions and opens the created note", async () => {
+  it("renders completed generated-note actions and opens the created note in reading mode", async () => {
     const user = userEvent.setup();
 
     render(
@@ -264,7 +272,7 @@ describe("message bubble agent actions", () => {
         kind: "note",
         targetId: "00000000-0000-4000-8000-000000000043",
         title: "PDF 요약 노트",
-        mode: "plate",
+        mode: "reading",
         preview: false,
       }),
     ]);

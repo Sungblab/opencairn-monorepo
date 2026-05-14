@@ -37,7 +37,13 @@ export function NoteActionReviewList({ projectId }: { projectId: string | null }
     },
   });
   const actions = data?.actions ?? [];
-  const invalidate = () => qc.invalidateQueries({ queryKey });
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey });
+    if (projectId) {
+      void qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
+      void qc.invalidateQueries({ queryKey: ["agent-actions", projectId] });
+    }
+  };
   const apply = useMutation({
     mutationFn: (id: string) => agentActionsApi.apply(id),
     onSuccess: invalidate,

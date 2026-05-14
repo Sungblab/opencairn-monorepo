@@ -188,6 +188,15 @@ const messages = {
         frameTitle: "{title} PDF 뷰어",
         open: "새 탭에서 열기",
         download: "다운로드",
+        drawing: {
+          label: "PDF 그리기 도구",
+          move: "이동",
+          pen: "펜",
+          highlighter: "형광펜",
+          hintMove: "문서를 이동하거나 선택합니다.",
+          hintPen: "PDF 위에 필기합니다.",
+          hintHighlighter: "PDF 위에 형광펜으로 표시합니다.",
+        },
         rail: {
           title: "PDF 작업 패널",
           close: "닫기",
@@ -365,9 +374,10 @@ describe("SourceViewer", () => {
         { name: "너비에 맞춤", value: "fit-width" },
       ]),
     });
-    expect(pdfViewerMock.props.at(-1)?.config.disabledCategories).toContain(
+    expect(pdfViewerMock.props.at(-1)?.config.disabledCategories).not.toContain(
       "annotation",
     );
+    expect(screen.getByLabelText("PDF 그리기 도구")).toHaveClass("absolute");
     expect(pdfViewerMock.props.at(-1)?.config.i18n).toMatchObject({
       defaultLocale: "ko",
       locales: [

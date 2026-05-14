@@ -94,26 +94,46 @@ export function markdownToPlateValue(markdown: string): PlateValue {
       continue;
     }
 
-    const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+    const callout = trimmed.match(/^>\s*\[!(tip|info|warn|warning|danger)\]\s+(.+)$/i);
+    if (callout) {
+      flushParagraph();
+      const kind =
+        callout[1]!.toLowerCase() === "warning"
+          ? "warn"
+          : callout[1]!.toLowerCase();
+      nodes.push({
+        type: "callout",
+        kind,
+        children: [
+          {
+            type: "p",
+            children: parseInlineMarkdown(callout[2]!),
+          },
+        ],
+      });
+      continue;
+    }
+
+    const bullet = line.match(/^(\s*)[-*]\s+(.+)$/);
     if (bullet) {
       flushParagraph();
       nodes.push({
         type: "p",
         listStyleType: "disc",
-        indent: 1,
-        children: parseInlineMarkdown(bullet[1]),
+        indent: listIndentFromLeadingWhitespace(bullet[1] ?? ""),
+        children: parseInlineMarkdown(bullet[2]!),
       });
       continue;
     }
 
-    const ordered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+    const ordered = line.match(/^(\s*)\d+[.)]\s+(.+)$/);
     if (ordered) {
       flushParagraph();
       nodes.push({
         type: "p",
         listStyleType: "decimal",
-        indent: 1,
-        children: parseInlineMarkdown(ordered[1]),
+        indent: listIndentFromLeadingWhitespace(ordered[1] ?? ""),
+        children: parseInlineMarkdown(ordered[2]!),
       });
       continue;
     }
@@ -123,6 +143,11 @@ export function markdownToPlateValue(markdown: string): PlateValue {
 
   flushParagraph();
   return (nodes.length ? nodes : textToPlateValue("")) as PlateValue;
+}
+
+function listIndentFromLeadingWhitespace(whitespace: string): number {
+  const spaces = whitespace.replace(/\t/g, "  ").length;
+  return Math.max(1, Math.floor(spaces / 2) + 1);
 }
 
 function findEmbeddedTableStart(lines: string[], index: number): number | null {

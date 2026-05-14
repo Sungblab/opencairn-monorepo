@@ -6,8 +6,8 @@ import { SidebarFooter } from "./sidebar-footer";
 
 vi.mock("next-intl", () => ({
   useLocale: () => "ko",
-  useTranslations: (ns?: string) => (key: string) =>
-    ns ? `${ns}.${key}` : key,
+  useTranslations: (ns?: string) => (key: string, values?: Record<string, unknown>) =>
+    ns ? `${ns}.${key}${values?.credits ? `:${values.credits}` : ""}` : key,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -131,6 +131,48 @@ describe("SidebarFooter", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the current plan and remaining managed credits in the footer", async () => {
+    vi.mocked(global.fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/api/auth/me")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ isSiteAdmin: false }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          workspaces: [
+            { id: "1", slug: "acme", name: "ACME", role: "owner" },
+          ],
+          invites: [],
+          billing: {
+            plan: "pro",
+            balanceCredits: 1234,
+            monthlyGrantCredits: 8000,
+            managedLlm: true,
+          },
+        }),
+      } as Response);
+    });
+
+    sessionMock.value = {
+      data: {
+        user: { id: "u1", name: "Ada Lovelace", email: "ada@x" },
+      },
+      isPending: false,
+    };
+
+    render(withQuery(<SidebarFooter />));
+
+    expect(await screen.findByText("ACME")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.footer.plan_pro")).toBeInTheDocument();
+    expect(
+      screen.getByText("sidebar.footer.credits_remaining:1,234"),
+    ).toBeInTheDocument();
+  });
+
   it("renders nothing while the session is still loading", () => {
     sessionMock.value = { data: null, isPending: true };
     const { container } = render(withQuery(<SidebarFooter />));
@@ -195,7 +237,7 @@ describe("SidebarFooter", () => {
 
     expect(screen.getByText("sidebar.footer.theme")).toBeInTheDocument();
     expect(
-      screen.getByRole("menuitem", {
+      screen.getByRole("button", {
         name: /Cairn Light, account\.appearance\.themes\.cairn-light/,
       }),
     ).toBeInTheDocument();
@@ -204,7 +246,7 @@ describe("SidebarFooter", () => {
     ).toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("menuitem", {
+      screen.getByRole("button", {
         name: /Cairn Dark, account\.appearance\.themes\.cairn-dark/,
       }),
     );

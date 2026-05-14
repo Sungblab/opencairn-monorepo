@@ -1,11 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import agentPanelMessages from "@/../messages/ko/agent-panel.json";
 import koMessages from "@/../messages/ko/chat.json";
 import { ChatMessageRenderer } from "./chat-message-renderer";
 
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ wsSlug: "ws-test" }),
+}));
+
 const wrap = (ui: React.ReactNode) => (
-  <NextIntlClientProvider locale="ko" messages={{ chat: koMessages }}>
+  <NextIntlClientProvider
+    locale="ko"
+    messages={{ chat: koMessages, agentPanel: agentPanelMessages }}
+  >
     {ui}
   </NextIntlClientProvider>
 );
@@ -83,6 +91,34 @@ describe("ChatMessageRenderer", () => {
   it("uses the compact prose variant when requested", () => {
     render(wrap(<ChatMessageRenderer body="작은 패널 답변" compact />));
     expect(screen.getByTestId("chat-message-renderer")).toHaveClass("text-[13px]");
+  });
+
+  it("renders workspace citation markers as inline source links", () => {
+    render(
+      wrap(
+        <ChatMessageRenderer
+          body="RAM은 임시 저장 공간입니다.[^1]"
+          citations={[
+            {
+              index: 1,
+              title: "Lecture3. Memory and Variables.pdf",
+              noteId: "note-1",
+              snippet: "컴퓨터 메모리(RAM)는 데이터를 임시로 보관하는 공간입니다.",
+            },
+          ]}
+        />,
+      ),
+    );
+
+    expect(screen.queryByText(/\[\^1\]/)).not.toBeInTheDocument();
+    const citation = screen.getByRole("link", {
+      name: /Lecture3\. Memory and Variables\.pdf \[1\]/,
+    });
+    expect(citation).toHaveTextContent("1");
+    expect(citation).toHaveAttribute("href", "/ko/workspace/ws-test/note/note-1");
+    expect(
+      screen.getByText("컴퓨터 메모리(RAM)는 데이터를 임시로 보관하는 공간입니다."),
+    ).toBeInTheDocument();
   });
 });
 

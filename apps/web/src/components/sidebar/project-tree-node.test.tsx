@@ -103,7 +103,9 @@ describe("ProjectTreeNode", () => {
         child_count: 0,
       }),
     );
-    expect(regular.container.querySelector(".lucide-notebook-text")).toBeInTheDocument();
+    expect(
+      regular.container.querySelector(".lucide-notebook-text"),
+    ).toBeInTheDocument();
     regular.unmount();
 
     const generated = renderNode(
@@ -116,8 +118,12 @@ describe("ProjectTreeNode", () => {
         metadata: { role: "source_note" },
       }),
     );
-    expect(generated.container.querySelector(".lucide-file-text")).toBeInTheDocument();
-    expect(screen.getByText("sidebar.tree_menu.generated_note")).toBeInTheDocument();
+    expect(
+      generated.container.querySelector(".lucide-file-text"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("sidebar.tree_menu.generated_note"),
+    ).toBeInTheDocument();
     generated.unmount();
 
     const pdf = renderNode(
@@ -131,7 +137,9 @@ describe("ProjectTreeNode", () => {
         mime_type: "application/pdf",
       }),
     );
-    expect(pdf.container.querySelector(".lucide-file-type")).toBeInTheDocument();
+    expect(
+      pdf.container.querySelector(".lucide-file-type"),
+    ).toBeInTheDocument();
   });
 
   it("renders source bundles and file rows with distinct type badges", () => {
@@ -213,7 +221,9 @@ describe("ProjectTreeNode", () => {
         metadata: { role: "figures" },
       }),
     );
-    expect(figures.container.querySelector(".lucide-file-image")).toBeInTheDocument();
+    expect(
+      figures.container.querySelector(".lucide-file-image"),
+    ).toBeInTheDocument();
     figures.unmount();
 
     const analysis = renderNode(
@@ -226,7 +236,9 @@ describe("ProjectTreeNode", () => {
         metadata: { role: "analysis" },
       }),
     );
-    expect(analysis.container.querySelector(".lucide-file-text")).toBeInTheDocument();
+    expect(
+      analysis.container.querySelector(".lucide-file-text"),
+    ).toBeInTheDocument();
     analysis.unmount();
 
     const table = renderNode(
@@ -241,7 +253,9 @@ describe("ProjectTreeNode", () => {
         metadata: { role: "table" },
       }),
     );
-    expect(table.container.querySelector(".lucide-table-2")).toBeInTheDocument();
+    expect(
+      table.container.querySelector(".lucide-table-2"),
+    ).toBeInTheDocument();
   });
 
   it("uses the unified row density and action control treatment", () => {
@@ -256,17 +270,16 @@ describe("ProjectTreeNode", () => {
 
     expect(screen.getByRole("treeitem")).toHaveClass(
       "h-full",
-      "min-h-8",
+      "min-h-7",
       "w-full",
       "min-w-0",
       "overflow-hidden",
-      "rounded-[var(--radius-control)]",
-      "gap-2",
-      "px-2.5",
+      "gap-1.5",
+      "px-1.5",
     );
     expect(
       screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
-    ).toHaveClass("h-7", "w-7", "rounded-[var(--radius-control)]");
+    ).toHaveClass("h-6", "w-6", "rounded-sm");
     expect(screen.getByText("Readable row")).toHaveClass("min-w-0", "truncate");
   });
 
@@ -461,7 +474,10 @@ describe("ProjectTreeNode", () => {
 
     fireEvent.click(screen.getByRole("treeitem"));
 
-    expect(onOpenAnalysisGroup).toHaveBeenCalledWith("analysis-group", "분석 결과");
+    expect(onOpenAnalysisGroup).toHaveBeenCalledWith(
+      "analysis-group",
+      "분석 결과",
+    );
     expect(toggle).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
   });
@@ -874,9 +890,7 @@ describe("ProjectTreeNode", () => {
       title: "Generated app",
       preview: false,
     });
-    expect(push).toHaveBeenCalledWith(
-      "/ko/workspace/acme/code-workspace/cw-1",
-    );
+    expect(push).toHaveBeenCalledWith("/ko/workspace/acme/code-workspace/cw-1");
   });
 
   it("F2 triggers onStartRename for the focused row", () => {

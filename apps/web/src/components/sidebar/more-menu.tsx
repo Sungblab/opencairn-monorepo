@@ -1,12 +1,11 @@
 "use client";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ExternalLink, Network, Settings, Share2, Trash2 } from "lucide-react";
+import { ExternalLink, Network } from "lucide-react";
 
 export interface MoreMenuProps {
   base: string;
   synthesisExportEnabled?: boolean;
-  onOpenTrash?: () => void;
 }
 
 // Overflow popover for the sidebar's global nav. Link-rendered items keep
@@ -18,7 +17,6 @@ export interface MoreMenuProps {
 export function MoreMenu({
   base,
   synthesisExportEnabled = false,
-  onOpenTrash,
 }: MoreMenuProps) {
   const t = useTranslations("sidebar");
   const primaryItems = [
@@ -26,16 +24,6 @@ export function MoreMenu({
       href: `${base}/atlas`,
       label: t("more_menu.atlas"),
       Icon: Network,
-    },
-    {
-      href: `${base}/settings`,
-      label: t("more_menu.settings"),
-      Icon: Settings,
-    },
-    {
-      href: `${base}/settings/shared-links`,
-      label: t("more_menu.shared_links"),
-      Icon: Share2,
     },
     ...(synthesisExportEnabled
       ? [
@@ -64,16 +52,6 @@ export function MoreMenu({
             <span className="min-w-0 flex-1 truncate">{label}</span>
           </Link>
         ))}
-        <button
-          type="button"
-          onClick={onOpenTrash}
-          className="flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
-        >
-          <Trash2 aria-hidden className="h-3.5 w-3.5 shrink-0" />
-          <span className="min-w-0 flex-1 truncate">
-            {t("more_menu.trash")}
-          </span>
-        </button>
         <a
           href="/feedback"
           target="_blank"

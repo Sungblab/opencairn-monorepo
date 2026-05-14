@@ -1,7 +1,7 @@
 {
   "viewer": {
-    "title": "Graph",
-    "missing": "No project selected to render a graph."
+    "title": "Knowledge map",
+    "missing": "No project selected to render a knowledge map."
   },
   "health": {
     "label": "Index status",
@@ -23,9 +23,13 @@
     },
     "refresh": "Refresh index",
     "refreshing": "Queuing refresh",
+    "refreshQueued": "Index refresh queued.",
+    "refreshFailed": "Could not queue index refresh.",
     "recentActivity": "Recent activity",
     "runLibrarian": "Run Librarian",
-    "runningLibrarian": "Starting Librarian"
+    "runningLibrarian": "Starting Librarian",
+    "librarianStarted": "Librarian started.",
+    "librarianFailed": "Could not start Librarian."
   },
   "filters": {
     "searchPlaceholder": "Search concepts…",
@@ -40,11 +44,11 @@
     "expand": "Expand neighbors"
   },
   "empty": {
-    "title": "The graph is still empty",
+    "title": "The knowledge map is still empty",
     "body": "Concepts will appear here automatically as notes are ingested."
   },
   "errors": {
-    "loadFailed": "Failed to load graph.",
+    "loadFailed": "Failed to load knowledge map.",
     "tooManyHops": "Neighbor expansion is capped at 3 hops.",
     "forbidden": "You don't have access to this project.",
     "notFound": "Concept not found.",

@@ -52,7 +52,7 @@ describe("BoardView", () => {
     });
     wrap(<BoardView projectId="p-1" />);
     expect(screen.getByTestId("board-canvas")).toBeInTheDocument();
-    expect(screen.getAllByRole("button")).toHaveLength(2);
+    expect(screen.getAllByTestId(/board-node-/)).toHaveLength(2);
     expect(screen.getByTestId("board-edge")).toBeInTheDocument();
   });
 
@@ -106,6 +106,46 @@ describe("BoardView", () => {
     fireEvent.pointerDown(node, { pointerId: 1, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(canvas, { clientX: 80, clientY: 40 });
     expect(node.getAttribute("style")).not.toBe(before);
+  });
+
+  it("pans the board canvas by dragging empty background", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "board",
+        layout: "preset",
+        rootId: null,
+        nodes: [{ id: "11111111-1111-4111-8111-111111111111", name: "Hub" }],
+        edges: [],
+        truncated: false,
+        totalConcepts: 1,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(<BoardView projectId="p-1" />);
+    const viewport = screen.getByTestId("board-viewport");
+    viewport.scrollLeft = 90;
+    viewport.scrollTop = 50;
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      pointerId: 1,
+      clientX: 100,
+      clientY: 100,
+    });
+    fireEvent.pointerMove(viewport, {
+      pointerId: 1,
+      clientX: 70,
+      clientY: 80,
+    });
+    fireEvent.pointerUp(viewport, {
+      pointerId: 1,
+      clientX: 70,
+      clientY: 80,
+    });
+
+    expect(viewport.scrollLeft).toBe(120);
+    expect(viewport.scrollTop).toBe(70);
   });
 
   it("uses server-provided board positions as the initial placement", () => {

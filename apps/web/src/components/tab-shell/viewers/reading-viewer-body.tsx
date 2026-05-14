@@ -13,8 +13,11 @@ import {
   ItalicPlugin,
   StrikethroughPlugin,
 } from "@platejs/basic-nodes/react";
+import { CodeBlockPlugin, CodeLinePlugin } from "@platejs/code-block/react";
 import { ListPlugin } from "@platejs/list/react";
 
+import { CalloutPlugin } from "@/components/editor/blocks/callout/callout-plugin";
+import { tablePlugins } from "@/components/editor/blocks/table/table-plugin";
 import { latexPlugins } from "@/components/editor/plugins/latex";
 import {
   colorFor,
@@ -23,21 +26,23 @@ import {
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
 import { HorizontalRuleElement } from "@/components/editor/elements/horizontal-rule";
 
-// Same plugin list as NoteEditor minus wiki-link + slash menu. Reading mode
-// is content-only, so interactive overlays are off. If you find yourself
-// copying more plugins here, extract a shared `readingPlugins` array
-// colocated with NoteEditor's own plugin list.
+// Same content block coverage as NoteEditor minus wiki-link + slash menu.
+// Reading mode is content-only, so interactive overlays are off.
 const readingPlugins = [
   BoldPlugin,
   ItalicPlugin,
   StrikethroughPlugin,
   CodePlugin,
+  CodeBlockPlugin,
+  CodeLinePlugin,
   H1Plugin,
   H2Plugin,
   H3Plugin,
   BlockquotePlugin,
   HorizontalRulePlugin.withComponent(HorizontalRuleElement),
   ListPlugin,
+  CalloutPlugin,
+  ...tablePlugins,
   ...latexPlugins,
 ];
 
@@ -112,14 +117,14 @@ export function ReadingViewerBody({
       </div>
       <div
         data-testid="reading-viewer-body"
-        style={{ fontSize: `${size}px`, lineHeight: 1.7 }}
-        className="mx-auto max-w-[720px] px-6 py-8"
+        style={{ fontSize: `${size}px`, lineHeight: 1.75 }}
+        className="mx-auto max-w-[860px] px-6 py-9"
       >
         <Plate editor={editor} readOnly>
           <PlateContent
             data-testid="plate-content"
             readOnly
-            className="prose prose-stone max-w-none focus:outline-none"
+            className="prose prose-stone max-w-none focus:outline-none [&_h1]:mb-5 [&_h1]:border-b [&_h1]:border-border [&_h1]:pb-3 [&_h2]:mt-9 [&_h2]:border-b [&_h2]:border-border/70 [&_h2]:pb-2 [&_h3]:mt-6 [&_li]:my-1 [&_pre]:rounded-[var(--radius-card)] [&_pre]:border [&_pre]:border-border [&_pre]:bg-muted/45 [&_pre]:p-3 [&_table]:text-sm"
           />
         </Plate>
       </div>

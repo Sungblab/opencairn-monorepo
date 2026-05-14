@@ -7,6 +7,7 @@ import {
   afterAll,
   vi,
 } from "vitest";
+import { randomUUID } from "node:crypto";
 
 vi.mock("../src/lib/s3.js", () => ({
   uploadObject: vi.fn().mockResolvedValue(undefined),
@@ -20,9 +21,11 @@ import {
   chatRuns,
   chatRunEvents,
   conversations,
+  folders,
   notifications,
   llmUsageEvents,
   creditLedgerEntries,
+  notes,
   eq,
   and,
   asc,
@@ -36,6 +39,7 @@ import {
   generateThreadTitleFromMessage,
 } from "../src/lib/chat-runs.js";
 import { getWorkflowConsoleRun } from "../src/lib/workflow-console.js";
+import { labelFromId } from "../src/lib/tree-queries.js";
 import { grantCredits } from "../src/lib/billing.js";
 import {
   seedWorkspace,
@@ -356,7 +360,7 @@ describe("Threads messages — happy path", () => {
 
     await db.insert(chatRunEvents).values({
       runId,
-      seq: 3,
+      seq: 4,
       executionAttempt: 1,
       event: "text",
       payload: { delta: "stale partial" },
@@ -851,6 +855,53 @@ describe("Threads messages — happy path", () => {
         risk: "write",
         status: "approval_required",
         result: null,
+      },
+    });
+  });
+
+  it("defaults generated notes into the active source note folder", async () => {
+    __setRunAgentForTest(fakeGeneratedNoteActionStream);
+    const [folder] = await db
+      .insert(folders)
+      .values({
+        projectId: ctx.projectId,
+        name: "1주차",
+        path: labelFromId(randomUUID()),
+      })
+      .returning({ id: folders.id });
+    await db
+      .update(notes)
+      .set({ folderId: folder!.id })
+      .where(eq(notes.id, ctx.noteId));
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        content: "이 pdf 분석해서 새 노트 생성해줘",
+        mode: "auto",
+        scope: {
+          projectId: ctx.projectId,
+          manifest: { actionApprovalMode: "require", projectId: ctx.projectId },
+          invocationContext: {
+            kind: "source",
+            sourceId: ctx.noteId,
+            title: "Lecture 3",
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const events = parseSseEvents(await res.text());
+    const created = events.find((e) => e.event === "agent_action_created");
+    expect(created?.data).toMatchObject({
+      action: {
+        kind: "note.create_from_markdown",
+        input: {
+          folderId: folder!.id,
+        },
       },
     });
   });

@@ -64,6 +64,52 @@ describe("agent-pipeline retrieval scope", () => {
     expect(resolved.ragMode).toBe("off");
     expect(resolved.chips).toEqual([{ type: "page", id: "n1" }]);
   });
+
+  it("keeps selected current-source prompts page-scoped", () => {
+    const resolved = resolveAgentRetrievalOptions({
+      workspaceId: "w1",
+      rawScope: {
+        strict: "strict",
+        manifest: {
+          projectId: "p1",
+          sourcePolicy: "auto_project",
+        },
+        chips: [
+          { type: "page", id: "n1" },
+          { type: "project", id: "p1" },
+        ],
+        invocationContext: {
+          kind: "source",
+          sourceId: "n1",
+          selectionText: "선택된 문장",
+        },
+      },
+    });
+
+    expect(resolved).toEqual({
+      scope: { type: "page", workspaceId: "w1", noteId: "n1" },
+      ragMode: "strict",
+      chips: [{ type: "page", id: "n1" }],
+    });
+  });
+
+  it("uses project scope when the manifest carries the active project", () => {
+    const resolved = resolveAgentRetrievalOptions({
+      workspaceId: "w1",
+      rawScope: {
+        manifest: {
+          projectId: "p1",
+          sourcePolicy: "auto_project",
+        },
+      },
+    });
+
+    expect(resolved.scope).toEqual({
+      type: "project",
+      workspaceId: "w1",
+      projectId: "p1",
+    });
+  });
 });
 
 describe("agent-pipeline memory policy", () => {

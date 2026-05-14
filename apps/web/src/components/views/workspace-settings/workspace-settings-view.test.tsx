@@ -35,27 +35,30 @@ vi.mock("@/components/settings/mcp/McpSettingsClientLoader", () => ({
 }));
 
 describe("WorkspaceSettingsView", () => {
-  it("uses one settings shell for personal, AI, workspace, and billing sections", () => {
+  it("uses one settings shell with grouped scroll pages", () => {
     render(<WorkspaceSettingsView wsSlug="acme" wsId="ws-1" path={[]} />);
 
-    expect(screen.getByText("workspaceSettings.groups.personal")).toBeInTheDocument();
-    expect(screen.getByText("workspaceSettings.groups.aiTools")).toBeInTheDocument();
-    expect(screen.getByText("workspaceSettings.groups.workspace")).toBeInTheDocument();
-    expect(screen.getByText("workspaceSettings.groups.billing")).toBeInTheDocument();
-    expect(screen.getByText("profile")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "workspaceSettings.groups.personal" }),
+    ).toHaveAttribute("href", "/ko/workspace/acme/settings/personal");
+    expect(
+      screen.getByRole("link", { name: "workspaceSettings.groups.aiTools" }),
+    ).toHaveAttribute("href", "/ko/workspace/acme/settings/ai");
+    expect(
+      screen.getByRole("link", { name: "workspaceSettings.groups.workspace" }),
+    ).toHaveAttribute("href", "/ko/workspace/acme/settings/workspace");
+    expect(
+      screen.getByRole("link", { name: "workspaceSettings.groups.billing" }),
+    ).toHaveAttribute("href", "/ko/workspace/acme/settings/billing");
 
-    expect(
-      screen.getByRole("link", { name: "account.tabs.profile" }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/settings/personal/profile");
-    expect(
-      screen.getByRole("link", { name: "account.tabs.notifications" }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/settings/personal/notifications");
-    expect(
-      screen.getByRole("link", { name: "workspaceSettings.tabs.members" }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/settings/workspace/members");
+    expect(screen.getByText("profile")).toBeInTheDocument();
+    expect(screen.getByText("appearance")).toBeInTheDocument();
+    expect(screen.getByText("language region")).toBeInTheDocument();
+    expect(screen.getByText("notifications")).toBeInTheDocument();
+    expect(screen.getByText("security")).toBeInTheDocument();
   });
 
-  it("renders appearance and language as first-class personal settings", () => {
+  it("keeps legacy personal section paths on the personal scroll page", () => {
     const { rerender } = render(
       <WorkspaceSettingsView
         wsSlug="acme"
@@ -65,6 +68,7 @@ describe("WorkspaceSettingsView", () => {
     );
 
     expect(screen.getByText("appearance")).toBeInTheDocument();
+    expect(screen.getByText("profile")).toBeInTheDocument();
 
     rerender(
       <WorkspaceSettingsView
@@ -75,22 +79,32 @@ describe("WorkspaceSettingsView", () => {
     );
 
     expect(screen.getByText("language region")).toBeInTheDocument();
+    expect(screen.getByText("security")).toBeInTheDocument();
   });
 
-  it("keeps active and hover tabs readable", () => {
+  it("renders AI tools together on one scroll page", () => {
+    render(
+      <WorkspaceSettingsView wsSlug="acme" wsId="ws-1" path={["ai", "mcp"]} />,
+    );
+
+    expect(screen.getByText("providers")).toBeInTheDocument();
+    expect(screen.getByText("mcp")).toBeInTheDocument();
+  });
+
+  it("keeps active and hover group links readable", () => {
     render(
       <WorkspaceSettingsView wsSlug="acme" wsId="ws-1" sub="members" />,
     );
 
     const active = screen.getByRole("link", {
-      name: "workspaceSettings.tabs.members",
+      name: "workspaceSettings.groups.workspace",
     });
     const inactive = screen.getByRole("link", {
-      name: "workspaceSettings.tabs.invites",
+      name: "workspaceSettings.groups.personal",
     });
 
-    expect(active.className).toContain("bg-muted");
-    expect(active.className).toContain("text-foreground");
+    expect(active.className).toContain("bg-foreground");
+    expect(active.className).toContain("text-background");
     expect(inactive.className).toContain("hover:bg-muted");
     expect(inactive.className).not.toContain("hover:bg-accent");
   });
