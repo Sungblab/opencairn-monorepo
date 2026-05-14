@@ -15,7 +15,10 @@ from __future__ import annotations
 
 import os
 from datetime import timedelta
-from typing import Mapping
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 # Safety buffer between the batch-workflow's own wait cap and the caller
 # activity's timeout. Covers submit/poll/fetch latency plus the

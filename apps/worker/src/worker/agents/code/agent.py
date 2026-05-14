@@ -14,11 +14,7 @@ parse markdown-wrapped output.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
-
-from llm import LLMProvider
-from runtime.events import Scope
-from runtime.tools import Tool, ToolContext
+from typing import TYPE_CHECKING, Any, Literal
 
 from worker.agents.code.prompts import (
     CODE_SYSTEM,
@@ -26,6 +22,11 @@ from worker.agents.code.prompts import (
     build_generate_prompt,
 )
 
+if TYPE_CHECKING:
+    from llm import LLMProvider
+
+    from runtime.events import Scope
+    from runtime.tools import Tool, ToolContext
 
 CanvasLanguage = Literal["python", "javascript", "html", "react"]
 
@@ -35,8 +36,8 @@ class CodeContext:
     kind: Literal["generate", "fix"]
     user_prompt: str
     language: CanvasLanguage
-    last_code: Optional[str]
-    last_error: Optional[str]
+    last_code: str | None
+    last_error: str | None
     stdout_tail: str
 
 

@@ -56,17 +56,19 @@ def _resolve_host(host: str) -> list[str]:
 
 async def _fetch_bytes(url: str) -> tuple[bytes, str]:
     """Isolated for ease of mocking in tests."""
-    async with httpx.AsyncClient(timeout=TIMEOUT_SEC, follow_redirects=True) as c:
-        async with c.stream("GET", url) as response:
-            response.raise_for_status()
-            content_type = response.headers.get("content-type", "")
-            chunks: list[bytes] = []
-            total = 0
-            async for chunk in response.aiter_bytes():
-                total += len(chunk)
-                if total > MAX_BYTES:
-                    raise ValueError(f"Response exceeded {MAX_BYTES} bytes")
-                chunks.append(chunk)
+    async with (
+        httpx.AsyncClient(timeout=TIMEOUT_SEC, follow_redirects=True) as c,
+        c.stream("GET", url) as response,
+    ):
+        response.raise_for_status()
+        content_type = response.headers.get("content-type", "")
+        chunks: list[bytes] = []
+        total = 0
+        async for chunk in response.aiter_bytes():
+            total += len(chunk)
+            if total > MAX_BYTES:
+                raise ValueError(f"Response exceeded {MAX_BYTES} bytes")
+            chunks.append(chunk)
     return b"".join(chunks), content_type.split(";")[0].strip()
 
 

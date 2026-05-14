@@ -4,20 +4,12 @@ All HTTP I/O is mocked out via AsyncMock so these run fully offline.
 """
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from worker.agents.connector.agent import ConnectorAgent, _cross_project_search
-from runtime.tools import ToolContext
-from runtime.events import (
-    AgentStart,
-    AgentEnd,
-    AgentError,
-    CustomEvent,
-    ToolUse,
-    ToolResult,
-)
+import pytest
 
+from runtime.tools import ToolContext
+from worker.agents.connector.agent import ConnectorAgent
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -248,7 +240,6 @@ async def test_connector_empty_candidates(mock_provider, mock_api, ctx):
 @pytest.mark.asyncio
 async def test_connector_error_handling(mock_provider, mock_api, ctx):
     """When get_internal raises, agent emits AgentError and re-raises."""
-    import httpx
 
     with patch(
         "worker.agents.connector.agent.get_internal", new_callable=AsyncMock

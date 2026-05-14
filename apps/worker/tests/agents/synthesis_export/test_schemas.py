@@ -1,9 +1,8 @@
 import pytest
 from pydantic import ValidationError
+
 from worker.agents.synthesis_export.schemas import (
     SynthesisOutputSchema,
-    BibEntry,
-    SynthesisSection,
 )
 from worker.tools_builtin.schema_registry import SCHEMA_REGISTRY
 
@@ -41,7 +40,14 @@ def test_synthesis_output_round_trip():
 def test_rejects_unknown_format():
     with pytest.raises(ValidationError):
         SynthesisOutputSchema.model_validate(
-            {"format": "pptx", "title": "x", "abstract": None, "sections": [], "bibliography": [], "template": "ieee"}
+            {
+                "format": "pptx",
+                "title": "x",
+                "abstract": None,
+                "sections": [],
+                "bibliography": [],
+                "template": "ieee",
+            }
         )
 
 

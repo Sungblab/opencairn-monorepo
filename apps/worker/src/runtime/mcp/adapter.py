@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 from runtime.mcp.client import MCPClient, maybe_await
-from runtime.tools import Scope, ToolContext
 
+if TYPE_CHECKING:
+    from runtime.tools import Scope, ToolContext
 
 CallTool = Callable[[str, dict[str, Any]], Awaitable[Any] | Any]
 
@@ -23,7 +25,7 @@ def adapt(
     owner_user_id: str | None = None,
     call_tool: CallTool | None = None,
 ):
-    tool_name = getattr(mcp_tool, "name")
+    tool_name = mcp_tool.name
     input_schema = getattr(mcp_tool, "inputSchema", None) or getattr(
         mcp_tool, "input_schema", None
     ) or {}

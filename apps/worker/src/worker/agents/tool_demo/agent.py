@@ -7,10 +7,10 @@ tool subset; the `run_with_tools` loop is identical across presets.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from runtime.loop_runner import run_with_tools
 from runtime.mcp import build_mcp_tools_for_user
-from runtime.tool_loop import LoopConfig, LoopResult
 from worker.tools_builtin import (
     BUILTIN_TOOLS,
     emit_structured_output,
@@ -21,6 +21,9 @@ from worker.tools_builtin import (
     search_notes,
 )
 
+if TYPE_CHECKING:
+    from runtime.tool_loop import LoopConfig, LoopResult
+
 
 @dataclass
 class ToolDemoAgent:
@@ -28,24 +31,24 @@ class ToolDemoAgent:
     tools: tuple = field(default_factory=tuple)
 
     @classmethod
-    def plain(cls, provider) -> "ToolDemoAgent":
+    def plain(cls, provider) -> ToolDemoAgent:
         """Pure chat — no tools. PLAIN chat mode demo."""
         return cls(provider=provider, tools=())
 
     @classmethod
-    def reference(cls, provider) -> "ToolDemoAgent":
+    def reference(cls, provider) -> ToolDemoAgent:
         """NotebookLM-style — retrieval-only."""
         return cls(provider=provider, tools=(
             list_project_topics, search_concepts, search_notes, read_note,
         ))
 
     @classmethod
-    def external(cls, provider) -> "ToolDemoAgent":
+    def external(cls, provider) -> ToolDemoAgent:
         """External-only — fetch_url + emit_structured_output."""
         return cls(provider=provider, tools=(fetch_url, emit_structured_output))
 
     @classmethod
-    def full(cls, provider) -> "ToolDemoAgent":
+    def full(cls, provider) -> ToolDemoAgent:
         """All builtin tools."""
         return cls(provider=provider, tools=tuple(BUILTIN_TOOLS))
 

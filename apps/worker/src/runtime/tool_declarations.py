@@ -5,9 +5,10 @@ LLM provider expects.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from runtime.tools import Tool
+if TYPE_CHECKING:
+    from runtime.tools import Tool
 
 
 def _strip_pydantic_metadata(schema: dict[str, Any]) -> dict[str, Any]:

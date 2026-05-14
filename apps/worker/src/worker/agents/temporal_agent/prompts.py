@@ -1,9 +1,11 @@
 """Prompts for the StalenessAgent."""
 from __future__ import annotations
 
-STALENESS_SYSTEM = """You are evaluating whether a wiki note in a knowledge base is still accurate and up-to-date.
+STALENESS_SYSTEM = """You are evaluating whether a wiki note in a knowledge \
+base is still accurate and up-to-date.
 
-Given a note's title and content, score how likely it is to be outdated (0.0 = definitely current, 1.0 = very likely outdated).
+Given a note's title and content, score how likely it is to be outdated \
+(0.0 = definitely current, 1.0 = very likely outdated).
 
 Consider:
 - Mentions of specific versions, dates, or time-sensitive information

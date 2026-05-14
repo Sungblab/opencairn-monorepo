@@ -8,8 +8,8 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from llm.factory import get_provider
+
 from runtime.tool_loop import LoopConfig
 from worker.agents.tool_demo.agent import ToolDemoAgent
 

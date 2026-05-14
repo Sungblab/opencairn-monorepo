@@ -1,7 +1,7 @@
 """Tests for default global hooks."""
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -9,6 +9,9 @@ from runtime.default_hooks import TokenCounterHook, TrajectoryWriterHook
 from runtime.events import AgentEnd, AgentEvent, AgentStart, ModelEnd
 from runtime.tools import ToolContext
 from runtime.trajectory import LocalFSTrajectoryStorage, TrajectoryWriter
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 async def _noop(_ev: AgentEvent) -> None:

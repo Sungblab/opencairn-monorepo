@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from llm.tool_types import AssistantTurn, ToolUse, UsageCounts
+
 from runtime.tool_loop import LoopConfig, ToolLoopExecutor
 
 from .test_tool_loop_core import _FakeProvider, _FakeRegistry, _turn

@@ -22,11 +22,10 @@ from worker.activities.code_activity import (
 )
 from worker.agents.code.agent import CodeOutput
 from worker.workflows.code_workflow import (
+    MAX_FIX_TURNS,
     CodeAgentWorkflow,
     CodeRunResult,
-    MAX_FIX_TURNS,
 )
-
 
 # ---------------------------------------------------------------------------
 # Activity stubs registered by name so the workflow's

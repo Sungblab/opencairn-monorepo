@@ -1,7 +1,7 @@
 from worker.agents.code.prompts import (
     CODE_SYSTEM,
-    build_generate_prompt,
     build_fix_prompt,
+    build_generate_prompt,
 )
 
 

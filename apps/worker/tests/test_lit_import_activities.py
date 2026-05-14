@@ -13,7 +13,6 @@ from temporalio.testing import ActivityEnvironment
 
 from worker.activities import lit_import_activities as lia
 
-
 # ── _normalize_doi ───────────────────────────────────────────────────────────
 
 

@@ -4,7 +4,7 @@ All events flow through hooks and land in NDJSON trajectory + Postgres summary.
 """
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -95,17 +95,15 @@ class CustomEvent(BaseEvent):
 
 
 AgentEvent = Annotated[
-    Union[
-        AgentStart,
-        AgentEnd,
-        AgentError,
-        ModelEnd,
-        ToolUse,
-        ToolResult,
-        Handoff,
-        AwaitingInput,
-        CustomEvent,
-    ],
+    AgentStart
+    | AgentEnd
+    | AgentError
+    | ModelEnd
+    | ToolUse
+    | ToolResult
+    | Handoff
+    | AwaitingInput
+    | CustomEvent,
     Field(discriminator="type"),
 ]
 

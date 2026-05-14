@@ -31,10 +31,10 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
-from temporalio import activity
-
 from llm import get_provider
 from llm.base import ProviderConfig, TranscriptionResult
+from temporalio import activity
+
 from worker.lib.ingest_events import publish_safe
 from worker.lib.s3_client import download_to_tempfile
 

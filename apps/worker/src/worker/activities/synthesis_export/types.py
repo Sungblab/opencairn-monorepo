@@ -6,8 +6,7 @@ must be JSON-friendly.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, Optional
-
+from typing import Literal
 
 SynthesisFormat = Literal["latex", "docx", "pdf", "md"]
 SynthesisTemplate = Literal["ieee", "acm", "apa", "korean_thesis", "report"]
@@ -18,7 +17,7 @@ SourceKind = Literal["s3_object", "note", "dr_result"]
 class SynthesisRunParams:
     run_id: str
     workspace_id: str
-    project_id: Optional[str]
+    project_id: str | None
     user_id: str
     format: SynthesisFormat
     template: SynthesisTemplate
@@ -26,7 +25,7 @@ class SynthesisRunParams:
     explicit_source_ids: list[str] = field(default_factory=list)
     note_ids: list[str] = field(default_factory=list)
     auto_search: bool = False
-    byok_key_handle: Optional[str] = None
+    byok_key_handle: str | None = None
 
 
 @dataclass(frozen=True)

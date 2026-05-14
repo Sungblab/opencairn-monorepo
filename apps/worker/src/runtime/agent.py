@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from runtime.events import AgentEvent
-from runtime.tools import ToolContext
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from runtime.events import AgentEvent
+    from runtime.tools import ToolContext
 
 
 class Agent(ABC):

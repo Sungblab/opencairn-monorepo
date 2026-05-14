@@ -10,9 +10,7 @@ source of truth regardless of bucket backend.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-
-import pytest
+from datetime import UTC, datetime, timedelta
 
 from scripts.purge_embedding_jsonl import find_purgeable_keys, purge_keys
 
@@ -45,13 +43,13 @@ class _FakeClient:
 
 
 def _at(days_ago: int, now: datetime | None = None) -> datetime:
-    now = now or datetime(2026, 4, 25, 12, 0, tzinfo=timezone.utc)
+    now = now or datetime(2026, 4, 25, 12, 0, tzinfo=UTC)
     return now - timedelta(days=days_ago)
 
 
 class TestFindPurgeableKeys:
     def test_returns_keys_older_than_threshold(self) -> None:
-        now = datetime(2026, 4, 25, 12, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 25, 12, 0, tzinfo=UTC)
         client = _FakeClient(
             [
                 _FakeObject("embeddings/batch/a/input.jsonl", _at(10, now)),
@@ -71,7 +69,7 @@ class TestFindPurgeableKeys:
     def test_exactly_at_threshold_is_not_purged(self) -> None:
         """A 7-day-old object at exactly the boundary keeps — easier to
         reason about for ops (strict > rather than >=)."""
-        now = datetime(2026, 4, 25, 12, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 25, 12, 0, tzinfo=UTC)
         client = _FakeClient(
             [
                 _FakeObject(
@@ -89,7 +87,7 @@ class TestFindPurgeableKeys:
     def test_prefix_scoping_ignores_unrelated_paths(self) -> None:
         """The sweep must not touch ingest uploads / research artifacts
         (different prefixes) even if they're older."""
-        now = datetime(2026, 4, 25, 12, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 25, 12, 0, tzinfo=UTC)
         client = _FakeClient(
             [
                 _FakeObject("uploads/old.pdf", _at(100, now)),
@@ -106,7 +104,7 @@ class TestFindPurgeableKeys:
         assert keys == []
 
     def test_empty_bucket_returns_empty(self) -> None:
-        now = datetime(2026, 4, 25, 12, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 25, 12, 0, tzinfo=UTC)
         client = _FakeClient([])
         keys = find_purgeable_keys(
             client, bucket="bucket", prefix="embeddings/batch/",

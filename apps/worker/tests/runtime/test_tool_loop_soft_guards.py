@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from llm.tool_types import ToolUse
+
 from runtime.tool_loop import LoopConfig, ToolLoopExecutor
 
 from .test_tool_loop_core import _FakeProvider, _FakeRegistry, _turn

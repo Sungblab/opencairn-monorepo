@@ -10,19 +10,15 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-from llm.base import EmbedInput, LLMProvider, ProviderConfig
+from llm.base import LLMProvider, ProviderConfig
 
 from runtime.tools import ToolContext
-
 from worker.agents.research.agent import (
     ResearchAgent,
-    ResearchCitation,
     _parse_sub_queries,
     _parse_wiki_feedback,
 )
 from worker.agents.research.prompts import format_evidence_block
-
 
 # ---------------------------------------------------------------------------
 # Pure helpers

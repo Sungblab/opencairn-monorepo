@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from worker.tools_builtin.view_spec_schema import ViewSpec
 from worker.tools_builtin.schema_registry import SCHEMA_REGISTRY
+from worker.tools_builtin.view_spec_schema import ViewSpec
 
 
 def _node(id_: str, **kw):

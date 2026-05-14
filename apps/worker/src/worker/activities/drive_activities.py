@@ -21,7 +21,7 @@ from __future__ import annotations
 import io
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import asyncpg
@@ -222,7 +222,7 @@ async def fetch_google_drive_access_token(
 
             access_token = decrypt_token(bytes(row["access_token_encrypted"]))
             expires_at = row["token_expires_at"]
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             # Treat NULL expires_at as "unknown — assume fresh-ish".
             # OAuth callbacks always write expires_at, so a NULL row
             # would only show up if someone hand-edited the DB; refusing

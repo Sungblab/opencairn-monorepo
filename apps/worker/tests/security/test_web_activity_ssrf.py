@@ -26,14 +26,16 @@ pure core ``_scrape_impl``) across the adversary-relevant axes:
 """
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from temporalio.exceptions import ApplicationError
 
 from worker.activities.web_activity import _scrape_impl
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 class _StreamResponse:
@@ -135,9 +137,8 @@ async def test_non_http_schemes_blocked(url: str) -> None:
 async def test_hostname_resolving_to_private_ip_blocked() -> None:
     """DNS rebinding defense: even if the scheme/host look public, we
     reject when resolution yields a private address."""
-    with _patch_dns("10.0.0.5"):
-        with pytest.raises(ApplicationError) as info:
-            await _scrape_impl("http://rebind.attacker.test/")
+    with _patch_dns("10.0.0.5"), pytest.raises(ApplicationError) as info:
+        await _scrape_impl("http://rebind.attacker.test/")
     assert info.value.non_retryable is True
 
 
@@ -152,9 +153,8 @@ async def test_redirect_to_private_ip_blocked() -> None:
     with _patch_dns(), patch(
         "worker.activities.web_activity.httpx.AsyncClient",
         return_value=client,
-    ):
-        with pytest.raises(ApplicationError) as info:
-            await _scrape_impl("http://example.com/")
+    ), pytest.raises(ApplicationError) as info:
+        await _scrape_impl("http://example.com/")
     assert info.value.non_retryable is True
 
 
@@ -172,9 +172,8 @@ async def test_redirect_without_location_header_raises() -> None:
     with _patch_dns(), patch(
         "worker.activities.web_activity.httpx.AsyncClient",
         return_value=client,
-    ):
-        with pytest.raises(ApplicationError) as info:
-            await _scrape_impl("http://example.com/")
+    ), pytest.raises(ApplicationError) as info:
+        await _scrape_impl("http://example.com/")
     assert info.value.type == "invalid_redirect"
     assert info.value.non_retryable is True
     assert "location" in str(info.value).lower()
@@ -194,9 +193,8 @@ async def test_redirect_loop_bounded() -> None:
     with _patch_dns(), patch(
         "worker.activities.web_activity.httpx.AsyncClient",
         return_value=client,
-    ):
-        with pytest.raises(ApplicationError) as info:
-            await _scrape_impl("http://example.com/start")
+    ), pytest.raises(ApplicationError) as info:
+        await _scrape_impl("http://example.com/start")
     assert "redirect" in str(info.value).lower()
 
 
@@ -218,9 +216,8 @@ async def test_response_size_cap_enforced_on_direct_response() -> None:
     with _patch_dns(), patch(
         "worker.activities.web_activity.httpx.AsyncClient",
         return_value=client,
-    ):
-        with pytest.raises(ApplicationError) as info:
-            await _scrape_impl("http://example.com/big")
+    ), pytest.raises(ApplicationError) as info:
+        await _scrape_impl("http://example.com/big")
     # Size-cap errors are retryable (real transient flakes can look similar),
     # so non_retryable is not asserted here.
     assert "size" in str(info.value).lower() or "bytes" in str(info.value).lower()
@@ -247,7 +244,7 @@ async def test_single_stream_call_per_hop_no_extra_get() -> None:
         return_value=client,
     ):
         result = await _scrape_impl("http://example.com/")
-    assert cast(dict, result)["text"]
+    assert cast("dict", result)["text"]
     assert client.stream.call_count == 1
     client.get.assert_not_called()
 

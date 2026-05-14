@@ -9,7 +9,7 @@ active long-form note would lose its figures to a sweep).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -63,13 +63,13 @@ class _FakeConn:
 
 
 def _at(days_ago: int, now: datetime | None = None) -> datetime:
-    now = now or datetime(2026, 4, 26, 12, 0, tzinfo=timezone.utc)
+    now = now or datetime(2026, 4, 26, 12, 0, tzinfo=UTC)
     return now - timedelta(days=days_ago)
 
 
 class TestFindPurgeableKeys:
     def test_returns_keys_older_than_threshold(self) -> None:
-        now = datetime(2026, 4, 26, 12, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 26, 12, 0, tzinfo=UTC)
         client = _FakeClient(
             [
                 _FakeObject("canvas-outputs/ws/note/old.png", _at(40, now)),
@@ -90,7 +90,7 @@ class TestFindPurgeableKeys:
         ]
 
     def test_exactly_at_threshold_is_not_purged(self) -> None:
-        now = datetime(2026, 4, 26, 12, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 26, 12, 0, tzinfo=UTC)
         client = _FakeClient(
             [
                 _FakeObject(
@@ -111,7 +111,7 @@ class TestFindPurgeableKeys:
     def test_prefix_scoping_ignores_other_buckets_paths(self) -> None:
         """Embedding sidecars + ingest uploads share the bucket — the
         sweep must not touch them."""
-        now = datetime(2026, 4, 26, 12, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 26, 12, 0, tzinfo=UTC)
         client = _FakeClient(
             [
                 _FakeObject("uploads/old.pdf", _at(100, now)),

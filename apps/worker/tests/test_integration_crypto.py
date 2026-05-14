@@ -1,10 +1,11 @@
 import base64
 
 import pytest
+from cryptography.exceptions import InvalidTag
 
 from worker.lib.integration_crypto import (
-    encrypt_token,
     decrypt_token,
+    encrypt_token,
 )
 
 KEY_B64 = base64.b64encode(b"\x42" * 32).decode()
@@ -44,7 +45,7 @@ def test_wrong_key_fails(monkeypatch):
     ct = encrypt_token("hello")
     wrong = base64.b64encode(b"\x99" * 32).decode()
     monkeypatch.setenv("INTEGRATION_TOKEN_ENCRYPTION_KEY", wrong)
-    with pytest.raises(Exception):
+    with pytest.raises(InvalidTag):
         decrypt_token(ct)
 
 
@@ -104,7 +105,7 @@ def test_rotation_fails_when_neither_key_matches(monkeypatch):
         "INTEGRATION_TOKEN_ENCRYPTION_KEY_OLD",
         base64.b64encode(b"\x22" * 32).decode(),
     )
-    with pytest.raises(Exception):
+    with pytest.raises(InvalidTag):
         decrypt_token(blob)
 
 

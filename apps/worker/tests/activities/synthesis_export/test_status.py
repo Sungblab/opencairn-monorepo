@@ -1,6 +1,7 @@
 """Drift canary: every status-flip site uses the shared helper."""
+from worker.activities.synthesis_export import compile as compile_module
+from worker.activities.synthesis_export import fetch, synthesize
 from worker.activities.synthesis_export._status import set_status
-from worker.activities.synthesis_export import fetch, synthesize, compile as compile_module
 
 
 def test_all_three_activities_import_the_same_set_status_symbol():

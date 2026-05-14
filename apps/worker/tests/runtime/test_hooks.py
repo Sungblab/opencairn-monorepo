@@ -1,11 +1,10 @@
 """Tests for hook system — registration, scope resolution, short-circuit semantics."""
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from runtime.events import AgentEvent
 from runtime.hooks import (
     AgentHook,
     HookRegistry,
@@ -15,6 +14,9 @@ from runtime.hooks import (
     ToolHook,
 )
 from runtime.tools import ToolContext
+
+if TYPE_CHECKING:
+    from runtime.events import AgentEvent
 
 
 async def _noop(_ev: AgentEvent) -> None:
@@ -88,7 +90,7 @@ async def test_agent_scope_filters_by_agent_filter(ctx: ToolContext) -> None:
 
 
 async def test_onion_execution_order(ctx: ToolContext) -> None:
-    """global before -> agent before -> run before -> [run] -> run after -> agent after -> global after."""
+    """Hooks execute global, agent, run, [run], run, agent, global."""
     order: list[str] = []
 
     class OrderHook(AgentHook):

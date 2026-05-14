@@ -1,12 +1,16 @@
 """Prompts for the CuratorAgent."""
 
-CONTRADICTION_SYSTEM = """You are analyzing pairs of knowledge base concepts for potential contradictions.
+CONTRADICTION_SYSTEM = """You are analyzing pairs of knowledge base concepts for \
+potential contradictions.
 
-Given two concepts with their descriptions, determine if they contain contradictory information.
+Given two concepts with their descriptions, determine if they contain \
+contradictory information.
 
-Return JSON only, no markdown fence: {"contradicts": true/false, "confidence": 0.0-1.0, "reason": "brief explanation"}
+Return JSON only, no markdown fence: {"contradicts": true/false, \
+"confidence": 0.0-1.0, "reason": "brief explanation"}
 
-Only flag definite factual contradictions, not just different perspectives or complementary views."""
+Only flag definite factual contradictions, not just different perspectives or \
+complementary views."""
 
 
 def build_contradiction_prompt(

@@ -6,9 +6,10 @@ needs an object with an async `execute(name, args)` signature.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from runtime.tools import Tool, ToolContext
+if TYPE_CHECKING:
+    from runtime.tools import Tool, ToolContext
 
 _SYSTEM_KEYS = {
     "workspace_id",

@@ -32,18 +32,22 @@ import asyncio
 import logging
 import os
 import uuid
-from typing import Sequence
+from contextlib import suppress
+from typing import TYPE_CHECKING
 
 from temporalio import activity
 from temporalio.client import Client
-
-from llm import EmbedInput
 
 from worker.lib.s3_client import download_jsonl
 from worker.workflows.batch_embed_workflow import (
     BatchEmbedInput,
     BatchEmbedOutput,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from llm import EmbedInput
 
 logger = logging.getLogger(__name__)
 
@@ -142,12 +146,8 @@ async def _await_with_heartbeat(handle) -> BatchEmbedOutput:
     result_task = asyncio.create_task(handle.result())
     try:
         while not result_task.done():
-            try:
+            with suppress(RuntimeError):
                 activity.heartbeat("batch_embed_waiting")
-            except RuntimeError:
-                # Not inside an activity context (e.g. a pure script
-                # using this helper). Heartbeat is a no-op in that case.
-                pass
             done, _ = await asyncio.wait(
                 {result_task}, timeout=_HEARTBEAT_INTERVAL
             )

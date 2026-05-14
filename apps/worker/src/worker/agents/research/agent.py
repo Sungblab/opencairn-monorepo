@@ -20,11 +20,9 @@ import logging
 import re
 import time
 import uuid
-from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from llm import LLMProvider
 from llm.base import EmbedInput
 
 from runtime.agent import Agent
@@ -39,7 +37,6 @@ from runtime.events import (
     ToolUse,
 )
 from runtime.tools import ToolContext, hash_input
-
 from worker.agents.research.prompts import (
     ANSWER_SYSTEM,
     DECOMPOSE_SYSTEM,
@@ -50,6 +47,11 @@ from worker.agents.research.prompts import (
     format_evidence_block,
 )
 from worker.lib.api_client import AgentApiClient
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from llm import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -615,6 +617,4 @@ def _is_retryable(exc: Exception) -> bool:
 
     if isinstance(exc, httpx.HTTPStatusError):
         return 500 <= exc.response.status_code < 600
-    if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)):
-        return True
-    return False
+    return bool(isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)))

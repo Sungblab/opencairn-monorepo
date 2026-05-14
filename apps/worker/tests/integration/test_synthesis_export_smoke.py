@@ -11,10 +11,10 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from llm.tool_types import AssistantTurn, ToolUse, UsageCounts
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
-from llm.tool_types import AssistantTurn, ToolUse, UsageCounts
 from worker.activities.synthesis_export.compile import compile_activity
 from worker.activities.synthesis_export.fetch import fetch_sources_activity
 from worker.activities.synthesis_export.synthesize import synthesize_activity

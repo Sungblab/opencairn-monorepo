@@ -1,7 +1,9 @@
 """Synthesis Agent prompt templates."""
 from __future__ import annotations
 
-SYNTHESIS_SYSTEM = """You are a knowledge synthesis expert. Given excerpts from multiple notes, generate a comprehensive, well-structured essay that synthesizes the key ideas.
+SYNTHESIS_SYSTEM = """You are a knowledge synthesis expert. Given excerpts \
+from multiple notes, generate a comprehensive, well-structured essay that \
+synthesizes the key ideas.
 
 The essay should:
 - Integrate concepts across all provided notes

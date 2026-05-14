@@ -10,10 +10,12 @@ Routes (added in Task 9):
 """
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import TYPE_CHECKING, Literal
 
-from worker.activities.code_status import CodeRunStatus
 from worker.lib.api_client import patch_internal, post_internal
+
+if TYPE_CHECKING:
+    from worker.activities.code_status import CodeRunStatus
 
 
 async def persist_turn(
@@ -23,7 +25,7 @@ async def persist_turn(
     kind: Literal["generate", "fix"],
     source: str,
     explanation: str,
-    prev_error: Optional[str],
+    prev_error: str | None,
 ) -> None:
     """Insert one ``code_turns`` row for ``run_id``.
 

@@ -15,14 +15,13 @@ error, so the quarantine failure must not mask it.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import PurePosixPath
 
 from minio.commonconfig import CopySource
 from temporalio import activity
 
 from worker.lib.s3_client import get_s3_client
-
 
 QUARANTINE_PREFIX = os.environ.get("INGEST_QUARANTINE_PREFIX", "quarantine/")
 BUCKET = os.environ.get("S3_BUCKET", "opencairn-uploads")
@@ -41,7 +40,7 @@ async def quarantine_source(inp: dict) -> dict:
     user_id: str = inp["user_id"]
     reason: str = inp.get("reason", "unknown")
 
-    ym = datetime.now(timezone.utc).strftime("%Y-%m")
+    ym = datetime.now(UTC).strftime("%Y-%m")
     base = PurePosixPath(src_key).name or "unknown.bin"
     prefix = (
         QUARANTINE_PREFIX

@@ -9,12 +9,13 @@ from __future__ import annotations
 import io
 import zipfile
 from textwrap import dedent
+from typing import TYPE_CHECKING
 
-from worker.agents.synthesis_export.schemas import (
-    BibEntry,
-    SynthesisOutputSchema,
-)
-
+if TYPE_CHECKING:
+    from worker.agents.synthesis_export.schemas import (
+        BibEntry,
+        SynthesisOutputSchema,
+    )
 
 _PREAMBLES: dict[str, str] = {
     "korean_thesis": dedent(r"""
@@ -25,7 +26,10 @@ _PREAMBLES: dict[str, str] = {
         \usepackage{hyperref}
         \usepackage{cite}
     """).strip(),
-    "ieee": r"\documentclass[conference]{IEEEtran}" + "\n\\usepackage{hyperref}\n\\usepackage{cite}",
+    "ieee": (
+        r"\documentclass[conference]{IEEEtran}"
+        + "\n\\usepackage{hyperref}\n\\usepackage{cite}"
+    ),
     "acm": r"\documentclass[acmsmall]{acmart}",
     "apa": dedent(r"""
         \documentclass[a4paper,11pt]{article}

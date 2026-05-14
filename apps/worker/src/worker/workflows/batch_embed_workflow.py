@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any
@@ -185,7 +186,7 @@ class BatchEmbedWorkflow:
         if state != "succeeded":
             # Failed / cancelled / expired — let Temporal's retry policy
             # decide. EXPIRED is non-retryable (stale batch is useless).
-            try:
+            with suppress(ActivityError):
                 await workflow.execute_activity(
                     "cancel_batch_embed",
                     {
@@ -196,10 +197,6 @@ class BatchEmbedWorkflow:
                     start_to_close_timeout=timedelta(minutes=2),
                     retry_policy=_CANCEL_RETRY,
                 )
-            except ActivityError:
-                # Best-effort cancel; the state row is still terminal
-                # from the poll activity's write, so ops can still see it.
-                pass
             raise ApplicationError(
                 f"batch embed ended in state {state!r}",
                 non_retryable=state in ("expired", "cancelled", "timeout"),

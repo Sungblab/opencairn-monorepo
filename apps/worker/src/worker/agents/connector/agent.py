@@ -17,11 +17,8 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
-
-from llm import LLMProvider
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from runtime.agent import Agent
 from runtime.events import (
@@ -34,8 +31,12 @@ from runtime.events import (
     ToolUse,
 )
 from runtime.tools import ToolContext, hash_input
-
 from worker.lib.api_client import AgentApiClient, get_internal, post_internal
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from llm import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -371,6 +372,4 @@ def _is_retryable(exc: Exception) -> bool:
 
     if isinstance(exc, httpx.HTTPStatusError):
         return 500 <= exc.response.status_code < 600
-    if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)):
-        return True
-    return False
+    return bool(isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)))

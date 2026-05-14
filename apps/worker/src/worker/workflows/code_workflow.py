@@ -22,10 +22,8 @@ effects in workflow code).
 """
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Optional
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -33,14 +31,14 @@ from temporalio.common import RetryPolicy
 with workflow.unsafe.imports_passed_through():
     from worker.activities.code_activity import (
         ClientFeedback,
-        CodeRunStatus,
         CodeRunParams,
+        CodeRunStatus,
         PersistedTurn,
         analyze_feedback_activity,
         finalize_code_run_activity,
         generate_code_activity,
     )
-    from worker.agents.code.agent import CodeOutput
+    from worker.agents.code.agent import CodeOutput  # noqa: TC001
 
 
 __all__ = [
@@ -76,7 +74,7 @@ class CodeRunResult:
 @workflow.defn(name="CodeAgentWorkflow")
 class CodeAgentWorkflow:
     def __init__(self) -> None:
-        self._feedback: Optional[ClientFeedback] = None
+        self._feedback: ClientFeedback | None = None
         self._cancelled: bool = False
 
     @workflow.run
@@ -100,7 +98,7 @@ class CodeAgentWorkflow:
                     lambda: self._feedback is not None or self._cancelled,
                     timeout=IDLE_ABANDON,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return await self._finish(params, "abandoned", history)
 
             if signalled is False:
@@ -169,9 +167,9 @@ class CodeAgentWorkflow:
 def _to_persisted(
     seq: int,
     kind: str,
-    out: "CodeOutput",
+    out: CodeOutput,
     *,
-    prev_error: Optional[str],
+    prev_error: str | None,
 ) -> PersistedTurn:
     """Build the in-memory shadow of the row the activity just persisted.
 

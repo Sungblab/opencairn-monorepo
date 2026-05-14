@@ -22,7 +22,6 @@ from temporalio import activity
 from worker.lib.api_client import get_internal, post_internal
 from worker.lib.s3_client import upload_object
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
@@ -259,7 +258,10 @@ async def create_metadata_note(payload: dict[str, Any]) -> dict[str, Any]:
             "type": "p",
             "children": [
                 {
-                    "text": "이 논문의 OA PDF를 찾지 못했습니다. PDF를 직접 업로드하거나 기관 구독으로 접근하세요.",
+                    "text": (
+                        "이 논문의 OA PDF를 찾지 못했습니다. PDF를 직접 업로드하거나 "
+                        "기관 구독으로 접근하세요."
+                    ),
                 }
             ],
         },

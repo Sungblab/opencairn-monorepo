@@ -130,9 +130,9 @@ class TestWorkflowModuleConstants:
         sys.modules.pop("worker.workflows.compiler_workflow", None)
         cw = importlib.import_module("worker.workflows.compiler_workflow")
 
-        assert cw.COMPILE_NOTE_START_TIMEOUT >= timedelta(hours=24) + timedelta(
+        assert timedelta(hours=24) + timedelta(
             minutes=10
-        )
+        ) <= cw.COMPILE_NOTE_START_TIMEOUT
 
     def test_compile_note_timeout_stays_tight_when_flag_off(
         self, monkeypatch: pytest.MonkeyPatch
@@ -148,7 +148,7 @@ class TestWorkflowModuleConstants:
         # With batch off, the original 10-minute envelope is preserved
         # — long-hanging compile activities should still be caught
         # quickly by Temporal's heartbeat watchdog.
-        assert cw.COMPILE_NOTE_START_TIMEOUT == timedelta(minutes=10)
+        assert timedelta(minutes=10) == cw.COMPILE_NOTE_START_TIMEOUT
 
     def test_run_librarian_timeout_covers_batch_wait_when_flag_on(
         self, monkeypatch: pytest.MonkeyPatch
@@ -162,9 +162,9 @@ class TestWorkflowModuleConstants:
         sys.modules.pop("worker.workflows.librarian_workflow", None)
         lw = importlib.import_module("worker.workflows.librarian_workflow")
 
-        assert lw.RUN_LIBRARIAN_START_TIMEOUT >= timedelta(hours=24) + timedelta(
+        assert timedelta(hours=24) + timedelta(
             minutes=10
-        )
+        ) <= lw.RUN_LIBRARIAN_START_TIMEOUT
 
     def test_run_librarian_timeout_stays_tight_when_flag_off(
         self, monkeypatch: pytest.MonkeyPatch
@@ -177,4 +177,4 @@ class TestWorkflowModuleConstants:
         sys.modules.pop("worker.workflows.librarian_workflow", None)
         lw = importlib.import_module("worker.workflows.librarian_workflow")
 
-        assert lw.RUN_LIBRARIAN_START_TIMEOUT == timedelta(hours=1)
+        assert timedelta(hours=1) == lw.RUN_LIBRARIAN_START_TIMEOUT

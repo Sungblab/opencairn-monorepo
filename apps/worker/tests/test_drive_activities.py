@@ -8,7 +8,7 @@ calls is covered at the Temporal workflow level in Task 10.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -63,17 +63,17 @@ def test_build_service_uses_access_token_argument_not_process_env(monkeypatch) -
 
 
 def _future_expiry(seconds: int = 600) -> datetime:
-    return datetime.now(timezone.utc) + timedelta(seconds=seconds)
+    return datetime.now(UTC) + timedelta(seconds=seconds)
 
 
 def _past_expiry(seconds: int = 600) -> datetime:
-    return datetime.now(timezone.utc) - timedelta(seconds=seconds)
+    return datetime.now(UTC) - timedelta(seconds=seconds)
 
 
 class _FakeTxn:
     """asyncpg.connection.Transaction stub — minimal async-context-manager."""
 
-    async def __aenter__(self) -> "_FakeTxn":
+    async def __aenter__(self) -> _FakeTxn:
         return self
 
     async def __aexit__(self, *_a: Any) -> None:
@@ -297,7 +297,7 @@ async def test_expired_token_triggers_refresh_and_persists(monkeypatch) -> None:
     # expires_at + id are passed (3-arg signature).
     assert update_args[2] == "row-1"
     assert isinstance(update_args[1], datetime)
-    assert update_args[1] > datetime.now(timezone.utc)
+    assert update_args[1] > datetime.now(UTC)
 
 
 @pytest.mark.asyncio
@@ -424,7 +424,7 @@ async def test_exchange_refresh_token_posts_to_google(monkeypatch) -> None:
         def __init__(self, *_a: Any, **_kw: Any) -> None:
             pass
 
-        async def __aenter__(self) -> "FakeClient":
+        async def __aenter__(self) -> FakeClient:
             return self
 
         async def __aexit__(self, *_a: Any) -> None:
@@ -468,7 +468,7 @@ async def test_exchange_refresh_token_4xx_is_non_retryable(
         def __init__(self, *_a: Any, **_kw: Any) -> None:
             pass
 
-        async def __aenter__(self) -> "FakeClient":
+        async def __aenter__(self) -> FakeClient:
             return self
 
         async def __aexit__(self, *_a: Any) -> None:
@@ -505,7 +505,7 @@ async def test_exchange_refresh_token_5xx_and_429_are_retryable(
         def __init__(self, *_a: Any, **_kw: Any) -> None:
             pass
 
-        async def __aenter__(self) -> "FakeClient":
+        async def __aenter__(self) -> FakeClient:
             return self
 
         async def __aexit__(self, *_a: Any) -> None:

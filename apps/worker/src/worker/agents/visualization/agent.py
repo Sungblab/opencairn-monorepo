@@ -17,21 +17,21 @@ into a ``VisualizationOutput`` (or ``VisualizationFailed``).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar
-
-from llm import LLMProvider
-
-from runtime.loop_runner import run_with_tools
-from runtime.tool_loop import LoopConfig, LoopHooks, LoopResult
+from typing import TYPE_CHECKING, Any, ClassVar
 
 # Importing registers ViewSpec in SCHEMA_REGISTRY as a side-effect.
 import worker.tools_builtin.view_spec_schema  # noqa: F401
+from runtime.loop_runner import run_with_tools
+from runtime.tool_loop import LoopConfig, LoopHooks, LoopResult
 from worker.agents.visualization.prompts import VISUALIZATION_SYSTEM
 from worker.tools_builtin import (
     emit_structured_output,
     search_concepts,
 )
 from worker.tools_builtin.get_concept_graph import get_concept_graph
+
+if TYPE_CHECKING:
+    from llm import LLMProvider
 
 
 @dataclass(frozen=True)

@@ -9,11 +9,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel
 
-from runtime.tools import ToolContext
+if TYPE_CHECKING:
+    from runtime.tools import ToolContext
 
 
 class ModelRequest(BaseModel):
@@ -126,9 +127,8 @@ class HookRegistry:
             elif r.scope == "agent":
                 if agent_name is not None and r.agent_filter and agent_name in r.agent_filter:
                     matched.append(r)
-            elif r.scope == "run":
-                if r.run_id == ctx.run_id:
-                    matched.append(r)
+            elif r.scope == "run" and r.run_id == ctx.run_id:
+                matched.append(r)
         # Preserve onion ordering: global -> agent -> run
         order = {"global": 0, "agent": 1, "run": 2}
         matched.sort(key=lambda r: order[r.scope])

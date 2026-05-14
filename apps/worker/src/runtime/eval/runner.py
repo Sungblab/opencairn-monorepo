@@ -2,15 +2,18 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from runtime.agent import Agent
-from runtime.eval.case import EvalCase
 from runtime.eval.metrics import ScoreResult, score_trajectory
 from runtime.events import AgentEnd, AgentError, AgentEvent, ModelEnd
 from runtime.tools import ToolContext
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from runtime.agent import Agent
+    from runtime.eval.case import EvalCase
 
 DEFAULT_CRITERIA: dict[str, float] = {
     "tool_trajectory_score": 1.0,

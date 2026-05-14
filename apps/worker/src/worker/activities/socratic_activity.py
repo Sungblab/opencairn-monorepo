@@ -15,9 +15,8 @@ import json
 import re
 from typing import Any
 
-from temporalio import activity
-
 from llm.factory import get_provider
+from temporalio import activity
 
 _GENERATE_SYSTEM = (
     "You are a Socratic tutor. Generate 2-4 questions to test a student's "

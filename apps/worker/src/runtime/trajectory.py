@@ -6,14 +6,16 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from pydantic import TypeAdapter
 
 from runtime.events import AgentEnd, AgentError, AgentEvent
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 _AGENT_EVENT_ADAPTER: TypeAdapter[AgentEvent] = TypeAdapter(AgentEvent)
 
@@ -73,7 +75,7 @@ class LocalFSTrajectoryStorage:
         self._base.mkdir(parents=True, exist_ok=True)
 
     async def open_writer(self, run_id: str, workspace_id: str) -> LocalFSWriter:
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         path = self._base / workspace_id / today / f"{run_id}.ndjson"
         return LocalFSWriter(final_path=path)
 

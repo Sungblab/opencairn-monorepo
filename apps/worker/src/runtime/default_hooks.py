@@ -5,12 +5,14 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from runtime.events import AgentEnd, AgentError, AgentEvent, ModelEnd
 from runtime.hooks import AgentHook, ModelHook, ModelRequest, ModelResponse, ToolHook
-from runtime.tools import ToolContext
 from runtime.trajectory import TrajectoryWriter, resolve_storage_from_env
+
+if TYPE_CHECKING:
+    from runtime.tools import ToolContext
 
 log = logging.getLogger(__name__)
 

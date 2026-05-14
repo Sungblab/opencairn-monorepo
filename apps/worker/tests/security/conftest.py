@@ -1,11 +1,14 @@
 """Reset the tool registry between security tests."""
 from __future__ import annotations
 
-from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 import pytest
 
 from runtime.tools import _clear_registry_for_tests
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 @pytest.fixture(autouse=True)

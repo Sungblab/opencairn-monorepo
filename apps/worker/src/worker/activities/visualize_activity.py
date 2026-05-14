@@ -10,10 +10,9 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from llm.factory import get_provider
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
-
-from llm.factory import get_provider
 
 from worker.agents.visualization.agent import (
     VisualizationAgent,

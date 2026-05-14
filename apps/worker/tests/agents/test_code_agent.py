@@ -2,7 +2,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from llm.tool_types import AssistantTurn, ToolUse, UsageCounts
 
 from worker.agents.code.agent import CodeAgent, CodeContext, CodeOutput

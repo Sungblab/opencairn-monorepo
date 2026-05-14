@@ -12,9 +12,9 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from llm.batch_types import BatchEmbedPoll, BatchEmbedResult
 from temporalio.testing import ActivityEnvironment
 
-from llm.batch_types import BatchEmbedPoll, BatchEmbedResult
 from worker.activities import batch_embed_activities as bea
 
 

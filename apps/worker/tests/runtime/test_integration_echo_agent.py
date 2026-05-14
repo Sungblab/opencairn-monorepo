@@ -3,9 +3,7 @@ tokens are counted, eval case passes. No external services (local filesystem onl
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncGenerator
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from runtime.agent import Agent
 from runtime.default_hooks import TokenCounterHook, TrajectoryWriterHook
@@ -15,6 +13,10 @@ from runtime.events import AgentEnd, AgentEvent, AgentStart, ModelEnd, ToolResul
 from runtime.hooks import HookRegistry
 from runtime.tools import ToolContext
 from runtime.trajectory import LocalFSTrajectoryStorage, TrajectoryWriter
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+    from pathlib import Path
 
 
 class EchoAgent(Agent):

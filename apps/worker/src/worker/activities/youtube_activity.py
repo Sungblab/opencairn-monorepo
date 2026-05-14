@@ -37,14 +37,21 @@ from temporalio import activity
 
 from worker.lib.ingest_events import publish_safe
 
-
 # Hostnames that the API's isYoutubeUrl() allows. Mirrored here so the
 # worker does not blindly trust the dispatch payload: if a later code path
 # ever smuggled a non-YouTube URL with mime=x-opencairn/youtube, yt-dlp's
 # generic extractor would happily download arbitrary sites (SSRF-ish +
 # unbounded bandwidth) and pass the audio to the LLM pipeline.
 # [Tier 1 item 1-4 / Plan 3 C-2]
-_ALLOWED_YOUTUBE_HOSTS = frozenset({"youtube.com", "youtu.be", "m.youtube.com", "www.youtube.com", "music.youtube.com"})
+_ALLOWED_YOUTUBE_HOSTS = frozenset(
+    {
+        "youtube.com",
+        "youtu.be",
+        "m.youtube.com",
+        "www.youtube.com",
+        "music.youtube.com",
+    }
+)
 
 
 def _assert_youtube_url(url: str) -> None:
@@ -71,7 +78,8 @@ def _assert_youtube_url(url: str) -> None:
         return
 
     raise ValueError(
-        f"youtube_activity: hostname {hostname!r} is not a YouTube host; refusing to dispatch to yt-dlp"
+        f"youtube_activity: hostname {hostname!r} is not a YouTube host; "
+        "refusing to dispatch to yt-dlp"
     )
 
 

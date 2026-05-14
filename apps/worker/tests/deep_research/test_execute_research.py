@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import pytest
 
@@ -25,9 +25,6 @@ from worker.activities.deep_research.execute_research import (
     _interaction_event_to_artifact,
     _run_execute_research,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 
 @dataclass

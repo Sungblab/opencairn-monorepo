@@ -5,26 +5,17 @@ All HTTP I/O and S3 operations are mocked so these run fully offline.
 from __future__ import annotations
 
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from worker.agents.narrator.agent import NarratorAgent, NarratorInput, _parse_script
+import pytest
+
+from runtime.tools import ToolContext
+from worker.agents.narrator.agent import NarratorAgent, _parse_script
 from worker.agents.narrator.prompts import (
     SCRIPT_SYSTEM,
-    build_script_prompt,
     _script_to_text,
+    build_script_prompt,
 )
-from runtime.tools import ToolContext
-from runtime.events import (
-    AgentStart,
-    AgentEnd,
-    AgentError,
-    ModelEnd,
-    ToolUse,
-    ToolResult,
-    CustomEvent,
-)
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -400,7 +391,11 @@ async def test_narrator_model_end_event_fields(mock_provider, ctx):
 
 
 def test_build_script_prompt_contains_title_and_content():
-    result = build_script_prompt("Quantum Computing", "Qubits represent superpositions.", "conversational")
+    result = build_script_prompt(
+        "Quantum Computing",
+        "Qubits represent superpositions.",
+        "conversational",
+    )
     assert "Quantum Computing" in result
     assert "Qubits" in result
     assert "conversational" in result

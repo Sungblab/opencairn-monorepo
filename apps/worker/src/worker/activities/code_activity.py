@@ -12,8 +12,9 @@ apps/api owns all business logic.
 """
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 
 from temporalio import activity
 
@@ -25,7 +26,6 @@ from worker.agents.code.agent import (
 )
 from worker.lib.code_persistence import persist_turn, set_run_status
 from worker.lib.llm_routing import resolve_llm_provider
-
 
 __all__ = [
     "CanvasLanguage",
@@ -56,7 +56,7 @@ class CodeRunParams:
     user_id: str
     prompt: str
     language: CanvasLanguage
-    byok_key_handle: Optional[str]
+    byok_key_handle: str | None
 
 
 @dataclass(frozen=True)
@@ -72,7 +72,7 @@ class PersistedTurn:
     kind: Literal["generate", "fix"]
     source: str
     explanation: str
-    prev_error: Optional[str]
+    prev_error: str | None
 
 
 @dataclass(frozen=True)
@@ -85,8 +85,8 @@ class ClientFeedback:
     """
 
     kind: Literal["ok", "error"]
-    error: Optional[str] = None
-    stdout: Optional[str] = None
+    error: str | None = None
+    stdout: str | None = None
 
 
 @activity.defn
@@ -129,10 +129,8 @@ async def generate_code_activity(
         )
         await set_run_status(params.run_id, "awaiting_feedback")
     except Exception:
-        try:
+        with suppress(Exception):
             await set_run_status(params.run_id, "failed")
-        except Exception:
-            pass  # status flip is best-effort; workflow will reconcile
         raise
     activity.heartbeat("generate done")
     return out
@@ -181,10 +179,8 @@ async def analyze_feedback_activity(
         )
         await set_run_status(params.run_id, "awaiting_feedback")
     except Exception:
-        try:
+        with suppress(Exception):
             await set_run_status(params.run_id, "failed")
-        except Exception:
-            pass  # status flip is best-effort; workflow will reconcile
         raise
     activity.heartbeat("fix done")
     return out

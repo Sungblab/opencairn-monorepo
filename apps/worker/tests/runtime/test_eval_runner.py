@@ -1,14 +1,17 @@
 """Runner smoke test using a fake Agent."""
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from runtime.agent import Agent
 from runtime.eval.case import EvalCase, ExpectedToolCall
 from runtime.eval.runner import DEFAULT_CRITERIA, AgentEvaluator
 from runtime.events import AgentEnd, AgentEvent, AgentStart, ToolResult, ToolUse
-from runtime.tools import ToolContext
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from runtime.tools import ToolContext
 
 
 class FakeResearchAgent(Agent):

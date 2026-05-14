@@ -2,9 +2,8 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from temporalio.testing import ActivityEnvironment
-
 from llm.tool_types import AssistantTurn, ToolUse, UsageCounts
+from temporalio.testing import ActivityEnvironment
 
 from worker.activities.code_activity import (
     ClientFeedback,

@@ -57,7 +57,7 @@ class ViewSpec(BaseModel):
     rationale: str | None = Field(default=None, max_length=200)
 
     @model_validator(mode="after")
-    def _structural_constraints(self) -> "ViewSpec":
+    def _structural_constraints(self) -> ViewSpec:
         if self.viewType in ("mindmap", "board") and not self.rootId:
             raise ValueError(f"rootId is required for viewType={self.viewType}")
         cap = NODE_CAPS[self.viewType]

@@ -1,12 +1,12 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from llm.tool_types import AssistantTurn, ToolUse, UsageCounts
 
 from worker.agents.synthesis_export.agent import (
+    _OUTPUT_TOOL,
     SynthesisExportAgent,
     SynthesisExportContext,
-    _OUTPUT_TOOL,
 )
 
 

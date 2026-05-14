@@ -4,9 +4,15 @@ from __future__ import annotations
 from temporalio import activity
 
 from worker.activities.synthesis_export._status import set_status
-from worker.activities.synthesis_export.types import SourceBundle, SynthesisRunParams
-from worker.agents.synthesis_export.agent import SynthesisExportAgent, SynthesisExportContext
-from worker.agents.synthesis_export.schemas import SynthesisOutputSchema
+from worker.activities.synthesis_export.types import (  # noqa: TC001
+    SourceBundle,
+    SynthesisRunParams,
+)
+from worker.agents.synthesis_export.agent import (
+    SynthesisExportAgent,
+    SynthesisExportContext,
+)
+from worker.agents.synthesis_export.schemas import SynthesisOutputSchema  # noqa: TC001
 from worker.lib.api_client import patch_internal
 from worker.lib.llm_routing import resolve_llm_provider
 

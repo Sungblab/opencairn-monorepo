@@ -5,12 +5,11 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from llm import get_provider
 from temporalio import activity
 
-from llm import get_provider
 from runtime.events import AgentEnd, AgentEvent
 from runtime.tools import ToolContext
-
 from worker.agents.doc_editor.agent import DocEditorAgent
 
 

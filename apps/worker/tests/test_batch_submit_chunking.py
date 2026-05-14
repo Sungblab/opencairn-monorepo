@@ -9,7 +9,6 @@ without re-deriving the correctness contract.
 from __future__ import annotations
 
 import pytest
-
 from llm import EmbedInput
 
 from worker.lib.batch_submit import (
@@ -131,7 +130,7 @@ class TestAlignFromChunks:
             ]
             aligned = _align_from_chunks(original, simulated)
             assert len(aligned) == len(original)
-            for inp, slot in zip(original, aligned):
+            for inp, slot in zip(original, aligned, strict=False):
                 if inp.text:
                     assert slot == [float(ord(inp.text))], (
                         f"wrong vector for {inp.text!r} at max_items={max_items}"

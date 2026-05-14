@@ -29,7 +29,8 @@ Return STRICT JSON with this shape, and nothing else:
   "relations": [
     {
       "source": "concept name exactly as written in concepts[].name",
-      "predicate": "one of: is_a, part_of, contains, depends_on, causes, same_as_candidate, is_related_to",
+      "predicate": "one of: is_a, part_of, contains, depends_on, causes, "
+        "same_as_candidate, is_related_to",
       "target": "concept name exactly as written in concepts[].name",
       "confidence": 0.0
     }

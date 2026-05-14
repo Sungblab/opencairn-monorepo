@@ -19,7 +19,6 @@ from runtime.events import (
     ToolUse,
 )
 
-
 BASE = {"run_id": "r1", "workspace_id": "w1", "agent_name": "test", "seq": 0, "ts": 1700000000.0}
 
 

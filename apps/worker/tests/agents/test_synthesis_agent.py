@@ -4,22 +4,13 @@ All HTTP I/O is mocked out via AsyncMock so these run fully offline.
 """
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from worker.agents.synthesis.agent import SynthesisAgent, SynthesisInput, SynthesisOutput
-from worker.agents.synthesis.prompts import SYNTHESIS_SYSTEM, build_synthesis_prompt
-from runtime.tools import ToolContext
-from runtime.events import (
-    AgentStart,
-    AgentEnd,
-    AgentError,
-    ModelEnd,
-    ToolUse,
-    ToolResult,
-    CustomEvent,
-)
+import pytest
 
+from runtime.tools import ToolContext
+from worker.agents.synthesis.agent import SynthesisAgent
+from worker.agents.synthesis.prompts import build_synthesis_prompt
 
 # ---------------------------------------------------------------------------
 # Fixtures

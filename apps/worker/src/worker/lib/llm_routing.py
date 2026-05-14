@@ -6,7 +6,7 @@ ignored for now.
 """
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from llm import LLMProvider, get_provider
 
@@ -16,7 +16,7 @@ async def resolve_llm_provider(
     user_id: str,
     workspace_id: str,
     purpose: Literal["chat", "embedding", "research"],
-    byok_key_handle: Optional[str],
+    byok_key_handle: str | None,
 ) -> LLMProvider:
     # TODO(hosted billing): route BYOK > credits > Admin per
     # docs/architecture/billing-routing.md. For now: env-based default

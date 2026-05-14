@@ -12,12 +12,7 @@ with Plan 8's multi-note essay generator at
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
-
-from llm import LLMProvider
-from llm.tool_types import UsageCounts
-from runtime.events import Scope
-from runtime.tools import Tool, ToolContext
+from typing import TYPE_CHECKING, Any
 
 from worker.agents.synthesis_export.prompts import (
     SYNTHESIS_SYSTEM,
@@ -28,6 +23,13 @@ from worker.agents.synthesis_export.schemas import (
     SynthesisOutputSchema,
     SynthesisTemplate,
 )
+
+if TYPE_CHECKING:
+    from llm import LLMProvider
+    from llm.tool_types import UsageCounts
+
+    from runtime.events import Scope
+    from runtime.tools import Tool, ToolContext
 
 
 @dataclass(frozen=True)

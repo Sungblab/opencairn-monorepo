@@ -9,7 +9,9 @@ from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
     from worker.activities.synthesis_export.types import (
-        CompiledArtifact, SourceBundle, SynthesisRunParams,
+        CompiledArtifact,
+        SourceBundle,
+        SynthesisRunParams,
     )
     from worker.agents.synthesis_export.schemas import SynthesisOutputSchema
 

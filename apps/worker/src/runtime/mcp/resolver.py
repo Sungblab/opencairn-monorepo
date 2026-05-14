@@ -3,12 +3,14 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from runtime.mcp.adapter import adapt
 from runtime.mcp.client import MCPClient, maybe_await
 from runtime.mcp.slug import is_valid_slug
-from runtime.tools import Tool
+
+if TYPE_CHECKING:
+    from runtime.tools import Tool
 
 WarningFn = Callable[[str], Awaitable[None]]
 ListToolsFn = Callable[[str, tuple[str, str] | None], Awaitable[list[Any]] | list[Any]]

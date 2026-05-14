@@ -18,11 +18,8 @@ import logging
 import re
 import time
 import uuid
-from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Any, ClassVar
-
-from llm import LLMProvider
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from runtime.agent import Agent
 from runtime.events import (
@@ -36,12 +33,16 @@ from runtime.events import (
     ToolUse,
 )
 from runtime.tools import ToolContext, hash_input
-
 from worker.agents.curator.prompts import (
     CONTRADICTION_SYSTEM,
     build_contradiction_prompt,
 )
 from worker.lib.api_client import AgentApiClient, post_internal
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from llm import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -229,7 +230,10 @@ class CuratorAgent(Agent):
                 type="tool_result",
                 tool_call_id=dup_call_id,
                 ok=True,
-                output={"duplicates_found": duplicates_found, "suggestions_created": duplicates_found},
+                output={
+                    "duplicates_found": duplicates_found,
+                    "suggestions_created": duplicates_found,
+                },
                 duration_ms=int((time.time() - dup_start) * 1000),
             )
 
@@ -289,7 +293,10 @@ class CuratorAgent(Agent):
             # Step 4 — Contradiction detection via LLM
             # ------------------------------------------------------------------
             contra_call_id = f"call-{uuid.uuid4().hex[:8]}"
-            contra_args = {"project_id": validated.project_id, "max_pairs": validated.max_contradiction_pairs}
+            contra_args = {
+                "project_id": validated.project_id,
+                "max_pairs": validated.max_contradiction_pairs,
+            }
             yield ToolUse(
                 run_id=ctx.run_id,
                 workspace_id=ctx.workspace_id,
@@ -491,9 +498,7 @@ def _is_retryable(exc: Exception) -> bool:
 
     if isinstance(exc, httpx.HTTPStatusError):
         return 500 <= exc.response.status_code < 600
-    if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)):
-        return True
-    return False
+    return bool(isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)))
 
 
 _JSON_FENCE_RE = re.compile(r"```(?:\w+)?\n?(.*?)```", re.DOTALL)

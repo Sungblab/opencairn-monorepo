@@ -16,21 +16,21 @@ import logging
 import time
 from typing import Any
 
-from temporalio import activity
-
 from llm import (
     BATCH_STATE_SUCCEEDED,
     BatchEmbedHandle,
     EmbedInput,
     get_provider,
 )
+from temporalio import activity
+
+from worker.lib.api_client import AgentApiClient
+from worker.lib.batch_metrics import emit_event
+from worker.lib.s3_client import upload_jsonl
 
 # "timeout" is a local (OpenCairn) state — the caller gave up before the
 # provider reached any terminal state. See embedding_batches enum.
 _STATE_TIMEOUT = "timeout"
-from worker.lib.api_client import AgentApiClient
-from worker.lib.batch_metrics import emit_event
-from worker.lib.s3_client import upload_jsonl
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,8 @@ async def submit_batch_embed(payload: dict[str, Any]) -> dict[str, Any]:
     )
 
     provider = get_provider()
-    display_name = f"opencairn-embed-{workspace_id or 'global'}-{int(payload.get('submitted_at', 0))}"
+    submitted_at = int(payload.get("submitted_at", 0))
+    display_name = f"opencairn-embed-{workspace_id or 'global'}-{submitted_at}"
     handle = await provider.embed_batch_submit(inputs, display_name=display_name)
 
     api = AgentApiClient()
@@ -185,7 +186,7 @@ async def fetch_batch_embed_results(payload: dict[str, Any]) -> dict[str, Any]:
                 "vector": v,
                 "error": e,
             }
-            for i, (v, e) in enumerate(zip(result.vectors, result.errors))
+            for i, (v, e) in enumerate(zip(result.vectors, result.errors, strict=False))
         ],
     )
 

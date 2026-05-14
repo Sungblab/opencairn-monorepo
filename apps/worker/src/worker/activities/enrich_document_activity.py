@@ -19,14 +19,15 @@ broken enrichment never blocks note creation. (See Task 7.)
 from __future__ import annotations
 
 import ast
+import contextlib
 import json
 import os
 import re
 
-from temporalio import activity
-
 from llm import get_provider
 from llm.base import ProviderConfig
+from temporalio import activity
+
 from worker.lib.enrichment_artifact import EnrichmentArtifact
 
 # s3_client.download_to_tempfile is imported lazily inside enrich_document so
@@ -254,7 +255,7 @@ async def enrich_document(inp: dict) -> dict:
     content_type: str = inp.get("content_type", "document")
     pages: list[dict] = inp.get("parsed_pages", [])
     object_key: str | None = inp.get("object_key")
-    workspace_id: str = inp.get("workspace_id", "")
+    inp.get("workspace_id", "")
     requested: list[str] = inp.get("requested_enrichments", [])
     mime_type: str = inp.get("mime_type", "")
     user_id: str = inp.get("user_id", "")
@@ -398,10 +399,8 @@ async def enrich_document(inp: dict) -> dict:
 
     finally:
         if pdf_path:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(pdf_path)
-            except OSError:
-                pass
 
     _log_info(
         "enrichment done: type=%s provider=%s skips=%s",

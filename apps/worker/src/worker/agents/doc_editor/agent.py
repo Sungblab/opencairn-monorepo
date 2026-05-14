@@ -13,11 +13,9 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from llm import LLMProvider
 from pydantic import BaseModel, Field, model_validator
 
 from runtime.agent import Agent
@@ -30,11 +28,16 @@ from runtime.events import (
 )
 from runtime.loop_runner import run_with_tools
 from runtime.tool_loop import LoopConfig
-from runtime.tools import ToolContext
-
 from worker.agents.doc_editor.commands import get_command_spec
 from worker.tools_builtin import emit_structured_output, search_notes
 from worker.tools_builtin.schema_registry import register_schema
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from llm import LLMProvider
+
+    from runtime.tools import ToolContext
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +71,7 @@ class _RangeModel(BaseModel):
     end: int = Field(gt=0)
 
     @model_validator(mode="after")
-    def _valid_order(self) -> "_RangeModel":
+    def _valid_order(self) -> _RangeModel:
         if self.end <= self.start:
             raise ValueError("end must be greater than start")
         return self
@@ -164,7 +167,8 @@ class DocEditorAgent(Agent):
             spec = get_command_spec(validated.command)
             if len(validated.selection_text) > spec.max_selection_chars:
                 raise ValueError(
-                    f"selection too long: {len(validated.selection_text)} > {spec.max_selection_chars}"
+                    "selection too long: "
+                    f"{len(validated.selection_text)} > {spec.max_selection_chars}"
                 )
 
             user_msg = self._build_user_message(spec.name, validated)

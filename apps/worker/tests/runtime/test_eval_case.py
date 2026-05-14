@@ -1,12 +1,15 @@
 """EvalCase model + loader tests."""
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
 from runtime.eval.case import EvalCase, ExpectedToolCall
 from runtime.eval.loader import load_case_file
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_eval_case_defaults() -> None:

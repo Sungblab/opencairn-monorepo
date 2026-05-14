@@ -26,7 +26,6 @@ from temporalio import activity
 
 from worker.lib.api_client import AgentApiClient
 
-
 # Each poll sleep; keeps latency tolerable without hammering the API.
 _POLL_INTERVAL_SECONDS = float(os.environ.get("SEMAPHORE_POLL_SECONDS", "1.5"))
 

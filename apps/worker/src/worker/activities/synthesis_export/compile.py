@@ -14,15 +14,17 @@ from temporalio import activity
 
 from worker.activities.synthesis_export._status import set_status
 from worker.activities.synthesis_export.latex_assemble import (
-    assemble_bib, assemble_tex, package_zip,
+    assemble_bib,
+    assemble_tex,
+    package_zip,
 )
 from worker.activities.synthesis_export.types import (
-    CompiledArtifact, SynthesisRunParams,
+    CompiledArtifact,
+    SynthesisRunParams,
 )
-from worker.agents.synthesis_export.schemas import SynthesisOutputSchema
+from worker.agents.synthesis_export.schemas import SynthesisOutputSchema  # noqa: TC001
 from worker.lib.api_client import post_internal
 from worker.lib.s3_client import upload_bytes
-
 
 TECTONIC_URL = os.environ.get("TECTONIC_URL", "http://tectonic:8888")
 TECTONIC_TIMEOUT_S = float(os.environ.get("TECTONIC_TIMEOUT_S", "120"))

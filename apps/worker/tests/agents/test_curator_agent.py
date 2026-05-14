@@ -5,12 +5,13 @@ All HTTP I/O is mocked out via AsyncMock so these run fully offline.
 from __future__ import annotations
 
 import json
-import pytest
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from runtime.tools import ToolContext
 from worker.agents.curator.agent import (
     CuratorAgent,
-    CuratorInput,
     _build_candidate_pairs,
     _parse_contradiction_response,
 )
@@ -18,17 +19,6 @@ from worker.agents.curator.prompts import (
     CONTRADICTION_SYSTEM,
     build_contradiction_prompt,
 )
-from runtime.tools import ToolContext
-from runtime.events import (
-    AgentStart,
-    AgentEnd,
-    AgentError,
-    ModelEnd,
-    ToolUse,
-    ToolResult,
-    CustomEvent,
-)
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

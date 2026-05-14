@@ -16,11 +16,8 @@ import asyncio
 import logging
 import time
 import uuid
-from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Any, ClassVar
-
-from llm import LLMProvider
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from runtime.agent import Agent
 from runtime.events import (
@@ -34,9 +31,13 @@ from runtime.events import (
     ToolUse,
 )
 from runtime.tools import ToolContext, hash_input
-
 from worker.agents.synthesis.prompts import SYNTHESIS_SYSTEM, build_synthesis_prompt
 from worker.lib.api_client import AgentApiClient, post_internal
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from llm import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,7 @@ class SynthesisAgent(Agent):
 
             contexts: list[dict[str, str]] = []
             for note_id, call_id, result in zip(
-                validated.note_ids, call_ids, fetch_results
+                validated.note_ids, call_ids, fetch_results, strict=False
             ):
                 if isinstance(result, Exception):
                     logger.warning(
@@ -334,6 +335,4 @@ def _is_retryable(exc: Exception) -> bool:
 
     if isinstance(exc, httpx.HTTPStatusError):
         return 500 <= exc.response.status_code < 600
-    if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)):
-        return True
-    return False
+    return bool(isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)))

@@ -23,8 +23,11 @@ import argparse
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, timezone
-from typing import Iterable, Protocol
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
         bucket=args.bucket,
         prefix=args.prefix,
         max_age_days=args.max_age_days,
-        now=datetime.now(timezone.utc),
+        now=datetime.now(UTC),
     )
     if not keys:
         logger.info("no objects older than %d days under %s", args.max_age_days, args.prefix)

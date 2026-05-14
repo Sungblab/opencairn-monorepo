@@ -1,14 +1,16 @@
 """Tests for the Agent ABC."""
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from runtime.agent import Agent
 from runtime.events import AgentEnd, AgentEvent, AgentStart, CustomEvent
 from runtime.tools import ToolContext
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 
 async def _noop(_ev: AgentEvent) -> None:

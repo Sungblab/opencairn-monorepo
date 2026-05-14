@@ -5,10 +5,9 @@ for the LLM emit_structured_output payload shape.
 """
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
-
 
 SynthesisFormat = Literal["latex", "docx", "pdf", "md"]
 SynthesisTemplate = Literal["ieee", "acm", "apa", "korean_thesis", "report"]
@@ -18,8 +17,8 @@ class BibEntry(BaseModel):
     cite_key: str           # e.g. "src:abc12345"
     author: str
     title: str
-    year: Optional[int] = None
-    url: Optional[str] = None
+    year: int | None = None
+    url: str | None = None
     source_id: str          # synthesis_sources.id reference
 
 
@@ -32,7 +31,7 @@ class SynthesisSection(BaseModel):
 class SynthesisOutputSchema(BaseModel):
     format: SynthesisFormat
     title: str
-    abstract: Optional[str] = None
+    abstract: str | None = None
     sections: list[SynthesisSection]
     bibliography: list[BibEntry] = Field(default_factory=list)
     template: SynthesisTemplate

@@ -17,6 +17,7 @@ on the Temporal data converter).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 from dataclasses import dataclass
 from datetime import timedelta
@@ -28,14 +29,14 @@ from temporalio.exceptions import ActivityError, ApplicationError
 
 with workflow.unsafe.imports_passed_through():
     from worker.activities.deep_research.create_plan import CreatePlanInput
-    from worker.activities.deep_research.iterate_plan import IteratePlanInput
     from worker.activities.deep_research.execute_research import (
         ExecuteResearchInput,
     )
+    from worker.activities.deep_research.finalize import FinalizeInput
+    from worker.activities.deep_research.iterate_plan import IteratePlanInput
     from worker.activities.deep_research.persist_report import (
         PersistReportInput,
     )
-    from worker.activities.deep_research.finalize import FinalizeInput
 
 
 _PLAN_TIMEOUT = timedelta(minutes=15)
@@ -235,10 +236,8 @@ class DeepResearchWorkflow:
             )
             if self._cancelled and not exec_task.done():
                 exec_task.cancel()
-                try:
+                with contextlib.suppress(Exception):
                     await exec_task
-                except Exception:
-                    pass
                 await workflow.execute_activity(
                     "finalize_deep_research",
                     FinalizeInput(run_id=inp.run_id, status="cancelled"),

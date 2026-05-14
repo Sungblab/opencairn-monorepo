@@ -21,10 +21,10 @@ from __future__ import annotations
 
 import os
 
-from temporalio import activity
-
 from llm import get_provider
 from llm.base import ProviderConfig
+from temporalio import activity
+
 from worker.lib.ingest_events import publish_safe
 from worker.lib.s3_client import download_to_tempfile
 

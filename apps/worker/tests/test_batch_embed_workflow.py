@@ -9,7 +9,6 @@ itself is what we're validating.
 from __future__ import annotations
 
 import uuid
-from datetime import timedelta
 
 import pytest
 from temporalio import activity
@@ -22,7 +21,6 @@ from worker.workflows.batch_embed_workflow import (
     BatchEmbedOutput,
     BatchEmbedWorkflow,
 )
-
 
 # Activity stubs live at module scope so the worker can register them by
 # name — names match the real ``@activity.defn`` registrations.

@@ -5,7 +5,9 @@ build_script_prompt — assembles the user-turn from a note's title + content.
 """
 from __future__ import annotations
 
-SCRIPT_SYSTEM = """You are a podcast script writer. Given a wiki note's content, generate a natural 2-speaker dialogue between Host and Guest that explains and discusses the topic.
+SCRIPT_SYSTEM = """You are a podcast script writer. Given a wiki note's content, \
+generate a natural 2-speaker dialogue between Host and Guest that explains and \
+discusses the topic.
 
 Requirements:
 - Host introduces the topic and asks probing questions

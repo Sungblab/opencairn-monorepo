@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from runtime.eval.case import EvalCase, ExpectedToolCall
 from runtime.events import AgentEnd, AgentEvent, Handoff, ToolUse
+
+if TYPE_CHECKING:
+    from runtime.eval.case import EvalCase, ExpectedToolCall
 
 
 @dataclass
