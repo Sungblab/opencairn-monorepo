@@ -244,9 +244,19 @@ export async function listTreeChildren(input: {
       WHERE n.project_id = ${input.projectId}::uuid
         AND n.deleted_at IS NULL
         AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
-        AND n.kind <> 'artifact_group'
         AND n.kind <> 'artifact'
-        AND NOT (n.kind = 'note' AND n.metadata->>'role' = 'source_note')
+        AND NOT (n.kind = 'note' AND COALESCE(n.metadata->>'role', '') = 'source_note')
+        AND (
+          n.kind <> 'artifact_group'
+          OR EXISTS (
+            SELECT 1
+            FROM project_tree_nodes child
+            WHERE child.parent_id = n.id
+              AND child.deleted_at IS NULL
+              AND NOT (child.kind = 'agent_file' AND child.metadata->>'role' = 'original')
+              AND child.kind <> 'artifact'
+          )
+        )
     ),
     child_counts AS (
       SELECT parent_id, COUNT(*)::int AS child_count
@@ -337,9 +347,19 @@ export async function listTreeChildrenForParents(input: {
       WHERE n.project_id = ${input.projectId}::uuid
         AND n.deleted_at IS NULL
         AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
-        AND n.kind <> 'artifact_group'
         AND n.kind <> 'artifact'
-        AND NOT (n.kind = 'note' AND n.metadata->>'role' = 'source_note')
+        AND NOT (n.kind = 'note' AND COALESCE(n.metadata->>'role', '') = 'source_note')
+        AND (
+          n.kind <> 'artifact_group'
+          OR EXISTS (
+            SELECT 1
+            FROM project_tree_nodes child
+            WHERE child.parent_id = n.id
+              AND child.deleted_at IS NULL
+              AND NOT (child.kind = 'agent_file' AND child.metadata->>'role' = 'original')
+              AND child.kind <> 'artifact'
+          )
+        )
     ),
     child_counts AS (
       SELECT parent_id, COUNT(*)::int AS child_count

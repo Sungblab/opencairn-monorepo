@@ -417,16 +417,13 @@ describe("Threads REST — mutations", () => {
       body: JSON.stringify({ workspace_id: ctx.workspaceId, title: "meta" }),
     });
     const { id } = (await create.json()) as { id: string };
+    const baseline = new Date("2020-01-01T00:00:00.000Z");
+    await db.update(chatThreads).set({ updatedAt: baseline }).where(eq(chatThreads.id, id));
 
     const [before] = await db
       .select({ updatedAt: chatThreads.updatedAt })
       .from(chatThreads)
       .where(eq(chatThreads.id, id));
-
-    // Postgres `now()` resolution is microseconds, but most test runs
-    // complete fast enough that an immediate UPDATE would return the same
-    // timestamp. Sleep a hair so the toISOString comparison is meaningful.
-    await new Promise((r) => setTimeout(r, 5));
 
     const patch = await authedFetch(`/api/threads/${id}`, {
       method: "PATCH",
@@ -487,13 +484,13 @@ describe("Threads REST — mutations", () => {
       body: JSON.stringify({ workspace_id: ctx.workspaceId, title: "del-bump" }),
     });
     const { id } = (await create.json()) as { id: string };
+    const baseline = new Date("2020-01-01T00:00:00.000Z");
+    await db.update(chatThreads).set({ updatedAt: baseline }).where(eq(chatThreads.id, id));
 
     const [before] = await db
       .select({ updatedAt: chatThreads.updatedAt })
       .from(chatThreads)
       .where(eq(chatThreads.id, id));
-
-    await new Promise((r) => setTimeout(r, 5));
 
     const del = await authedFetch(`/api/threads/${id}`, {
       method: "DELETE",
