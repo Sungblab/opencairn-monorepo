@@ -169,7 +169,9 @@ token/key commits without adding an external dependency.
 `pnpm check:types` runs no-emit TypeScript checks for `packages/shared`,
 `packages/db`, `apps/api`, `apps/hocuspocus`, and `apps/web`.
 `pnpm check:unit:fast` runs infrastructure-free unit suites for
-`packages/shared`, `packages/db`, `packages/emails`, and `packages/templates`.
+`packages/shared`, `packages/emails`, and `packages/templates`. `packages/db`
+tests remain a focused DB integration gate and require a Postgres service or
+local test database before running.
 `apps/hocuspocus` remains a focused local/PR check because its websocket smoke
 suite can be timing-sensitive and should not make the fast public gate flaky.
 

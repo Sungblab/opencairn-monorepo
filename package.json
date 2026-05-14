@@ -16,7 +16,7 @@
     "check:health": "node scripts/project-health.mjs",
     "check:secrets": "node scripts/secret-scan.mjs",
     "check:types": "pnpm --filter @opencairn/shared exec tsc --noEmit --project tsconfig.json --pretty false && pnpm --filter @opencairn/db exec tsc --noEmit --project tsconfig.json --pretty false && pnpm --filter @opencairn/api exec tsc --noEmit --project tsconfig.json --pretty false && pnpm --filter @opencairn/hocuspocus exec tsc --noEmit --project tsconfig.json --pretty false && pnpm --dir apps/web exec tsc --noEmit --project tsconfig.json --pretty false",
-    "check:unit:fast": "pnpm --filter @opencairn/shared test && pnpm --filter @opencairn/db test && pnpm --filter @opencairn/emails test && pnpm --filter @opencairn/templates test",
+    "check:unit:fast": "pnpm --filter @opencairn/shared test && pnpm --filter @opencairn/emails test && pnpm --filter @opencairn/templates test",
     "check:public": "pnpm docs:check && pnpm check:health && pnpm check:secrets && pnpm --filter @opencairn/web i18n:parity && pnpm check:types && pnpm check:unit:fast",
     "canvas:guard": "bash scripts/canvas-regression-guard.sh",
     "dev:docker": "node scripts/dev-docker.mjs",
