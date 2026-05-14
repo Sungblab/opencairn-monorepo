@@ -50,6 +50,81 @@ async function authedGet(path: string, userId: string): Promise<Response> {
 }
 
 describe("site admin observability routes", () => {
+  it("exposes hosted readiness signals in the admin overview", async () => {
+    const caller = await makeUser();
+    await promoteSiteAdmin(caller.id);
+    const originalEnv = {
+      RESEND_API_KEY: process.env.RESEND_API_KEY,
+      S3_ENDPOINT: process.env.S3_ENDPOINT,
+      S3_BUCKET: process.env.S3_BUCKET,
+      S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
+      S3_SECRET_KEY: process.env.S3_SECRET_KEY,
+      SENTRY_DSN: process.env.SENTRY_DSN,
+      NEXT_PUBLIC_GOOGLE_ANALYTICS_ID:
+        process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID,
+      NEXT_PUBLIC_META_PIXEL_ID: process.env.NEXT_PUBLIC_META_PIXEL_ID,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      GEMINI_MONTHLY_SPEND_CAP_KRW: process.env.GEMINI_MONTHLY_SPEND_CAP_KRW,
+      R2_BACKUP_BUCKET: process.env.R2_BACKUP_BUCKET,
+      R2_BACKUP_ENDPOINT: process.env.R2_BACKUP_ENDPOINT,
+      R2_BACKUP_ACCESS_KEY: process.env.R2_BACKUP_ACCESS_KEY,
+      R2_BACKUP_SECRET_KEY: process.env.R2_BACKUP_SECRET_KEY,
+    };
+
+    try {
+      process.env.RESEND_API_KEY = "test-resend";
+      process.env.S3_ENDPOINT = "https://r2.example";
+      process.env.S3_BUCKET = "opencairn-test";
+      process.env.S3_ACCESS_KEY = "test-access";
+      process.env.S3_SECRET_KEY = "test-secret";
+      process.env.SENTRY_DSN = "https://example@sentry.example/1";
+      process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID = "G-TEST";
+      process.env.NEXT_PUBLIC_META_PIXEL_ID = "123456";
+      process.env.GEMINI_API_KEY = "test-gemini";
+      process.env.GEMINI_MONTHLY_SPEND_CAP_KRW = "250000";
+      process.env.R2_BACKUP_BUCKET = "opencairn-db-backups";
+      process.env.R2_BACKUP_ENDPOINT = "https://r2.example";
+      process.env.R2_BACKUP_ACCESS_KEY = "test-backup-access";
+      process.env.R2_BACKUP_SECRET_KEY = "test-backup-secret";
+
+      const res = await authedGet("/api/admin/overview", caller.id);
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        system: {
+          readiness: {
+            email: boolean;
+            objectStorage: boolean;
+            sentry: boolean;
+            googleAnalytics: boolean;
+            metaPixel: boolean;
+            geminiApi: boolean;
+            geminiSpendCap: boolean;
+            databaseBackups: boolean;
+          };
+        };
+      };
+      expect(body.system.readiness).toEqual({
+        email: true,
+        objectStorage: true,
+        sentry: true,
+        googleAnalytics: true,
+        metaPixel: true,
+        geminiApi: true,
+        geminiSpendCap: true,
+        databaseBackups: true,
+      });
+    } finally {
+      for (const [key, value] of Object.entries(originalEnv)) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    }
+  });
+
   it("records API requests and exposes them to site admins", async () => {
     const caller = await makeUser();
     await promoteSiteAdmin(caller.id);

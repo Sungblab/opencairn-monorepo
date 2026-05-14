@@ -167,6 +167,71 @@ describe("AdminUsersClient", () => {
     expect(link).toHaveAttribute("href", "/ko/dashboard");
   });
 
+  it("renders hosted readiness signals from the admin overview", async () => {
+    vi.mocked(globalThis.fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/overview")) {
+        return ok({
+          stats: {},
+          analytics: {
+            userPlans: [],
+            workspacePlans: [],
+            actionStatuses: [],
+            usageByAction: [],
+          },
+          recentReports: [],
+          recentOperations: [],
+          system: {
+            environment: "production",
+            internalApiUrl: "http://api:4000",
+            publicAppUrl: "https://opencairn.com",
+            email: { resendConfigured: true, smtpConfigured: false },
+            storage: { s3Configured: true },
+            featureFlags: {},
+            readiness: {
+              email: true,
+              objectStorage: true,
+              sentry: true,
+              googleAnalytics: true,
+              metaPixel: true,
+              geminiApi: true,
+              geminiSpendCap: true,
+              databaseBackups: false,
+            },
+          },
+        });
+      }
+      return ok({ users: [] });
+    });
+
+    render(<AdminUsersClient />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "tabs.readiness" }),
+    );
+
+    expect(await screen.findByText("readiness.email")).toBeInTheDocument();
+    expect(screen.getByText("readiness.databaseBackups")).toBeInTheDocument();
+    expect(screen.getAllByText("readiness.ready").length).toBeGreaterThan(0);
+    expect(screen.getByText("readiness.needsSetup")).toBeInTheDocument();
+  });
+
+  it("hides hosted-only admin tabs when hosted service mode is disabled", async () => {
+    render(<AdminUsersClient hostedService={false} />);
+
+    expect(
+      await screen.findByRole("button", { name: "tabs.dashboard" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "tabs.billing" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "tabs.promotions" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "tabs.readiness" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("bulk grants site admin access from the users tab", async () => {
     vi.mocked(globalThis.fetch).mockImplementation((input, init) => {
       const url = String(input);

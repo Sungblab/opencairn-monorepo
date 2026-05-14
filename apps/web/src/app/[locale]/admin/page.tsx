@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
 import type { Locale } from "@/i18n";
 import { requireSession } from "@/lib/session";
+import { siteConfig } from "@/lib/site-config";
 import { AdminUsersClientLoader } from "./AdminUsersClientLoader";
 import { IntlClientProvider } from "@/components/providers/intl-client-provider";
 
@@ -26,7 +27,10 @@ export default async function AdminPage({
           </h1>
         </header>
         <IntlClientProvider namespaces={["admin"]}>
-          <AdminUsersClientLoader returnHref={`/${locale}/dashboard`} />
+          <AdminUsersClientLoader
+            returnHref={`/${locale}/dashboard`}
+            hostedService={siteConfig.isHostedService}
+          />
         </IntlClientProvider>
       </div>
     </main>

@@ -10,8 +10,19 @@ const LazyAdminUsersClient = dynamic(
   },
 );
 
-export function AdminUsersClientLoader({ returnHref }: { returnHref: string }) {
-  return <LazyAdminUsersClient returnHref={returnHref} />;
+export function AdminUsersClientLoader({
+  returnHref,
+  hostedService,
+}: {
+  returnHref: string;
+  hostedService: boolean;
+}) {
+  return (
+    <LazyAdminUsersClient
+      returnHref={returnHref}
+      hostedService={hostedService}
+    />
+  );
 }
 
 function AdminUsersClientSkeleton() {

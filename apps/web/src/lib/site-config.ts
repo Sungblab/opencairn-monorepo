@@ -10,6 +10,11 @@ const cleanEmail = (value: string | undefined): string | undefined => {
   return trimmed;
 };
 
+const boolEnv = (value: string | undefined): boolean => {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+};
+
 export const siteUrl =
   clean(process.env.NEXT_PUBLIC_SITE_URL) ??
   clean(process.env.NEXT_PUBLIC_BASE_URL) ??
@@ -17,6 +22,9 @@ export const siteUrl =
 
 export const siteConfig = {
   name: clean(process.env.NEXT_PUBLIC_SITE_NAME) ?? "OpenCairn",
+  isHostedService:
+    boolEnv(process.env.NEXT_PUBLIC_OPENCAIRN_HOSTED_SERVICE) ||
+    boolEnv(process.env.OPENCAIRN_HOSTED_SERVICE),
   descriptionKo: clean(process.env.NEXT_PUBLIC_SITE_DESCRIPTION_KO),
   descriptionEn: clean(process.env.NEXT_PUBLIC_SITE_DESCRIPTION_EN),
   authorName:

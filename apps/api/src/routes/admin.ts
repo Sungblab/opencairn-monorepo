@@ -127,6 +127,33 @@ function boolEnv(name: string) {
   return process.env[name] === "1" || process.env[name] === "true";
 }
 
+function hasEnv(name: string) {
+  return Boolean(process.env[name]?.trim());
+}
+
+function hasAnyEnv(names: string[]) {
+  return names.some((name) => hasEnv(name));
+}
+
+function hasBackupTarget() {
+  const r2 =
+    hasEnv("R2_BACKUP_BUCKET") &&
+    hasEnv("R2_BACKUP_ENDPOINT") &&
+    hasEnv("R2_BACKUP_ACCESS_KEY") &&
+    hasEnv("R2_BACKUP_SECRET_KEY");
+  const s3 =
+    hasEnv("S3_BACKUP_BUCKET") &&
+    hasEnv("S3_BACKUP_ENDPOINT") &&
+    hasEnv("S3_BACKUP_ACCESS_KEY") &&
+    hasEnv("S3_BACKUP_SECRET_KEY");
+  const b2 =
+    hasEnv("B2_BACKUP_BUCKET") &&
+    hasEnv("B2_BACKUP_ENDPOINT") &&
+    hasEnv("B2_BACKUP_ACCESS_KEY") &&
+    hasEnv("B2_BACKUP_SECRET_KEY");
+  return r2 || s3 || b2;
+}
+
 function num(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -502,6 +529,25 @@ export const adminRoutes = new Hono<AppEnv>()
           s3Configured: Boolean(
             process.env.S3_ENDPOINT || process.env.S3_BUCKET,
           ),
+        },
+        readiness: {
+          email: hasEnv("RESEND_API_KEY") || hasEnv("SMTP_HOST"),
+          objectStorage:
+            hasEnv("S3_ENDPOINT") &&
+            hasEnv("S3_BUCKET") &&
+            hasEnv("S3_ACCESS_KEY") &&
+            hasEnv("S3_SECRET_KEY"),
+          sentry: hasEnv("SENTRY_DSN"),
+          googleAnalytics: hasAnyEnv([
+            "NEXT_PUBLIC_GOOGLE_ANALYTICS_ID",
+            "GOOGLE_ANALYTICS_ID",
+          ]),
+          metaPixel: hasAnyEnv(["NEXT_PUBLIC_META_PIXEL_ID", "META_PIXEL_ID"]),
+          geminiApi: hasEnv("GEMINI_API_KEY") || hasEnv("GOOGLE_API_KEY"),
+          geminiSpendCap:
+            hasEnv("GEMINI_MONTHLY_SPEND_CAP_KRW") ||
+            hasEnv("GEMINI_MONTHLY_SPEND_CAP_USD"),
+          databaseBackups: hasBackupTarget(),
         },
         featureFlags: {
           documentGeneration: boolEnv("FEATURE_DOCUMENT_GENERATION"),

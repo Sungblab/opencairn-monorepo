@@ -19,6 +19,7 @@ import {
   Search,
   Settings,
   Shield,
+  ShieldCheck,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ type TabKey =
   | "reports"
   | "audit"
   | "logs"
+  | "readiness"
   | "email"
   | "system";
 type ExtendedTabKey = TabKey | "apiLogs" | "llmCosts";
@@ -118,6 +120,16 @@ interface AdminOverview {
     };
     email: { resendConfigured: boolean; smtpConfigured: boolean };
     storage: { s3Configured: boolean };
+    readiness?: {
+      email: boolean;
+      objectStorage: boolean;
+      sentry: boolean;
+      googleAnalytics: boolean;
+      metaPixel: boolean;
+      geminiApi: boolean;
+      geminiSpendCap: boolean;
+      databaseBackups: boolean;
+    };
     featureFlags: Record<string, boolean>;
   };
 }
@@ -288,9 +300,15 @@ const tabs: Array<{ key: ExtendedTabKey; icon: typeof Activity }> = [
   { key: "logs", icon: Database },
   { key: "apiLogs", icon: ReceiptText },
   { key: "llmCosts", icon: Activity },
+  { key: "readiness", icon: ShieldCheck },
   { key: "email", icon: Mail },
   { key: "system", icon: Settings },
 ];
+const hostedOnlyTabs = new Set<ExtendedTabKey>([
+  "billing",
+  "promotions",
+  "readiness",
+]);
 
 const PAGE_SIZE_OPTIONS = [15, 30, 50, 100] as const;
 const DEFAULT_PAGE_SIZE = 30;
@@ -484,10 +502,19 @@ function StatBox({
 
 export function AdminUsersClient({
   returnHref = "/dashboard",
+  hostedService = true,
 }: {
   returnHref?: string;
+  hostedService?: boolean;
 }) {
   const t = useTranslations("admin");
+  const visibleTabs = useMemo(
+    () =>
+      hostedService
+        ? tabs
+        : tabs.filter((tab) => !hostedOnlyTabs.has(tab.key)),
+    [hostedService],
+  );
   const [activeTab, setActiveTab] = useState<ExtendedTabKey>("dashboard");
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -629,6 +656,10 @@ export function AdminUsersClient({
     async function loadActiveTab() {
       setError(null);
       let ok = true;
+      if (!hostedService && hostedOnlyTabs.has(activeTab)) {
+        setActiveTab("dashboard");
+        return;
+      }
       if (activeTab === "dashboard" && !overview) {
         ok = await loadOverview();
       }
@@ -645,10 +676,10 @@ export function AdminUsersClient({
       ) {
         ok = await loadSubscriptions();
       }
-      if (activeTab === "billing" && !billing) {
+      if (hostedService && activeTab === "billing" && !billing) {
         ok = await loadBilling();
       }
-      if (activeTab === "promotions") {
+      if (hostedService && activeTab === "promotions") {
         const needsSubscriptions =
           subscriptionUsers.length === 0 && workspaces.length === 0;
         const results = await Promise.all([
@@ -682,7 +713,7 @@ export function AdminUsersClient({
     }
 
     void loadActiveTab();
-  }, [activeTab]);
+  }, [activeTab, hostedService]);
 
   useEffect(() => {
     setPageFor("users", 0);
@@ -895,7 +926,7 @@ export function AdminUsersClient({
           {t("navigation")}
         </div>
         <nav className="grid p-2">
-          {tabs.map(({ key, icon: Icon }) => (
+          {visibleTabs.map(({ key, icon: Icon }) => (
             <button
               key={key}
               type="button"
@@ -1953,6 +1984,36 @@ export function AdminUsersClient({
           </div>
         )}
 
+        {activeTab === "readiness" && (
+          overview ? (
+            <div className="space-y-4">
+              <Panel title={t("sections.readiness")}>
+                <ReadinessChecklist readiness={overview.system.readiness} />
+              </Panel>
+              <Panel title={t("readiness.guidanceTitle")}>
+                <div className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
+                  <div className="border border-border bg-background p-3">
+                    <div className="font-semibold text-foreground">
+                      {t("readiness.backendTitle")}
+                    </div>
+                    <p className="mt-1">{t("readiness.backendBody")}</p>
+                  </div>
+                  <div className="border border-border bg-background p-3">
+                    <div className="font-semibold text-foreground">
+                      {t("readiness.privacyTitle")}
+                    </div>
+                    <p className="mt-1">{t("readiness.privacyBody")}</p>
+                  </div>
+                </div>
+              </Panel>
+            </div>
+          ) : (
+            <Panel title={t("tabs.readiness")}>
+              <Empty />
+            </Panel>
+          )
+        )}
+
         {activeTab === "email" && (
           overview ? (
             <Panel title={t("sections.email")}>
@@ -2131,6 +2192,69 @@ function SimpleRows({
           <div className="text-sm font-bold tabular-nums">{row.right}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ReadinessChecklist({
+  readiness,
+}: {
+  readiness?: NonNullable<AdminOverview["system"]["readiness"]>;
+}) {
+  const t = useTranslations("admin");
+  const rows = [
+    "email",
+    "objectStorage",
+    "sentry",
+    "googleAnalytics",
+    "metaPixel",
+    "geminiApi",
+    "geminiSpendCap",
+    "databaseBackups",
+  ] as const;
+
+  return (
+    <div className="grid gap-2 lg:grid-cols-2">
+      {rows.map((key) => {
+        const ready = readiness?.[key] ?? false;
+        return (
+          <div
+            key={key}
+            className={cn(
+              "flex items-start gap-3 border bg-background p-3",
+              ready ? "border-green-600/70" : "border-destructive/70",
+            )}
+          >
+            {ready ? (
+              <CheckCircle2
+                className="mt-0.5 h-4 w-4 shrink-0 text-green-700 dark:text-green-400"
+                aria-hidden
+              />
+            ) : (
+              <AlertTriangle
+                className="mt-0.5 h-4 w-4 shrink-0 text-destructive"
+                aria-hidden
+              />
+            )}
+            <div className="min-w-0">
+              <div className="text-sm font-bold">{t(`readiness.${key}`)}</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {t(`readiness.${key}Description`)}
+              </div>
+              <div
+                className={cn(
+                  "mt-2 inline-flex h-6 items-center border px-2 text-xs font-semibold uppercase",
+                  ready
+                    ? "border-green-600 text-green-700 dark:text-green-400"
+                    : "border-destructive text-destructive",
+                )}
+              >
+                {ready ? t("readiness.ready") : t("readiness.needsSetup")}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
