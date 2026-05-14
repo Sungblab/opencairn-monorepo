@@ -130,6 +130,10 @@
         "title": "Summarize",
         "description": "Condense the current material into core points."
       },
+      "paperAnalysis": {
+        "title": "Paper analysis report",
+        "description": "Read the selected PDF and create an analysis artifact with claims, evidence, limitations, and citation anchors."
+      },
       "pdfReport": {
         "title": "Create PDF report",
         "description": "Generate a shareable PDF report quickly."

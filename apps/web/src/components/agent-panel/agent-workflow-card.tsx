@@ -20,6 +20,7 @@ import {
 import type {
   AgentWorkflowIntent,
   AgentWorkflowSubmission,
+  SourcePaperAnalysisWorkflowPayload,
 } from "@/stores/agent-workbench-store";
 import {
   getDocumentGenerationPreset,
@@ -94,6 +95,40 @@ function templateOptionsFor(
   format: DocumentGenerationFormat,
 ): readonly DocumentGenerationTemplate[] {
   return TEMPLATE_OPTIONS_BY_FORMAT[format];
+}
+
+function selectedSourceIdsFor(
+  sources: DocumentGenerationSourceOption[],
+  preferredIds: readonly string[],
+) {
+  if (preferredIds.length > 0) {
+    const available = new Set(sources.map((source) => source.id));
+    return preferredIds.filter((id) => available.has(id));
+  }
+  return sources.slice(0, 5).map((source) => source.id);
+}
+
+function getSourcePaperAnalysisPayload(
+  payload: AgentWorkflowIntent["payload"],
+): SourcePaperAnalysisWorkflowPayload | null {
+  if (!payload || payload.action !== "source_paper_analysis") return null;
+  const candidate = payload as Partial<SourcePaperAnalysisWorkflowPayload>;
+  if (
+    !Array.isArray(candidate.sourceIds) ||
+    !candidate.sourceIds.every((id) => typeof id === "string") ||
+    typeof candidate.sourceTitle !== "string" ||
+    typeof candidate.initialPrompt !== "string" ||
+    typeof candidate.initialFilename !== "string"
+  ) {
+    return null;
+  }
+  return {
+    action: "source_paper_analysis",
+    sourceIds: candidate.sourceIds,
+    sourceTitle: candidate.sourceTitle,
+    initialPrompt: candidate.initialPrompt,
+    initialFilename: candidate.initialFilename,
+  };
 }
 
 export function AgentWorkflowCard({
@@ -475,7 +510,24 @@ function DocumentWorkflow({
   const docT = useTranslations("agentPanel.documentGeneration");
   const locale = useLocale();
   const preset = getDocumentGenerationPreset(workflow.presetId ?? "pdf_report_fast");
-  const promptKeyRef = useRef(preset.promptKey);
+  const sourcePayload = getSourcePaperAnalysisPayload(workflow.payload);
+  const preferredSourceIds = useMemo(
+    () => sourcePayload?.sourceIds ?? [],
+    [sourcePayload],
+  );
+  const preferredSourceKey = preferredSourceIds.join("\u0000");
+  const initialFilename =
+    sourcePayload?.initialFilename ?? docT(`presetFilename.${preset.filenameBaseKey}`);
+  const initialPrompt =
+    sourcePayload?.initialPrompt ?? docT(`presetPrompt.${preset.promptKey}`);
+  const workflowConfigKey = [
+    workflow.id,
+    preset.id,
+    preferredSourceKey,
+    initialFilename,
+    initialPrompt,
+  ].join("\u0001");
+  const workflowConfigRef = useRef(workflowConfigKey);
   const [sources, setSources] = useState<DocumentGenerationSourceOption[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [format, setFormat] = useState<DocumentGenerationFormat>(preset.format);
@@ -488,12 +540,8 @@ function DocumentWorkflow({
   const [template, setTemplate] = useState<DocumentGenerationTemplate>(
     preset.template,
   );
-  const [filename, setFilename] = useState(
-    docT(`presetFilename.${preset.filenameBaseKey}`),
-  );
-  const [prompt, setPrompt] = useState(
-    docT(`presetPrompt.${preset.promptKey}`),
-  );
+  const [filename, setFilename] = useState(initialFilename);
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!projectId) return;
@@ -503,7 +551,7 @@ function DocumentWorkflow({
       .then((response) => {
         if (cancelled) return;
         setSources(response.sources);
-        setSelectedIds(response.sources.slice(0, 5).map((source) => source.id));
+        setSelectedIds(selectedSourceIdsFor(response.sources, preferredSourceIds));
       })
       .catch(() => {
         if (!cancelled) setError(docT("loadFailed"));
@@ -511,17 +559,25 @@ function DocumentWorkflow({
     return () => {
       cancelled = true;
     };
-  }, [docT, projectId]);
+  }, [docT, preferredSourceIds, projectId]);
   useEffect(() => {
-    if (promptKeyRef.current === preset.promptKey) return;
-    promptKeyRef.current = preset.promptKey;
+    if (workflowConfigRef.current === workflowConfigKey) return;
+    workflowConfigRef.current = workflowConfigKey;
     setFormat(preset.format);
     setRenderEngine(preset.renderEngine ?? "pymupdf");
     setImageEngine(preset.imageEngine ?? "svg");
     setTemplate(preset.template);
-    setFilename(docT(`presetFilename.${preset.filenameBaseKey}`));
-    setPrompt(docT(`presetPrompt.${preset.promptKey}`));
-  }, [docT, preset]);
+    setFilename(initialFilename);
+    setPrompt(initialPrompt);
+    setSelectedIds(selectedSourceIdsFor(sources, preferredSourceIds));
+  }, [
+    initialFilename,
+    initialPrompt,
+    preferredSourceIds,
+    preset,
+    sources,
+    workflowConfigKey,
+  ]);
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedSources = useMemo(
     () => sources.filter((source) => selectedIdSet.has(source.id)),

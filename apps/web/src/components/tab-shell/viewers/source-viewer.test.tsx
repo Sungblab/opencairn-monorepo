@@ -220,6 +220,8 @@ const messages = {
           sourceFailed: "원본 처리가 실패했습니다. 업로드 상태를 확인한 뒤 다시 시도하세요.",
           sourceUnsupported: "이 원본 형식은 현재 자동 분석을 지원하지 않습니다.",
           useThisPdf: "이 PDF만 사용",
+          paperAnalysis: "논문 분석 리포트",
+          paperAnalysisPrompt: "{title}를 논문 읽기 기준으로 분석해 연구 질문, 방법, 핵심 주장, 증거, 한계, 후속 질문, 페이지 단위 인용 앵커를 포함한 긴 분석 리포트를 만들어줘.",
           summarize: "요약",
           decompose: "분해",
           citations: "인용 추출",
@@ -534,6 +536,33 @@ describe("SourceViewer", () => {
       kind: "runCommand",
       commandId: "summarize",
     });
+  });
+
+  it("starts a source-scoped paper analysis artifact workflow from the source rail", async () => {
+    renderSourceViewer();
+    await screen.findByTestId("embedpdf-viewer");
+
+    await userEvent.click(screen.getByTestId("source-rail-paper-analysis-button"));
+
+    expect(usePanelStore.getState()).toMatchObject({
+      agentPanelOpen: true,
+      agentPanelTab: "chat",
+    });
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+      kind: "document_generation",
+      toolId: "paper_analysis",
+      i18nKey: "paperAnalysis",
+      presetId: "pdf_report_fast",
+      payload: {
+        action: "source_paper_analysis",
+        sourceIds: ["note:n1"],
+        sourceTitle: "doc.pdf",
+        initialFilename: "doc-paper-analysis.pdf",
+      },
+    });
+    expect(
+      useAgentWorkbenchStore.getState().pendingWorkflow?.payload?.initialPrompt,
+    ).toContain("doc.pdf");
   });
 
   it("shows source processing readiness from enrichment status in the analysis rail", async () => {
