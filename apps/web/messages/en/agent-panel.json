@@ -408,6 +408,21 @@
       "empty": "No matching commands.",
       "hint": "Enter selects · Esc closes",
       "clear_command_aria": "Clear command",
+      "preview": {
+        "output": {
+          "note": "Note",
+          "agent_file": "File artifact",
+          "workflow": "Workflow",
+          "study_artifact": "Study artifact",
+          "navigation": "Navigation",
+          "conversation": "Conversation"
+        },
+        "risk": {
+          "low": "Low risk",
+          "medium": "Review recommended",
+          "approval_required": "Approval required"
+        }
+      },
       "command": {
         "summarize": "Summarize the current material",
         "decompose": "Break down structure, claims, and evidence",

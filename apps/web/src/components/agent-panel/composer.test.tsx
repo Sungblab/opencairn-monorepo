@@ -360,6 +360,19 @@ describe("Composer", () => {
     });
   });
 
+  it("shows registry output and risk hints in the slash command menu", () => {
+    render(<Composer onSend={vi.fn()} />);
+    const ta = screen.getByPlaceholderText(PLACEHOLDER);
+
+    fireEvent.change(ta, { target: { value: "/docx" } });
+
+    expect(
+      screen.getByText(
+        "agentPanel.composer.slash.preview.output.agent_file · agentPanel.composer.slash.preview.risk.medium",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("supports keyboard navigation in the slash command menu", () => {
     const onSend = vi.fn();
     render(<Composer onSend={onSend} />);

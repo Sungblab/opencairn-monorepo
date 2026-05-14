@@ -387,20 +387,30 @@ function FileBody({
     () => ["text", "latex", "code"].includes(file.kind),
     [file.kind],
   );
+  const wrapArtifact = (children: ReactNode) => (
+    <ArtifactResultFrame
+      file={file}
+      fileUrl={fileUrl}
+      onIngest={onIngest}
+      ingestPending={ingestPending}
+    >
+      {children}
+    </ArtifactResultFrame>
+  );
 
   if (file.kind === "image") {
-    return (
+    return wrapArtifact(
       <div className="app-scrollbar-thin flex h-full items-center justify-center overflow-auto bg-muted/30 p-4">
         <img
           src={fileUrl}
           alt={file.filename}
           className="max-h-full max-w-full object-contain"
         />
-      </div>
+      </div>,
     );
   }
   if (file.kind === "html") {
-    return (
+    return wrapArtifact(
       <PreviewSourceFrame fileUrl={fileUrl} sourceLabel={t("source")}>
         <iframe
           title={file.filename}
@@ -408,7 +418,7 @@ function FileBody({
           sandbox="allow-scripts"
           className="h-full w-full border-0"
         />
-      </PreviewSourceFrame>
+      </PreviewSourceFrame>,
     );
   }
   if (file.kind === "pdf") {
@@ -444,7 +454,7 @@ function FileBody({
     );
   }
   if (file.kind === "latex" && file.compileStatus === "completed") {
-    return (
+    return wrapArtifact(
       <div className="grid h-full grid-cols-1 lg:grid-cols-2">
         <TextPreview fileUrl={fileUrl} />
         <iframe
@@ -452,20 +462,20 @@ function FileBody({
           src={compiledUrl}
           className="h-full w-full border-0 border-l"
         />
-      </div>
+      </div>,
     );
   }
   if (file.kind === "markdown") {
-    return <MarkdownPreview file={file} fileUrl={fileUrl} />;
+    return wrapArtifact(<MarkdownPreview file={file} fileUrl={fileUrl} />);
   }
-  if (file.kind === "json") return <JsonPreview fileUrl={fileUrl} />;
-  if (file.kind === "csv") return <CsvPreview fileUrl={fileUrl} />;
-  if (textLike) return <TextPreview fileUrl={fileUrl} />;
-  return (
+  if (file.kind === "json") return wrapArtifact(<JsonPreview fileUrl={fileUrl} />);
+  if (file.kind === "csv") return wrapArtifact(<CsvPreview fileUrl={fileUrl} />);
+  if (textLike) return wrapArtifact(<TextPreview fileUrl={fileUrl} />);
+  return wrapArtifact(
     <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
       <FileCode className="mr-2 h-4 w-4" />
       {file.mimeType}
-    </div>
+    </div>,
   );
 }
 
@@ -522,40 +532,47 @@ function OfficeDocumentPreview({
   }
 
   return (
-    <div className="flex h-full min-h-0 items-center justify-center bg-muted/20 p-6">
-      <div className="w-full max-w-md rounded-[var(--radius-card)] border border-border bg-background p-5 text-sm shadow-sm">
-        <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-          {isConverting ? (
-            <Loader2
-              className="h-4 w-4 animate-spin text-primary"
-              aria-hidden
-            />
-          ) : file.kind === "pptx" ? (
-            <Presentation className="h-4 w-4 text-orange-600" aria-hidden />
-          ) : (
-            <FileText className="h-4 w-4 text-muted-foreground" aria-hidden />
-          )}
-          <span className="min-w-0 truncate">
-            {isConverting ? t("officeConvertingTitle") : file.filename}
-          </span>
-        </div>
-        <p className="text-muted-foreground">
-          {isConverting
-            ? t("officeConvertingDescription")
-            : t("officePreviewUnavailable")}
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <a
-            href={fileUrl}
-            download={file.filename}
-            className={buttonVariants({ size: "sm", variant: "outline" })}
-          >
-            <FileDown className="mr-1.5 h-4 w-4" />
-            {t("download")}
-          </a>
+    <ArtifactResultFrame
+      file={file}
+      fileUrl={fileUrl}
+      onIngest={onIngest}
+      ingestPending={ingestPending}
+    >
+      <div className="flex h-full min-h-0 items-center justify-center bg-muted/20 p-6">
+        <div className="w-full max-w-md rounded-[var(--radius-card)] border border-border bg-background p-5 text-sm shadow-sm">
+          <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+            {isConverting ? (
+              <Loader2
+                className="h-4 w-4 animate-spin text-primary"
+                aria-hidden
+              />
+            ) : file.kind === "pptx" ? (
+              <Presentation className="h-4 w-4 text-orange-600" aria-hidden />
+            ) : (
+              <FileText className="h-4 w-4 text-muted-foreground" aria-hidden />
+            )}
+            <span className="min-w-0 truncate">
+              {isConverting ? t("officeConvertingTitle") : file.filename}
+            </span>
+          </div>
+          <p className="text-muted-foreground">
+            {isConverting
+              ? t("officeConvertingDescription")
+              : t("officePreviewUnavailable")}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <a
+              href={fileUrl}
+              download={file.filename}
+              className={buttonVariants({ size: "sm", variant: "outline" })}
+            >
+              <FileDown className="mr-1.5 h-4 w-4" />
+              {t("download")}
+            </a>
+          </div>
         </div>
       </div>
-    </div>
+    </ArtifactResultFrame>
   );
 }
 
@@ -752,6 +769,32 @@ function SourceMaterialPanel({
           </details>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ArtifactResultFrame({
+  file,
+  fileUrl,
+  onIngest,
+  ingestPending,
+  children,
+}: {
+  file: AgentFileSummary;
+  fileUrl: string;
+  onIngest: () => void;
+  ingestPending: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <SourceMaterialPanel
+        file={file}
+        fileUrl={fileUrl}
+        onIngest={onIngest}
+        ingestPending={ingestPending}
+      />
+      <div className="min-h-0 flex-1">{children}</div>
     </div>
   );
 }

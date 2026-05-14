@@ -29,6 +29,19 @@ describe("tool discovery capability registry", () => {
 
   it("projects source, upload, sidebar, file explorer, and workflow surfaces from the same registry", () => {
     expect(
+      getToolDiscoveryItemsForSurface("slash_command", {
+        contexts: ["source"],
+      }).map((item) => item.id),
+    ).toEqual(
+      expect.arrayContaining([
+        "docx_report",
+        "pptx_deck",
+        "xlsx_table",
+        "source_figure",
+        "study_artifact_generator",
+      ]),
+    );
+    expect(
       getToolDiscoveryItemsForSurface("source_rail", {
         contexts: ["source"],
       }).map((item) => item.id),

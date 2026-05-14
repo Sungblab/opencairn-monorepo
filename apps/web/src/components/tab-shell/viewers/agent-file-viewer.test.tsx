@@ -381,7 +381,10 @@ describe("AgentFileViewer", () => {
     const file = fileSummary({});
     renderViewer(file, "# Report\n\n- first");
 
-    expect(await screen.findByText("report.md")).toBeInTheDocument();
+    expect(await screen.findAllByText("report.md")).toHaveLength(2);
+    expect(screen.getByText("분석 전")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "리포트" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다시 분석" })).toBeInTheDocument();
     expect(screen.getByText(/markdown · v3 · 2.0 KB/)).toBeInTheDocument();
     expect(screen.queryByText("컴파일 없음")).not.toBeInTheDocument();
     expect(screen.getByLabelText("원본 다운로드")).toHaveAttribute(
@@ -666,6 +669,8 @@ describe("AgentFileViewer", () => {
     );
 
     expect(await screen.findByText("CSV 테이블 · 2행")).toBeInTheDocument();
+    expect(screen.getAllByText("scores.csv")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "리포트" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "name" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Ada" })).toBeInTheDocument();
     expect(screen.queryByText(/name,score/)).not.toBeInTheDocument();
@@ -688,6 +693,8 @@ describe("AgentFileViewer", () => {
     );
 
     expect(await screen.findByText("JSON 트리")).toBeInTheDocument();
+    expect(screen.getAllByText("data.json")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "리포트" })).toBeInTheDocument();
     expect(screen.queryByText(/"name":"Ada"/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "원본 보기" }));

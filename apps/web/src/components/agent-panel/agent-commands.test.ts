@@ -87,8 +87,21 @@ describe("agent commands", () => {
     expect(filterSlashCommands("cheat").map((command) => command.id)).toContain(
       "summarize",
     );
+    expect(filterSlashCommands("docx").map((command) => command.id)).toContain(
+      "generate_report",
+    );
+    expect(filterSlashCommands("slides").map((command) => command.id)).toContain(
+      "generate_deck",
+    );
+    expect(filterSlashCommands("xlsx").map((command) => command.id)).toContain(
+      "make_table",
+    );
     expect(getAgentCommand("generate_figure")).toMatchObject({
       registryItemId: "source_figure",
+      registryOutputType: "agent_file",
+    });
+    expect(getAgentCommand("generate_deck")).toMatchObject({
+      registryItemId: "pptx_deck",
       registryOutputType: "agent_file",
     });
   });

@@ -408,6 +408,21 @@
       "empty": "일치하는 명령어가 없습니다.",
       "hint": "Enter 선택 · Esc 닫기",
       "clear_command_aria": "명령 취소",
+      "preview": {
+        "output": {
+          "note": "노트",
+          "agent_file": "파일 산출물",
+          "workflow": "워크플로",
+          "study_artifact": "학습 자료",
+          "navigation": "이동",
+          "conversation": "대화"
+        },
+        "risk": {
+          "low": "낮은 위험",
+          "medium": "확인 권장",
+          "approval_required": "승인 필요"
+        }
+      },
       "command": {
         "summarize": "현재 자료를 요약",
         "decompose": "구조, 주장, 근거 해체 분석",

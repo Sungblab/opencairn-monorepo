@@ -303,7 +303,7 @@ export function Composer({
                 type="button"
                 role="option"
                 aria-selected={index === activeCommandIndex}
-                className={`grid w-full grid-cols-[92px_1fr] items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left transition-colors hover:bg-muted hover:text-foreground ${
+                className={`grid w-full grid-cols-[92px_1fr] items-start gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left transition-colors hover:bg-muted hover:text-foreground ${
                   index === activeCommandIndex
                     ? "bg-muted text-foreground"
                     : "text-muted-foreground"
@@ -314,8 +314,15 @@ export function Composer({
                 <span className="min-w-0 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[12px] font-medium text-foreground">
                   {command.aliases[0]}
                 </span>
-                <span className="min-w-0 truncate font-medium">
-                  {t(`slash.command.${command.id}`)}
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">
+                    {t(`slash.command.${command.id}`)}
+                  </span>
+                  {command.registryOutputType || command.registryRisk ? (
+                    <span className="mt-0.5 block truncate text-[11px] font-normal text-muted-foreground">
+                      {slashPreviewLabel(command, t)}
+                    </span>
+                  ) : null}
                 </span>
               </button>
             ))}
@@ -497,6 +504,19 @@ function MenuItemText({
       </span>
     </span>
   );
+}
+
+function slashPreviewLabel(
+  command: AgentCommand,
+  t: ReturnType<typeof useTranslations>,
+) {
+  const output = command.registryOutputType
+    ? t(`slash.preview.output.${command.registryOutputType}`)
+    : null;
+  const risk = command.registryRisk
+    ? t(`slash.preview.risk.${command.registryRisk}`)
+    : null;
+  return [output, risk].filter(Boolean).join(" · ");
 }
 
 function ActionApprovalSelector({

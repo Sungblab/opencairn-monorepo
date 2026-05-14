@@ -252,9 +252,18 @@ function commandMetadataById(): Map<AgentCommandId, ToolDiscoveryItem> {
   const metadata = new Map<AgentCommandId, ToolDiscoveryItem>();
   for (const item of mappedItems) {
     const commandId = REGISTRY_COMMAND_ID_BY_ITEM_ID[item.id];
-    if (commandId && !metadata.has(commandId)) {
+    if (!commandId) continue;
+    const existing = metadata.get(commandId);
+    if (!existing) {
       metadata.set(commandId, item);
+      continue;
     }
+    metadata.set(commandId, {
+      ...existing,
+      aliases: [...(existing.aliases ?? []), ...(item.aliases ?? [])].filter(
+        (alias, index, aliases) => aliases.indexOf(alias) === index,
+      ),
+    });
   }
   return metadata;
 }
