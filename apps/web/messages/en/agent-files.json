@@ -145,7 +145,10 @@
       "notUseful": "Needs changes",
       "skip": "Skip",
       "submit": "Send",
+      "cancel": "Close",
       "submitted": "Feedback recorded.",
+      "dialogTitle": "What fell short?",
+      "dialogDescription": "Leave a quick reason and next-step preference so this task result can improve.",
       "commentPlaceholder": "Add a short note if useful.",
       "reason": {
         "inaccurate": "Inaccurate",

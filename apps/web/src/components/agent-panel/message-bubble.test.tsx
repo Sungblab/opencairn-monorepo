@@ -770,6 +770,63 @@ describe("document generation cards", () => {
     );
   });
 
+  it("opens a post-task feedback dialog for changes-needed generation results", async () => {
+    const user = userEvent.setup();
+    const cards = asDocumentGenerationCards([
+      {
+        type: "project_object_generation_completed",
+        result: {
+          ok: true,
+          requestId,
+          workflowId: `document-generation/${requestId}`,
+          format: "pdf",
+          object: {
+            id: objectId,
+            objectType: "agent_file",
+            title: "Paper analysis",
+            filename: "paper-analysis.pdf",
+            kind: "pdf",
+            mimeType: "application/pdf",
+            projectId,
+          },
+          artifact: {
+            objectKey: "agent-files/project/paper-analysis.pdf",
+            mimeType: "application/pdf",
+            bytes: 12345,
+          },
+        },
+      },
+    ]);
+
+    render(<DocumentGenerationCards items={cards} />);
+    await user.click(screen.getByRole("button", { name: "notUseful" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "dialogTitle" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "reason.wrong_format" }));
+    await user.type(
+      screen.getByPlaceholderText("commentPlaceholder"),
+      "표 형식이 아니라 긴 문단으로 나왔어요.",
+    );
+    await user.click(screen.getByRole("button", { name: "followUp.regenerate" }));
+    await user.click(screen.getByRole("button", { name: "submit" }));
+
+    expect(taskFeedbackApi.submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId,
+        targetType: "document_generation",
+        targetId: requestId,
+        artifactId: objectId,
+        rating: "not_useful",
+        reason: "wrong_format",
+        comment: "표 형식이 아니라 긴 문단으로 나왔어요.",
+        followUpIntent: "regenerate",
+      }),
+    );
+  });
+
   it("shows an inline preview for completed image generation results", () => {
     const imageId = "00000000-0000-4000-8000-000000000052";
     const cards = asDocumentGenerationCards([

@@ -145,7 +145,10 @@
       "notUseful": "수정 필요",
       "skip": "건너뛰기",
       "submit": "보내기",
+      "cancel": "닫기",
       "submitted": "피드백이 기록되었습니다.",
+      "dialogTitle": "무엇이 아쉬웠나요?",
+      "dialogDescription": "이 작업 결과를 개선할 수 있도록 이유와 다음 행동을 짧게 남겨 주세요.",
       "commentPlaceholder": "필요하면 이유를 짧게 남겨 주세요.",
       "reason": {
         "inaccurate": "부정확함",

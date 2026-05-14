@@ -501,6 +501,7 @@ function TaskFeedbackCard({ item }: { item: DocumentGenerationCardItem }) {
   const [followUpIntent, setFollowUpIntent] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [pending, setPending] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   async function submit(rating: "useful" | "not_useful" | "skipped") {
     setPending(true);
@@ -522,6 +523,7 @@ function TaskFeedbackCard({ item }: { item: DocumentGenerationCardItem }) {
         },
       });
       setSubmitted(true);
+      setDialogOpen(false);
     } finally {
       setPending(false);
     }
@@ -554,7 +556,10 @@ function TaskFeedbackCard({ item }: { item: DocumentGenerationCardItem }) {
             type="button"
             className="app-btn-ghost h-7 rounded-[var(--radius-control)] px-2 text-xs"
             disabled={pending}
-            onClick={() => setReason((value) => value ?? "too_shallow")}
+            onClick={() => {
+              setReason((value) => value ?? "too_shallow");
+              setDialogOpen(true);
+            }}
           >
             {t("notUseful")}
           </button>
@@ -568,57 +573,91 @@ function TaskFeedbackCard({ item }: { item: DocumentGenerationCardItem }) {
           </button>
         </div>
       </div>
-      {reason ? (
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-1">
-            {["inaccurate", "too_shallow", "wrong_format", "missing_sources"].map(
-              (key) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`h-7 rounded-[var(--radius-control)] border px-2 text-xs ${
-                    reason === key
-                      ? "border-primary bg-primary/10 text-foreground"
-                      : "border-border text-muted-foreground"
-                  }`}
-                  onClick={() => setReason(key)}
-                >
-                  {t(`reason.${key}`)}
-                </button>
-              ),
-            )}
-          </div>
-          <textarea
-            value={comment}
-            onChange={(event) => setComment(event.currentTarget.value)}
-            placeholder={t("commentPlaceholder")}
-            className="min-h-16 w-full resize-none rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-1">
-              {["refine", "regenerate", "open"].map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`h-7 rounded-[var(--radius-control)] border px-2 text-xs ${
-                    followUpIntent === key
-                      ? "border-primary bg-primary/10 text-foreground"
-                      : "border-border text-muted-foreground"
-                  }`}
-                  onClick={() => setFollowUpIntent(key)}
-                >
-                  {t(`followUp.${key}`)}
-                </button>
-              ))}
+      {dialogOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4"
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="task-feedback-dialog-title"
+            className="w-full max-w-md rounded-lg border border-border bg-background p-4 shadow-xl"
+          >
+            <div className="space-y-1">
+              <h2
+                id="task-feedback-dialog-title"
+                className="text-sm font-semibold text-foreground"
+              >
+                {t("dialogTitle")}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {t("dialogDescription")}
+              </p>
             </div>
-            <button
-              type="button"
-              className="app-btn-primary h-7 rounded-[var(--radius-control)] px-2 text-xs"
-              disabled={pending}
-              onClick={() => void submit("not_useful")}
-            >
-              {t("submit")}
-            </button>
+            <div className="mt-4 space-y-3">
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  "inaccurate",
+                  "too_shallow",
+                  "wrong_format",
+                  "missing_sources",
+                ].map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`h-8 rounded-[var(--radius-control)] border px-2 text-xs ${
+                      reason === key
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border text-muted-foreground"
+                    }`}
+                    onClick={() => setReason(key)}
+                  >
+                    {t(`reason.${key}`)}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={comment}
+                onChange={(event) => setComment(event.currentTarget.value)}
+                placeholder={t("commentPlaceholder")}
+                className="min-h-24 w-full resize-none rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {["refine", "regenerate", "open"].map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`h-8 rounded-[var(--radius-control)] border px-2 text-xs ${
+                      followUpIntent === key
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border text-muted-foreground"
+                    }`}
+                    onClick={() => setFollowUpIntent(key)}
+                  >
+                    {t(`followUp.${key}`)}
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="app-btn-ghost h-8 rounded-[var(--radius-control)] px-3 text-xs"
+                  disabled={pending}
+                  onClick={() => setDialogOpen(false)}
+                >
+                  {t("cancel")}
+                </button>
+                <button
+                  type="button"
+                  className="app-btn-primary h-8 rounded-[var(--radius-control)] px-3 text-xs"
+                  disabled={pending}
+                  onClick={() => void submit("not_useful")}
+                >
+                  {t("submit")}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
