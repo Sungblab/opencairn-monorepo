@@ -19,6 +19,7 @@ import {
   FileDown,
   FileText,
   GitBranch,
+  MessageSquareText,
   Loader2,
   Play,
   Presentation,
@@ -257,6 +258,15 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
           >
             <Download className="h-4 w-4" />
           </a>
+          <Button
+            size="sm"
+            variant="ghost"
+            title={t("askAgent")}
+            aria-label={t("askAgent")}
+            onClick={() => usePanelStore.getState().openAgentPanelTab("chat")}
+          >
+            <MessageSquareText className="h-4 w-4" />
+          </Button>
           <Button
             size="sm"
             variant="ghost"

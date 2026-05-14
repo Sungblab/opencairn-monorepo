@@ -12,7 +12,11 @@ function syncAgentFileUrl(fileId: string) {
   });
 }
 
-export function openOriginalFileTab(fileId: string, fileName: string | null) {
+export function openOriginalFileTab(
+  fileId: string,
+  fileName: string | null,
+  options: { openToRight?: boolean } = {},
+) {
   const tabs = useTabsStore.getState();
   const existing = tabs.findTabByTarget("agent_file", fileId);
   if (existing) {
@@ -21,14 +25,17 @@ export function openOriginalFileTab(fileId: string, fileName: string | null) {
     return;
   }
 
-  tabs.addTab(
-    newTab({
-      kind: "agent_file",
-      targetId: fileId,
-      title: fileName ?? "Uploaded file",
-      mode: "agent-file",
-      preview: false,
-    }),
-  );
+  const tab = newTab({
+    kind: "agent_file",
+    targetId: fileId,
+    title: fileName ?? "Uploaded file",
+    mode: "agent-file",
+    preview: false,
+  });
+  if (options.openToRight) {
+    tabs.openTabToRight(tab, { reuseExisting: true });
+  } else {
+    tabs.addTab(tab);
+  }
   syncAgentFileUrl(fileId);
 }

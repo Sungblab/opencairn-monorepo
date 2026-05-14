@@ -32,6 +32,7 @@
     "officeConvertingDescription": "This view will switch to the PDF viewer automatically when conversion finishes.",
     "officePreviewUnavailable": "The converted PDF is not available. Download the original file to inspect it.",
     "download": "Download original",
+    "askAgent": "Ask about this artifact",
     "ingest": "Run ingest",
     "compile": "Compile LaTeX",
     "canvas": "Run in canvas",
@@ -119,6 +120,26 @@
     },
     "open": "Open",
     "download": "Download",
+    "feedback": {
+      "title": "Was this result useful for the task?",
+      "useful": "Useful",
+      "notUseful": "Needs changes",
+      "skip": "Skip",
+      "submit": "Send",
+      "submitted": "Feedback recorded.",
+      "commentPlaceholder": "Add a short note if useful.",
+      "reason": {
+        "inaccurate": "Inaccurate",
+        "too_shallow": "Too shallow",
+        "wrong_format": "Wrong format",
+        "missing_sources": "Missing sources"
+      },
+      "followUp": {
+        "refine": "Refine",
+        "regenerate": "Regenerate",
+        "open": "Open"
+      }
+    },
     "pendingAction": {
       "queued": "Queued",
       "running": "Generating",

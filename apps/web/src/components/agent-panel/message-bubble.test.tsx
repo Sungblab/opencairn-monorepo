@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTabsStore } from "@/stores/tabs-store";
+import { taskFeedbackApi } from "@/lib/api-client";
 
 import {
   DocumentGenerationCards,
@@ -25,6 +26,16 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ wsSlug: "ws-test" }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
+
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  return {
+    ...actual,
+    taskFeedbackApi: {
+      submit: vi.fn(async () => ({ ok: true })),
+    },
+  };
+});
 
 vi.mock("../chat/chat-message-renderer-loader", () => ({
   ChatMessageRendererLoader: ({
@@ -522,6 +533,7 @@ describe("document generation cards", () => {
   beforeEach(() => {
     useTabsStore.setState(useTabsStore.getInitialState(), true);
     useTabsStore.getState().setWorkspace("ws-test");
+    vi.mocked(taskFeedbackApi.submit).mockClear();
   });
 
   it("normalizes requested, running, completed, and failed generation events", () => {
@@ -691,6 +703,70 @@ describe("document generation cards", () => {
     expect(screen.getByRole("link", { name: /download/ })).toHaveAttribute(
       "href",
       `/api/agent-files/${objectId}/file`,
+    );
+  });
+
+  it("opens completed generation beside an active source and records task feedback", async () => {
+    const user = userEvent.setup();
+    useTabsStore.getState().addTab({
+      id: "source-tab",
+      kind: "note",
+      targetId: "00000000-0000-4000-8000-000000000099",
+      title: "Source PDF",
+      mode: "source",
+      titleKey: undefined,
+      titleParams: undefined,
+      pinned: false,
+      preview: false,
+      dirty: false,
+      splitWith: null,
+      splitSide: null,
+      scrollY: 0,
+    });
+    const cards = asDocumentGenerationCards([
+      {
+        type: "project_object_generation_completed",
+        result: {
+          ok: true,
+          requestId,
+          workflowId: `document-generation/${requestId}`,
+          format: "pdf",
+          object: {
+            id: objectId,
+            objectType: "agent_file",
+            title: "Paper analysis",
+            filename: "paper-analysis.pdf",
+            kind: "pdf",
+            mimeType: "application/pdf",
+            projectId,
+          },
+          artifact: {
+            objectKey: "agent-files/project/paper-analysis.pdf",
+            mimeType: "application/pdf",
+            bytes: 12345,
+          },
+        },
+      },
+    ]);
+
+    render(<DocumentGenerationCards items={cards} />);
+    await user.click(screen.getByRole("button", { name: /open/ }));
+
+    expect(useTabsStore.getState().split).toEqual(
+      expect.objectContaining({
+        primaryTabId: "source-tab",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "useful" }));
+
+    expect(taskFeedbackApi.submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId,
+        targetType: "document_generation",
+        targetId: requestId,
+        artifactId: objectId,
+        rating: "useful",
+      }),
     );
   });
 
