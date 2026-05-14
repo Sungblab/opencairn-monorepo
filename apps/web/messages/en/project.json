@@ -17,6 +17,53 @@
     "runs": "Runs",
     "reviewInbox": "Review inbox"
   },
+  "commandCenter": {
+    "title": "Project command",
+    "description": "Start AI work from the current project context, source material, and run history.",
+    "inputLabel": "Project command input",
+    "placeholder": "Example: Read the paper I just added and summarize claims, evidence, limitations, and follow-up experiment ideas.",
+    "submit": "Delegate to agent",
+    "contextLabel": "Scope",
+    "contextValue": "Current project · {count} documents",
+    "guidedTitle": "Start from a goal",
+    "guidedDescription": "These continue through existing workflows, review, and run tracking.",
+    "activeRuns": {
+      "title": "Active runs",
+      "description": "Use Activity for deep details; this shows only user-facing execution steps."
+    },
+    "guided": {
+      "paperAnalysis": {
+        "title": "Paper analysis",
+        "description": "Read sources and organize claims, evidence, limits, and citation candidates.",
+        "prompt": "Analyze the papers in this project and summarize core claims, evidence, methods, limitations, and follow-up questions."
+      },
+      "report": {
+        "title": "Report writing",
+        "description": "Turn project material into a shareable report draft.",
+        "prompt": "Create a report draft from the current project material."
+      },
+      "paperDraft": {
+        "title": "Paper draft",
+        "description": "Shape sources and notes into a paper-style outline or first draft.",
+        "prompt": "Create a paper-style draft plan from the current project material, including thesis, section outline, evidence gaps, and next writing steps."
+      },
+      "review": {
+        "title": "Review a draft",
+        "description": "Find issues, missing evidence, and concrete edit directions in existing outputs.",
+        "prompt": "Review the current project draft or generated output and summarize issues, missing evidence, and suggested edits."
+      },
+      "ideation": {
+        "title": "Research ideation",
+        "description": "Derive next questions, experiments, and writing directions from sources.",
+        "prompt": "Use the current project material to suggest next research questions, experiment ideas, and writing directions."
+      },
+      "studyPrep": {
+        "title": "Study preparation",
+        "description": "Turn project material into review questions, weak points, and study paths.",
+        "prompt": "Prepare a study plan from the current project material with key concepts, likely questions, weak areas, and practice directions."
+      }
+    }
+  },
   "tools": {
     "heading": "Project tools",
     "description": "Start research, import, agent work, learning, and document generation from this project home.",
@@ -54,6 +101,10 @@
       "import": {
         "title": "Add sources",
         "description": "Bring files and outside material into the project."
+      },
+      "commandCenter": {
+        "title": "Project command",
+        "description": "Continue the project-home request through the agent flow."
       },
       "literature": {
         "title": "Find papers",
