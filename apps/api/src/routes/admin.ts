@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { userPlanValues } from "@opencairn/shared";
+import { billingPlanConfigs, userPlanValues } from "@opencairn/shared";
 import { z } from "zod";
 import {
+  adminCreditCampaigns,
   agentActions,
   adminAuditEvents,
   alias,
@@ -11,6 +12,8 @@ import {
   chatRuns,
   connectorJobs,
   count,
+  creditBalances,
+  creditLedgerEntries,
   db,
   desc,
   eq,
@@ -32,6 +35,7 @@ import { requireAuth } from "../middleware/auth";
 import { requireSiteAdmin } from "../middleware/site-admin";
 import type { AppEnv } from "../lib/types";
 import { recordAdminAuditEvent } from "../lib/admin-audit";
+import { grantCredits } from "../lib/billing";
 
 const siteAdminSchema = z
   .object({
@@ -46,6 +50,36 @@ const bulkUserPlanSchema = z
   .object({
     userIds: z.array(z.string().uuid()).min(1).max(200),
     plan: z.enum(userPlanValues),
+  })
+  .strict();
+const bulkCreditGrantSchema = z
+  .object({
+    userIds: z.array(z.string().uuid()).min(1).max(200),
+    credits: z.coerce.number().int().min(1).max(1_000_000),
+    reason: z.string().trim().max(200).optional(),
+  })
+  .strict();
+const campaignStatusValues = ["active", "paused", "archived"] as const;
+const creditCampaignCreateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    code: z.string().trim().min(1).max(64).optional(),
+    creditAmount: z.coerce.number().int().min(1).max(1_000_000),
+    targetPlan: z.enum(userPlanValues).nullable().optional(),
+    maxRedemptions: z.coerce.number().int().min(1).max(1_000_000).nullable().optional(),
+    startsAt: z.string().datetime().nullable().optional(),
+    endsAt: z.string().datetime().nullable().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+const creditCampaignUpdateSchema = creditCampaignCreateSchema
+  .partial()
+  .extend({ status: z.enum(campaignStatusValues).optional() })
+  .strict();
+const creditCampaignGrantSchema = z
+  .object({
+    userIds: z.array(z.string().uuid()).min(1).max(500),
+    reason: z.string().trim().max(200).optional(),
   })
   .strict();
 const bulkSiteAdminSchema = z
@@ -96,6 +130,62 @@ function boolEnv(name: string) {
 function num(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function optionalDate(value: string | null | undefined) {
+  return value ? new Date(value) : null;
+}
+
+function normalizeCampaignCode(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.toUpperCase() : null;
+}
+
+function toCampaign(row: typeof adminCreditCampaigns.$inferSelect) {
+  return {
+    ...row,
+    startsAt: iso(row.startsAt),
+    endsAt: iso(row.endsAt),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+async function grantIncludedCreditsForPlan(input: {
+  userId: string;
+  plan: (typeof userPlanValues)[number];
+  requestId: string;
+}) {
+  const config = billingPlanConfigs[input.plan];
+  const now = new Date();
+  await db
+    .insert(creditBalances)
+    .values({
+      userId: input.userId,
+      plan: input.plan,
+      balanceCredits: 0,
+      monthlyGrantCredits: config.includedMonthlyCredits,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: creditBalances.userId,
+      set: {
+        plan: input.plan,
+        monthlyGrantCredits: config.includedMonthlyCredits,
+        updatedAt: now,
+      },
+    });
+  if (!config.managedLlm || config.includedMonthlyCredits <= 0) return;
+  await grantCredits({
+    userId: input.userId,
+    credits: config.includedMonthlyCredits,
+    kind: "subscription_grant",
+    plan: input.plan,
+    requestId: input.requestId,
+    idempotencyKey: `admin-plan:${input.userId}:${input.plan}:${input.requestId}`,
+    metadata: { reason: "admin plan change included credits" },
+  });
 }
 
 async function runLimited<const T extends readonly (() => Promise<unknown>)[]>(
@@ -150,6 +240,7 @@ export const adminRoutes = new Hono<AppEnv>()
       usageMonth,
       apiCallsToday,
       apiCallsMonth,
+      mauMonth,
       llmUsageMonth,
     ] = await runLimited([
       () => db.select({ value: count() }).from(user),
@@ -295,6 +386,12 @@ export const adminRoutes = new Hono<AppEnv>()
         .where(gte(apiRequestLogs.createdAt, since30d)),
       () => db
         .select({
+          value: sql<number>`count(distinct ${apiRequestLogs.userId})::int`,
+        })
+        .from(apiRequestLogs)
+        .where(gte(apiRequestLogs.createdAt, since30d)),
+      () => db
+        .select({
           tokensIn: sql<number>`coalesce(sum(${llmUsageEvents.tokensIn}), 0)::int`,
           tokensOut: sql<number>`coalesce(sum(${llmUsageEvents.tokensOut}), 0)::int`,
           costUsd: sql<string>`coalesce(sum(${llmUsageEvents.costUsd}), 0)::text`,
@@ -317,6 +414,7 @@ export const adminRoutes = new Hono<AppEnv>()
         usageThisMonth: usageMonth[0]?.value ?? 0,
         apiCallsToday: apiCallsToday[0]?.value ?? 0,
         apiCalls30d: apiCallsMonth[0]?.value ?? 0,
+        mau30d: mauMonth[0]?.value ?? 0,
         llmTokensIn30d: llmUsageMonth[0]?.tokensIn ?? 0,
         llmTokensOut30d: llmUsageMonth[0]?.tokensOut ?? 0,
         llmCostUsd30d: num(llmUsageMonth[0]?.costUsd),
@@ -389,6 +487,13 @@ export const adminRoutes = new Hono<AppEnv>()
         environment: process.env.NODE_ENV ?? "development",
         internalApiUrl: process.env.INTERNAL_API_URL ?? null,
         publicAppUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
+        billing: {
+          plans: billingPlanConfigs,
+          marginMultiplier: process.env.LLM_MARGIN_MULTIPLIER ?? null,
+          usdToKrw: process.env.USD_TO_KRW ?? null,
+          model: process.env.GEMINI_MODEL ?? null,
+          embedModel: process.env.EMBED_MODEL ?? null,
+        },
         email: {
           resendConfigured: Boolean(process.env.RESEND_API_KEY),
           smtpConfigured: Boolean(process.env.SMTP_HOST),
@@ -620,9 +725,12 @@ export const adminRoutes = new Hono<AppEnv>()
         email: user.email,
         name: user.name,
         plan: user.plan,
+        balanceCredits: creditBalances.balanceCredits,
+        monthlyGrantCredits: creditBalances.monthlyGrantCredits,
         createdAt: user.createdAt,
       })
       .from(user)
+      .leftJoin(creditBalances, eq(creditBalances.userId, user.id))
       .orderBy(asc(user.email));
     const workspaceRows = await db
       .select({
@@ -639,6 +747,8 @@ export const adminRoutes = new Hono<AppEnv>()
     return c.json({
       users: userRows.map((row) => ({
         ...row,
+        balanceCredits: row.balanceCredits ?? 0,
+        monthlyGrantCredits: row.monthlyGrantCredits ?? 0,
         createdAt: row.createdAt.toISOString(),
       })),
       workspaces: workspaceRows.map((row) => ({
@@ -647,6 +757,358 @@ export const adminRoutes = new Hono<AppEnv>()
       })),
     });
   })
+  .get("/billing", async (c) => {
+    const now = new Date();
+    const since30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const [
+      planCounts,
+      creditSummary,
+      creditByPlan,
+      lowCreditUsers,
+      recentLedger,
+      ledger30d,
+      llm30d,
+      api30d,
+    ] = await runLimited([
+      () =>
+        db
+          .select({ plan: user.plan, value: sql<number>`count(*)::int` })
+          .from(user)
+          .groupBy(user.plan),
+      () =>
+        db
+          .select({
+            totalBalanceCredits: sql<number>`coalesce(sum(coalesce(${creditBalances.balanceCredits}, 0)), 0)::int`,
+            zeroBalanceUsers: sql<number>`count(*) filter (where coalesce(${creditBalances.balanceCredits}, 0) <= 0)::int`,
+            lowBalanceUsers: sql<number>`count(*) filter (where coalesce(${creditBalances.balanceCredits}, 0) <= 1000)::int`,
+            autoRechargeUsers: sql<number>`count(*) filter (where coalesce(${creditBalances.autoRechargeEnabled}, false) = true)::int`,
+          })
+          .from(user)
+          .leftJoin(creditBalances, eq(creditBalances.userId, user.id)),
+      () =>
+        db
+          .select({
+            plan: creditBalances.plan,
+            users: sql<number>`count(*)::int`,
+            balanceCredits: sql<number>`coalesce(sum(${creditBalances.balanceCredits}), 0)::int`,
+            monthlyGrantCredits: sql<number>`coalesce(sum(${creditBalances.monthlyGrantCredits}), 0)::int`,
+          })
+          .from(creditBalances)
+          .groupBy(creditBalances.plan)
+          .orderBy(creditBalances.plan),
+      () =>
+        db
+          .select({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            plan: user.plan,
+            balanceCredits: creditBalances.balanceCredits,
+            monthlyGrantCredits: creditBalances.monthlyGrantCredits,
+          })
+          .from(user)
+          .leftJoin(creditBalances, eq(creditBalances.userId, user.id))
+          .where(sql`coalesce(${creditBalances.balanceCredits}, 0) <= 1000`)
+          .orderBy(sql`coalesce(${creditBalances.balanceCredits}, 0) asc`)
+          .limit(25),
+      () =>
+        db
+          .select({
+            id: creditLedgerEntries.id,
+            userId: creditLedgerEntries.userId,
+            userEmail: user.email,
+            kind: creditLedgerEntries.kind,
+            billingPath: creditLedgerEntries.billingPath,
+            deltaCredits: creditLedgerEntries.deltaCredits,
+            balanceAfterCredits: creditLedgerEntries.balanceAfterCredits,
+            sourceType: creditLedgerEntries.sourceType,
+            sourceId: creditLedgerEntries.sourceId,
+            metadata: creditLedgerEntries.metadata,
+            createdAt: creditLedgerEntries.createdAt,
+          })
+          .from(creditLedgerEntries)
+          .leftJoin(user, eq(user.id, creditLedgerEntries.userId))
+          .orderBy(desc(creditLedgerEntries.createdAt))
+          .limit(50),
+      () =>
+        db
+          .select({
+            chargedCredits: sql<number>`coalesce(sum(abs(${creditLedgerEntries.deltaCredits})) filter (where ${creditLedgerEntries.kind} = 'usage'), 0)::int`,
+            grantedCredits: sql<number>`coalesce(sum(${creditLedgerEntries.deltaCredits}) filter (where ${creditLedgerEntries.deltaCredits} > 0), 0)::int`,
+            manualGrantCredits: sql<number>`coalesce(sum(${creditLedgerEntries.deltaCredits}) filter (where ${creditLedgerEntries.kind} = 'manual_grant'), 0)::int`,
+            subscriptionGrantCredits: sql<number>`coalesce(sum(${creditLedgerEntries.deltaCredits}) filter (where ${creditLedgerEntries.kind} = 'subscription_grant'), 0)::int`,
+          })
+          .from(creditLedgerEntries)
+          .where(gte(creditLedgerEntries.createdAt, since30d)),
+      () =>
+        db
+          .select({
+            rawCostUsd: sql<string>`coalesce(sum(${llmUsageEvents.costUsd}), 0)::text`,
+            rawCostKrw: sql<string>`coalesce(sum(${llmUsageEvents.costKrw}), 0)::text`,
+            tokensIn: sql<number>`coalesce(sum(${llmUsageEvents.tokensIn}), 0)::int`,
+            tokensOut: sql<number>`coalesce(sum(${llmUsageEvents.tokensOut}), 0)::int`,
+          })
+          .from(llmUsageEvents)
+          .where(gte(llmUsageEvents.createdAt, since30d)),
+      () =>
+        db
+          .select({
+            total: sql<number>`count(*)::int`,
+            failed: sql<number>`count(*) filter (where ${apiRequestLogs.statusCode} >= 500)::int`,
+            clientErrors: sql<number>`count(*) filter (where ${apiRequestLogs.statusCode} >= 400 and ${apiRequestLogs.statusCode} < 500)::int`,
+            avgDurationMs: sql<number>`coalesce(avg(${apiRequestLogs.durationMs}), 0)::int`,
+          })
+          .from(apiRequestLogs)
+          .where(gte(apiRequestLogs.createdAt, since30d)),
+    ]);
+
+    const planBreakdown = planCounts.map((row) => {
+      const config = billingPlanConfigs[row.plan];
+      return {
+        plan: row.plan,
+        users: row.value,
+        monthlyPriceKrw: config.monthlyPriceKrw,
+        estimatedMrrKrw: row.value * config.monthlyPriceKrw,
+        includedMonthlyCredits: config.includedMonthlyCredits,
+      };
+    });
+    const estimatedMrrKrw = planBreakdown.reduce(
+      (sum, row) => sum + row.estimatedMrrKrw,
+      0,
+    );
+    const chargedCredits = ledger30d[0]?.chargedCredits ?? 0;
+    const rawCostKrw = num(llm30d[0]?.rawCostKrw);
+
+    return c.json({
+      planRevenue: { estimatedMrrKrw, plans: planBreakdown },
+      creditSummary: {
+        totalBalanceCredits: creditSummary[0]?.totalBalanceCredits ?? 0,
+        zeroBalanceUsers: creditSummary[0]?.zeroBalanceUsers ?? 0,
+        lowBalanceUsers: creditSummary[0]?.lowBalanceUsers ?? 0,
+        autoRechargeUsers: creditSummary[0]?.autoRechargeUsers ?? 0,
+      },
+      creditByPlan,
+      lowCreditUsers: lowCreditUsers.map((row) => ({
+        ...row,
+        balanceCredits: row.balanceCredits ?? 0,
+        monthlyGrantCredits: row.monthlyGrantCredits ?? 0,
+      })),
+      recentLedger: recentLedger.map((row) => ({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      usage30d: {
+        chargedCredits,
+        grantedCredits: ledger30d[0]?.grantedCredits ?? 0,
+        manualGrantCredits: ledger30d[0]?.manualGrantCredits ?? 0,
+        subscriptionGrantCredits: ledger30d[0]?.subscriptionGrantCredits ?? 0,
+        rawCostUsd: num(llm30d[0]?.rawCostUsd),
+        rawCostKrw,
+        tokensIn: llm30d[0]?.tokensIn ?? 0,
+        tokensOut: llm30d[0]?.tokensOut ?? 0,
+        grossMarginKrw: chargedCredits - rawCostKrw,
+      },
+      apiHealth30d: {
+        total: api30d[0]?.total ?? 0,
+        failed: api30d[0]?.failed ?? 0,
+        clientErrors: api30d[0]?.clientErrors ?? 0,
+        avgDurationMs: api30d[0]?.avgDurationMs ?? 0,
+      },
+    });
+  })
+  .get("/credit-campaigns", async (c) => {
+    const rows = await db
+      .select()
+      .from(adminCreditCampaigns)
+      .orderBy(desc(adminCreditCampaigns.createdAt))
+      .limit(100);
+    return c.json({ campaigns: rows.map(toCampaign) });
+  })
+  .post(
+    "/credit-campaigns",
+    zValidator("json", creditCampaignCreateSchema),
+    async (c) => {
+      const actorUserId = c.get("userId");
+      const body = c.req.valid("json");
+      const [campaign] = await db
+        .insert(adminCreditCampaigns)
+        .values({
+          name: body.name,
+          code: normalizeCampaignCode(body.code),
+          creditAmount: body.creditAmount,
+          targetPlan: body.targetPlan ?? null,
+          maxRedemptions: body.maxRedemptions ?? null,
+          startsAt: optionalDate(body.startsAt),
+          endsAt: optionalDate(body.endsAt),
+          createdByUserId: actorUserId,
+          metadata: body.metadata ?? {},
+        })
+        .returning();
+      if (!campaign) return c.json({ error: "campaign_create_failed" }, 409);
+      await recordAdminAuditEvent({
+        actorUserId,
+        action: "credit.campaign.create",
+        target: {
+          targetType: "credit_campaign",
+          targetId: campaign.id,
+        },
+        before: {},
+        after: {
+          name: campaign.name,
+          creditAmount: campaign.creditAmount,
+          targetPlan: campaign.targetPlan,
+        },
+        metadata: { code: campaign.code },
+      });
+      return c.json({ campaign: toCampaign(campaign) }, 201);
+    },
+  )
+  .patch(
+    "/credit-campaigns/:campaignId",
+    zValidator("json", creditCampaignUpdateSchema),
+    async (c) => {
+      const actorUserId = c.get("userId");
+      const campaignId = c.req.param("campaignId");
+      const body = c.req.valid("json");
+      const [before] = await db
+        .select()
+        .from(adminCreditCampaigns)
+        .where(eq(adminCreditCampaigns.id, campaignId))
+        .limit(1);
+      if (!before) return c.json({ error: "campaign_not_found" }, 404);
+
+      const values: Partial<typeof adminCreditCampaigns.$inferInsert> = {
+        updatedAt: new Date(),
+      };
+      if (body.name !== undefined) values.name = body.name;
+      if (body.code !== undefined) values.code = normalizeCampaignCode(body.code);
+      if (body.status !== undefined) values.status = body.status;
+      if (body.creditAmount !== undefined) values.creditAmount = body.creditAmount;
+      if (body.targetPlan !== undefined) values.targetPlan = body.targetPlan;
+      if (body.maxRedemptions !== undefined) {
+        values.maxRedemptions = body.maxRedemptions;
+      }
+      if (body.startsAt !== undefined) values.startsAt = optionalDate(body.startsAt);
+      if (body.endsAt !== undefined) values.endsAt = optionalDate(body.endsAt);
+      if (body.metadata !== undefined) values.metadata = body.metadata;
+
+      const [campaign] = await db
+        .update(adminCreditCampaigns)
+        .set(values)
+        .where(eq(adminCreditCampaigns.id, campaignId))
+        .returning();
+      if (!campaign) return c.json({ error: "campaign_update_failed" }, 409);
+      await recordAdminAuditEvent({
+        actorUserId,
+        action: "credit.campaign.update",
+        target: {
+          targetType: "credit_campaign",
+          targetId: campaign.id,
+        },
+        before: {
+          status: before.status,
+          creditAmount: before.creditAmount,
+          targetPlan: before.targetPlan,
+        },
+        after: {
+          status: campaign.status,
+          creditAmount: campaign.creditAmount,
+          targetPlan: campaign.targetPlan,
+        },
+        metadata: { code: campaign.code },
+      });
+      return c.json({ campaign: toCampaign(campaign) });
+    },
+  )
+  .post(
+    "/credit-campaigns/:campaignId/grant",
+    zValidator("json", creditCampaignGrantSchema),
+    async (c) => {
+      const actorUserId = c.get("userId");
+      const campaignId = c.req.param("campaignId");
+      const { userIds, reason } = c.req.valid("json");
+      const uniqueUserIds = Array.from(new Set(userIds));
+      const [campaign] = await db
+        .select()
+        .from(adminCreditCampaigns)
+        .where(eq(adminCreditCampaigns.id, campaignId))
+        .limit(1);
+      if (!campaign) return c.json({ error: "campaign_not_found" }, 404);
+      const now = new Date();
+      if (campaign.status !== "active") {
+        return c.json({ error: "campaign_not_active" }, 409);
+      }
+      if (campaign.startsAt && campaign.startsAt > now) {
+        return c.json({ error: "campaign_not_started" }, 409);
+      }
+      if (campaign.endsAt && campaign.endsAt < now) {
+        return c.json({ error: "campaign_ended" }, 409);
+      }
+
+      const rows = await db
+        .select({ id: user.id, email: user.email, plan: user.plan })
+        .from(user)
+        .where(inArray(user.id, uniqueUserIds));
+      const matchingRows = campaign.targetPlan
+        ? rows.filter((row) => row.plan === campaign.targetPlan)
+        : rows;
+      const remaining =
+        campaign.maxRedemptions === null
+          ? matchingRows.length
+          : Math.max(0, campaign.maxRedemptions - campaign.redeemedCount);
+      const grantRows = matchingRows.slice(0, remaining);
+      const requestId = `campaign:${campaign.id}:${actorUserId}:${Date.now()}`;
+
+      for (const row of grantRows) {
+        await grantCredits({
+          userId: row.id,
+          credits: campaign.creditAmount,
+          kind: "manual_grant",
+          requestId,
+          idempotencyKey: `campaign:${campaign.id}:${row.id}:${requestId}`,
+          sourceType: "credit_campaign",
+          sourceId: campaign.id,
+          metadata: {
+            campaignName: campaign.name,
+            code: campaign.code,
+            reason: reason ?? null,
+          },
+        });
+      }
+      if (grantRows.length > 0) {
+        await db
+          .update(adminCreditCampaigns)
+          .set({
+            redeemedCount: campaign.redeemedCount + grantRows.length,
+            updatedAt: new Date(),
+          })
+          .where(eq(adminCreditCampaigns.id, campaign.id));
+        await recordAdminAuditEvent({
+          actorUserId,
+          action: "credit.campaign.grant",
+          target: {
+            targetType: "credit_campaign",
+            targetId: campaign.id,
+          },
+          before: { redeemedCount: campaign.redeemedCount },
+          after: {
+            redeemedCount: campaign.redeemedCount + grantRows.length,
+            granted: grantRows.length,
+            creditAmount: campaign.creditAmount,
+          },
+          metadata: {
+            code: campaign.code,
+            reason: reason ?? null,
+            userIds: grantRows.map((row) => row.id),
+          },
+        });
+      }
+      return c.json({
+        granted: grantRows.length,
+        skipped: uniqueUserIds.length - grantRows.length,
+      });
+    },
+  )
   .get("/reports", async (c) => {
     const rows = await db
       .select({
@@ -805,10 +1267,60 @@ export const adminRoutes = new Hono<AppEnv>()
           );
         }
 
-        return { updated: updatedRows.length };
+        return {
+          updated: updatedRows.length,
+          grants: updatedRows.map((row) => ({ userId: row.id, plan: row.plan })),
+        };
       });
 
+      await Promise.all(
+        (result.grants ?? []).map((grant) =>
+          grantIncludedCreditsForPlan({
+            ...grant,
+            requestId: `bulk:${actorUserId}:${Date.now()}`,
+          }),
+        ),
+      );
       return c.json({ updated: result.updated });
+    },
+  )
+  .patch(
+    "/users/credits",
+    zValidator("json", bulkCreditGrantSchema),
+    async (c) => {
+      const actorUserId = c.get("userId");
+      const { userIds, credits, reason } = c.req.valid("json");
+      const uniqueUserIds = Array.from(new Set(userIds));
+      const rows = await db
+        .select({ id: user.id, email: user.email })
+        .from(user)
+        .where(inArray(user.id, uniqueUserIds));
+
+      const requestId = `manual:${actorUserId}:${Date.now()}`;
+      for (const row of rows) {
+        await grantCredits({
+          userId: row.id,
+          credits,
+          kind: "manual_grant",
+          requestId,
+          idempotencyKey: `admin-credit:${row.id}:${requestId}`,
+          metadata: { reason: reason ?? "admin manual grant" },
+        });
+        await recordAdminAuditEvent({
+          actorUserId,
+          action: "credit.manual_grant",
+          target: {
+            targetType: "user",
+            targetId: row.id,
+            targetUserId: row.id,
+          },
+          before: {},
+          after: { manualGrantCredits: credits },
+          metadata: { targetEmail: row.email, reason: reason ?? null },
+        });
+      }
+
+      return c.json({ updated: rows.length });
     },
   )
   .patch(
@@ -953,11 +1465,23 @@ export const adminRoutes = new Hono<AppEnv>()
             tx,
           );
         }
-        return { user: updated };
+        return {
+          user: updated,
+          grant:
+            before.plan !== updated.plan
+              ? { userId: updated.id, plan: updated.plan }
+              : null,
+        };
       });
 
       if ("error" in result) {
         return c.json({ error: result.error }, result.status);
+      }
+      if (result.grant) {
+        await grantIncludedCreditsForPlan({
+          ...result.grant,
+          requestId: `single:${actorUserId}:${Date.now()}`,
+        });
       }
       return c.json({ user: result.user });
     },

@@ -22,6 +22,7 @@ import {
   AddChipBodySchema,
   PinBodySchema,
   SendMessageBodySchema,
+  billingPlanConfigs,
   stripAgentDirectiveFences,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
@@ -40,12 +41,37 @@ import type { RetrievalScope, RetrievalChip } from "../lib/chat-retrieval";
 import type { AppEnv } from "../lib/types";
 import { executeProjectObjectAction } from "../lib/project-object-actions";
 import { emitTreeEvent } from "../lib/tree-events";
+import {
+  chargeManagedCredits,
+  getCreditBalance,
+  InsufficientCreditsError,
+} from "../lib/billing";
 
 // /api/chat router. Each conversation is owned by exactly one
 // user (`owner_user_id`). Workspace boundary is checked at every entry
 // point: scopeId via validateScope, and the workspace itself via canRead.
 // Chips and pin sub-routes are appended in their own route files.
 export const chatRoutes = new Hono<AppEnv>().use("*", requireAuth);
+
+async function requireManagedChatCredits(userId: string) {
+  const balance = await getCreditBalance(userId);
+  const plan = balance.plan;
+  if (!billingPlanConfigs[plan].managedLlm) {
+    return { ok: true as const, plan };
+  }
+  if (balance.balanceCredits <= 0) {
+    return {
+      ok: false as const,
+      status: 402 as const,
+      body: {
+        error: "insufficient_credits",
+        requiredCredits: 1,
+        availableCredits: balance.balanceCredits,
+      },
+    };
+  }
+  return { ok: true as const, plan };
+}
 
 chatRoutes.post(
   "/conversations",
@@ -474,6 +500,10 @@ chatRoutes.post(
         .set({ attachedChips, updatedAt: new Date() })
         .where(eq(conversations.id, conversationId));
     }
+    const billingGate = await requireManagedChatCredits(userId);
+    if (!billingGate.ok) {
+      return c.json(billingGate.body, billingGate.status);
+    }
     const [profile] = await db
       .select({ locale: user.locale, timezone: user.timezone })
       .from(user)
@@ -697,6 +727,27 @@ chatRoutes.post(
       const tokensOut = usage?.tokensOut ?? 0;
       const userCostKrw = tokensToKrw(tokensIn, 0);
       const assistantCostKrw = tokensToKrw(0, tokensOut);
+      if (usage && billingGate.plan !== "byok") {
+        try {
+          await chargeManagedCredits({
+            userId,
+            workspaceId: convo.workspaceId,
+            provider: "gemini",
+            model: usage.model,
+            operation: "chat.stream",
+            tokensIn,
+            tokensOut,
+            sourceType: "chat_message",
+            sourceId: conversationId,
+            requestId: userRow.id,
+            idempotencyKey: `conversation:${conversationId}:message:${userRow.id}:usage`,
+          });
+        } catch (err) {
+          if (!(err instanceof InsufficientCreditsError)) {
+            console.warn("chat_message_credit_charge_failed", err);
+          }
+        }
+      }
 
       await db
         .update(conversationMessages)

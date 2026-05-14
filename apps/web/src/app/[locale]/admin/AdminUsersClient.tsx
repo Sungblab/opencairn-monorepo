@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   CreditCard,
   Database,
+  Gift,
   Mail,
   ReceiptText,
   RefreshCw,
@@ -29,6 +30,8 @@ type TabKey =
   | "analytics"
   | "users"
   | "subscriptions"
+  | "billing"
+  | "promotions"
   | "reports"
   | "audit"
   | "logs"
@@ -42,6 +45,8 @@ interface AdminUser {
   name: string;
   emailVerified: boolean;
   plan: UserPlan;
+  balanceCredits?: number;
+  monthlyGrantCredits?: number;
   isSiteAdmin: boolean;
   createdAt: string;
 }
@@ -96,6 +101,21 @@ interface AdminOverview {
     environment: string;
     internalApiUrl: string | null;
     publicAppUrl: string | null;
+    billing?: {
+      plans: Record<
+        string,
+        {
+          monthlyPriceKrw: number;
+          includedMonthlyCredits: number;
+          managedLlm: boolean;
+          byokAllowed: boolean;
+        }
+      >;
+      marginMultiplier: string | null;
+      usdToKrw: string | null;
+      model: string | null;
+      embedModel: string | null;
+    };
     email: { resendConfigured: boolean; smtpConfigured: boolean };
     storage: { s3Configured: boolean };
     featureFlags: Record<string, boolean>;
@@ -144,6 +164,83 @@ interface LlmUsageSummary {
   }>;
 }
 
+interface AdminBillingSummary {
+  planRevenue: {
+    estimatedMrrKrw: number;
+    plans: Array<{
+      plan: string;
+      users: number;
+      monthlyPriceKrw: number;
+      estimatedMrrKrw: number;
+      includedMonthlyCredits: number;
+    }>;
+  };
+  creditSummary: {
+    totalBalanceCredits: number;
+    zeroBalanceUsers: number;
+    lowBalanceUsers: number;
+    autoRechargeUsers: number;
+  };
+  creditByPlan: Array<{
+    plan: string;
+    users: number;
+    balanceCredits: number;
+    monthlyGrantCredits: number;
+  }>;
+  lowCreditUsers: Array<{
+    id: string;
+    email: string;
+    name: string;
+    plan: UserPlan;
+    balanceCredits: number;
+    monthlyGrantCredits: number;
+  }>;
+  recentLedger: Array<{
+    id: string;
+    userId: string;
+    userEmail: string | null;
+    kind: string;
+    billingPath: string;
+    deltaCredits: number;
+    balanceAfterCredits: number;
+    sourceType: string | null;
+    sourceId: string | null;
+    createdAt: string;
+  }>;
+  usage30d: {
+    chargedCredits: number;
+    grantedCredits: number;
+    manualGrantCredits: number;
+    subscriptionGrantCredits: number;
+    rawCostUsd: number;
+    rawCostKrw: number;
+    tokensIn: number;
+    tokensOut: number;
+    grossMarginKrw: number;
+  };
+  apiHealth30d: {
+    total: number;
+    failed: number;
+    clientErrors: number;
+    avgDurationMs: number;
+  };
+}
+
+interface CreditCampaign {
+  id: string;
+  name: string;
+  code: string | null;
+  status: "active" | "paused" | "archived";
+  creditAmount: number;
+  targetPlan: UserPlan | null;
+  maxRedemptions: number | null;
+  redeemedCount: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface AdminAuditEvent {
   id: string;
   actorUserId: string | null;
@@ -184,6 +281,8 @@ const tabs: Array<{ key: ExtendedTabKey; icon: typeof Activity }> = [
   { key: "analytics", icon: BarChart3 },
   { key: "users", icon: Users },
   { key: "subscriptions", icon: CreditCard },
+  { key: "billing", icon: ReceiptText },
+  { key: "promotions", icon: Gift },
   { key: "reports", icon: Bug },
   { key: "audit", icon: Shield },
   { key: "logs", icon: Database },
@@ -220,6 +319,17 @@ function formatKrw(value: number) {
     currency: "KRW",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatCompact(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat(undefined).format(value);
 }
 
 function StatusPill({ value }: { value: string }) {
@@ -339,10 +449,12 @@ function PaginationControls({
 function StatBox({
   label,
   value,
+  detail,
   critical,
 }: {
   label: string;
   value: number;
+  detail?: string;
   critical?: boolean;
 }) {
   return (
@@ -361,8 +473,11 @@ function StatBox({
           critical ? "text-destructive" : "text-foreground",
         )}
       >
-        {value}
+        {formatCompact(value)}
       </div>
+      {detail ? (
+        <div className="mt-1 text-xs text-muted-foreground">{detail}</div>
+      ) : null}
     </div>
   );
 }
@@ -384,6 +499,8 @@ export function AdminUsersClient({
   const [auditEvents, setAuditEvents] = useState<AdminAuditEvent[]>([]);
   const [apiLogs, setApiLogs] = useState<ApiRequestLog[]>([]);
   const [llmUsage, setLlmUsage] = useState<LlmUsageSummary | null>(null);
+  const [billing, setBilling] = useState<AdminBillingSummary | null>(null);
+  const [creditCampaigns, setCreditCampaigns] = useState<CreditCampaign[]>([]);
   const [auditNextOffset, setAuditNextOffset] = useState<number | null>(0);
   const [query, setQuery] = useState("");
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -392,6 +509,19 @@ export function AdminUsersClient({
   const [bulkUserPlan, setBulkUserPlan] = useState<AdminUser["plan"]>("pro");
   const [bulkWorkspacePlan, setBulkWorkspacePlan] =
     useState<AdminWorkspaceSubscription["planType"]>("pro");
+  const [subscriptionQuery, setSubscriptionQuery] = useState("");
+  const [subscriptionUserPlanFilter, setSubscriptionUserPlanFilter] =
+    useState<AdminUser["plan"] | "all">("all");
+  const [workspacePlanFilter, setWorkspacePlanFilter] =
+    useState<AdminWorkspaceSubscription["planType"] | "all">("all");
+  const [creditGrantAmount, setCreditGrantAmount] = useState(8000);
+  const [creditGrantReason, setCreditGrantReason] = useState("");
+  const [campaignName, setCampaignName] = useState("");
+  const [campaignCode, setCampaignCode] = useState("");
+  const [campaignCreditAmount, setCampaignCreditAmount] = useState(2500);
+  const [campaignTargetPlan, setCampaignTargetPlan] =
+    useState<AdminUser["plan"] | "all">("all");
+  const [campaignMaxRedemptions, setCampaignMaxRedemptions] = useState("");
   const [bulkReportStatus, setBulkReportStatus] =
     useState<AdminReport["status"]>("triaged");
   const [error, setError] = useState<string | null>(null);
@@ -467,6 +597,22 @@ export function AdminUsersClient({
     return true;
   }
 
+  async function loadBilling() {
+    const body = await fetchJson<AdminBillingSummary>("/api/admin/billing");
+    if (!body) return false;
+    setBilling(body);
+    return true;
+  }
+
+  async function loadCreditCampaigns() {
+    const body = await fetchJson<{ campaigns: CreditCampaign[] }>(
+      "/api/admin/credit-campaigns",
+    );
+    if (!body) return false;
+    setCreditCampaigns(body.campaigns);
+    return true;
+  }
+
   async function loadInitial() {
     setError(null);
     const ok = await loadOverview();
@@ -499,6 +645,18 @@ export function AdminUsersClient({
       ) {
         ok = await loadSubscriptions();
       }
+      if (activeTab === "billing" && !billing) {
+        ok = await loadBilling();
+      }
+      if (activeTab === "promotions") {
+        const needsSubscriptions =
+          subscriptionUsers.length === 0 && workspaces.length === 0;
+        const results = await Promise.all([
+          creditCampaigns.length === 0 ? loadCreditCampaigns() : true,
+          needsSubscriptions ? loadSubscriptions() : true,
+        ]);
+        ok = results.every(Boolean);
+      }
       if (activeTab === "reports" && reports.length === 0) {
         ok = await loadReports();
       }
@@ -530,6 +688,11 @@ export function AdminUsersClient({
     setPageFor("users", 0);
   }, [query]);
 
+  useEffect(() => {
+    setPageFor("subscriptionUsers", 0);
+    setPageFor("workspaces", 0);
+  }, [subscriptionQuery, subscriptionUserPlanFilter, workspacePlanFilter]);
+
   const filteredUsers = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return users;
@@ -537,6 +700,33 @@ export function AdminUsersClient({
       `${user.name} ${user.email} ${user.plan}`.toLowerCase().includes(needle),
     );
   }, [query, users]);
+
+  const filteredSubscriptionUsers = useMemo(() => {
+    const needle = subscriptionQuery.trim().toLowerCase();
+    return subscriptionUsers.filter((user) => {
+      const matchesPlan =
+        subscriptionUserPlanFilter === "all" ||
+        user.plan === subscriptionUserPlanFilter;
+      const matchesQuery =
+        !needle ||
+        `${user.name} ${user.email} ${user.plan}`.toLowerCase().includes(needle);
+      return matchesPlan && matchesQuery;
+    });
+  }, [subscriptionQuery, subscriptionUserPlanFilter, subscriptionUsers]);
+
+  const filteredWorkspaces = useMemo(() => {
+    const needle = subscriptionQuery.trim().toLowerCase();
+    return workspaces.filter((workspace) => {
+      const matchesPlan =
+        workspacePlanFilter === "all" || workspace.planType === workspacePlanFilter;
+      const matchesQuery =
+        !needle ||
+        `${workspace.name} ${workspace.slug} ${workspace.planType}`
+          .toLowerCase()
+          .includes(needle);
+      return matchesPlan && matchesQuery;
+    });
+  }, [subscriptionQuery, workspacePlanFilter, workspaces]);
 
   useEffect(() => {
     const visibleUserIds = new Set(filteredUsers.map((user) => user.id));
@@ -560,11 +750,15 @@ export function AdminUsersClient({
 
   const pagedUsers = slicePage(filteredUsers, pageFor("users"), pageSize);
   const pagedSubscriptionUsers = slicePage(
-    subscriptionUsers,
+    filteredSubscriptionUsers,
     pageFor("subscriptionUsers"),
     pageSize,
   );
-  const pagedWorkspaces = slicePage(workspaces, pageFor("workspaces"), pageSize);
+  const pagedWorkspaces = slicePage(
+    filteredWorkspaces,
+    pageFor("workspaces"),
+    pageSize,
+  );
   const pagedReports = slicePage(reports, pageFor("reports"), pageSize);
   const pagedOperations = slicePage(
     overview?.recentOperations ?? [],
@@ -605,11 +799,44 @@ export function AdminUsersClient({
     return true;
   }
 
+  async function post(
+    path: string,
+    body: unknown,
+    refresh: () => Promise<unknown>,
+  ) {
+    setBusy(path);
+    setError(null);
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setBusy(null);
+    if (!res.ok) {
+      setError(t("errors.update"));
+      return false;
+    }
+    await refresh();
+    return true;
+  }
+
   function toggleUserSelection(userId: string) {
     setSelectedUserIds((current) =>
       current.includes(userId)
         ? current.filter((id) => id !== userId)
         : [...current, userId],
+    );
+  }
+
+  function toggleVisibleUserSelection() {
+    const visibleIds = filteredUsers.map((user) => user.id);
+    const allVisibleSelected = visibleIds.every((id) =>
+      selectedUserIdSet.has(id),
+    );
+    setSelectedUserIds((current) =>
+      allVisibleSelected
+        ? current.filter((id) => !visibleIds.includes(id))
+        : Array.from(new Set([...current, ...visibleIds])),
     );
   }
 
@@ -623,6 +850,30 @@ export function AdminUsersClient({
       setSelectedUserIds([]);
     }
     return ok;
+  }
+
+  async function createCreditCampaign() {
+    const ok = await post(
+      "/api/admin/credit-campaigns",
+      {
+        name: campaignName,
+        code: campaignCode || undefined,
+        creditAmount: campaignCreditAmount,
+        targetPlan:
+          campaignTargetPlan === "all" ? null : campaignTargetPlan,
+        maxRedemptions: campaignMaxRedemptions
+          ? Number(campaignMaxRedemptions)
+          : null,
+      },
+      async () => {
+        await Promise.all([loadCreditCampaigns(), loadBilling()]);
+      },
+    );
+    if (ok) {
+      setCampaignName("");
+      setCampaignCode("");
+      setCampaignMaxRedemptions("");
+    }
   }
 
   const stats = overview?.stats ?? {};
@@ -705,14 +956,26 @@ export function AdminUsersClient({
                 <StatBox
                   label={t("stats.usageThisMonth")}
                   value={stats.usageThisMonth ?? 0}
+                  detail={formatNumber(stats.usageThisMonth ?? 0)}
                 />
                 <StatBox
                   label={t("stats.apiCallsToday")}
                   value={stats.apiCallsToday ?? 0}
+                  detail={t("stats.apiCalls30d", {
+                    count: formatCompact(stats.apiCalls30d ?? 0),
+                  })}
+                />
+                <StatBox
+                  label={t("stats.mau30d")}
+                  value={stats.mau30d ?? 0}
+                  detail={t("stats.newUsers30d", {
+                    count: formatCompact(stats.newUsers30d ?? 0),
+                  })}
                 />
                 <StatBox
                   label={t("stats.llmCostKrw30d")}
                   value={Math.round(stats.llmCostKrw30d ?? 0)}
+                  detail={formatKrw(Math.round(stats.llmCostKrw30d ?? 0))}
                 />
               </div>
               <div className="grid gap-4 xl:grid-cols-2">
@@ -822,7 +1085,20 @@ export function AdminUsersClient({
               <table className="min-w-full border-collapse text-sm">
                 <thead className="sticky top-0 bg-card">
                   <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-                    <th className="w-10 px-3 py-2">{t("columns.select")}</th>
+                    <th className="w-10 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        aria-label={t("bulk.selectVisible")}
+                        checked={
+                          filteredUsers.length > 0 &&
+                          filteredUsers.every((user) =>
+                            selectedUserIdSet.has(user.id),
+                          )
+                        }
+                        onChange={toggleVisibleUserSelection}
+                        className="h-4 w-4"
+                      />
+                    </th>
                     <th className="px-3 py-2">{t("columns.user")}</th>
                     <th className="px-3 py-2">{t("columns.plan")}</th>
                     <th className="px-3 py-2">{t("columns.verified")}</th>
@@ -901,7 +1177,63 @@ export function AdminUsersClient({
         {activeTab === "subscriptions" && (
           <div className="space-y-4">
             <Panel title={t("bulk.title")}>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3 xl:grid-cols-[1.2fr_1fr_1fr]">
+                <div className="grid gap-2 sm:grid-cols-[1fr_140px_160px]">
+                  <label className="sr-only" htmlFor="subscription-query">
+                    {t("filters.subscriptionSearch")}
+                  </label>
+                  <Input
+                    id="subscription-query"
+                    value={subscriptionQuery}
+                    onChange={(event) => setSubscriptionQuery(event.target.value)}
+                    placeholder={t("filters.subscriptionSearch")}
+                    className="h-9 rounded-none"
+                  />
+                  <label className="sr-only" htmlFor="subscription-user-plan-filter">
+                    {t("filters.userPlan")}
+                  </label>
+                  <select
+                    id="subscription-user-plan-filter"
+                    aria-label={t("filters.userPlan")}
+                    value={subscriptionUserPlanFilter}
+                    onChange={(event) =>
+                      setSubscriptionUserPlanFilter(
+                        event.target.value as AdminUser["plan"] | "all",
+                      )
+                    }
+                    className="h-9 border border-border bg-background px-2 text-sm font-semibold uppercase"
+                  >
+                    <option value="all">{t("filters.allUserPlans")}</option>
+                    {userPlanValues.map((plan) => (
+                      <option key={plan} value={plan}>
+                        {plan}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="sr-only" htmlFor="workspace-plan-filter">
+                    {t("filters.workspacePlan")}
+                  </label>
+                  <select
+                    id="workspace-plan-filter"
+                    aria-label={t("filters.workspacePlan")}
+                    value={workspacePlanFilter}
+                    onChange={(event) =>
+                      setWorkspacePlanFilter(
+                        event.target.value as
+                          | AdminWorkspaceSubscription["planType"]
+                          | "all",
+                      )
+                    }
+                    className="h-9 border border-border bg-background px-2 text-sm font-semibold uppercase"
+                  >
+                    <option value="all">{t("filters.allWorkspacePlans")}</option>
+                    {(["free", "pro", "enterprise"] as const).map((plan) => (
+                      <option key={plan} value={plan}>
+                        {plan}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <label
                     htmlFor="bulk-user-plan"
@@ -927,12 +1259,16 @@ export function AdminUsersClient({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={busy !== null || subscriptionUsers.length === 0}
+                    disabled={
+                      busy !== null || filteredSubscriptionUsers.length === 0
+                    }
                     onClick={() =>
                       void bulkPatch(
                         "/api/admin/users/plan",
                         {
-                          userIds: subscriptionUsers.map((user) => user.id),
+                          userIds: filteredSubscriptionUsers.map(
+                            (user) => user.id,
+                          ),
                           plan: bulkUserPlan,
                         },
                         async () => {
@@ -975,12 +1311,12 @@ export function AdminUsersClient({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={busy !== null || workspaces.length === 0}
+                    disabled={busy !== null || filteredWorkspaces.length === 0}
                     onClick={() =>
                       void bulkPatch(
                         "/api/admin/workspaces/plan",
                         {
-                          workspaceIds: workspaces.map(
+                          workspaceIds: filteredWorkspaces.map(
                             (workspace) => workspace.id,
                           ),
                           planType: bulkWorkspacePlan,
@@ -998,12 +1334,64 @@ export function AdminUsersClient({
                   </Button>
                 </div>
               </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                <label
+                  htmlFor="credit-grant-amount"
+                  className="text-xs font-semibold uppercase text-muted-foreground"
+                >
+                  {t("bulk.creditGrant")}
+                </label>
+                <Input
+                  id="credit-grant-amount"
+                  type="number"
+                  min={1}
+                  max={1000000}
+                  value={creditGrantAmount}
+                  onChange={(event) =>
+                    setCreditGrantAmount(Number(event.target.value))
+                  }
+                  className="h-9 w-32 rounded-none"
+                />
+                <Input
+                  value={creditGrantReason}
+                  onChange={(event) => setCreditGrantReason(event.target.value)}
+                  placeholder={t("bulk.creditReason")}
+                  className="h-9 max-w-xs rounded-none"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    busy !== null ||
+                    filteredSubscriptionUsers.length === 0 ||
+                    creditGrantAmount <= 0
+                  }
+                  onClick={() =>
+                    void bulkPatch(
+                      "/api/admin/users/credits",
+                      {
+                        userIds: filteredSubscriptionUsers.map((user) => user.id),
+                        credits: creditGrantAmount,
+                        reason: creditGrantReason || undefined,
+                      },
+                      async () => {
+                        await Promise.all([loadSubscriptions(), loadOverview()]);
+                      },
+                    )
+                  }
+                >
+                  {t("bulk.applyCreditGrant", {
+                    count: filteredSubscriptionUsers.length,
+                  })}
+                </Button>
+              </div>
             </Panel>
             <div className="grid gap-4 xl:grid-cols-2">
               <PlanTable
                 title={t("sections.userSubscriptions")}
                 rows={pagedSubscriptionUsers}
-                totalRows={subscriptionUsers.length}
+                totalRows={filteredSubscriptionUsers.length}
                 page={pageFor("subscriptionUsers")}
                 pageSize={pageSize}
                 onPageChange={(page) => setPageFor("subscriptionUsers", page)}
@@ -1013,6 +1401,12 @@ export function AdminUsersClient({
                 getValue={(row) => row.plan}
                 getName={(row) => row.name}
                 getMeta={(row) => row.email}
+                getExtra={(row) =>
+                  t("credits.summary", {
+                    balance: formatNumber(row.balanceCredits ?? 0),
+                    monthly: formatNumber(row.monthlyGrantCredits ?? 0),
+                  })
+                }
                 onChange={(row, plan) =>
                   patch(
                     `/api/admin/users/${row.id}/plan`,
@@ -1027,7 +1421,7 @@ export function AdminUsersClient({
               <PlanTable
                 title={t("sections.workspaceSubscriptions")}
                 rows={pagedWorkspaces}
-                totalRows={workspaces.length}
+                totalRows={filteredWorkspaces.length}
                 page={pageFor("workspaces")}
                 pageSize={pageSize}
                 onPageChange={(page) => setPageFor("workspaces", page)}
@@ -1049,6 +1443,288 @@ export function AdminUsersClient({
                 busy={busy !== null}
               />
             </div>
+          </div>
+        )}
+
+        {activeTab === "billing" && (
+          billing ? (
+            <div className="space-y-4">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <StatBox
+                  label={t("billing.mrr")}
+                  value={billing.planRevenue.estimatedMrrKrw}
+                  detail={formatKrw(billing.planRevenue.estimatedMrrKrw)}
+                />
+                <StatBox
+                  label={t("billing.totalCredits")}
+                  value={billing.creditSummary.totalBalanceCredits}
+                  detail={formatNumber(billing.creditSummary.totalBalanceCredits)}
+                />
+                <StatBox
+                  label={t("billing.lowCredits")}
+                  value={billing.creditSummary.lowBalanceUsers}
+                  critical={billing.creditSummary.lowBalanceUsers > 0}
+                />
+                <StatBox
+                  label={t("billing.grossMargin")}
+                  value={Math.round(billing.usage30d.grossMarginKrw)}
+                  detail={formatKrw(Math.round(billing.usage30d.grossMarginKrw))}
+                  critical={billing.usage30d.grossMarginKrw < 0}
+                />
+                <StatBox
+                  label={t("billing.chargedCredits")}
+                  value={billing.usage30d.chargedCredits}
+                  detail={formatNumber(billing.usage30d.chargedCredits)}
+                />
+                <StatBox
+                  label={t("billing.grantedCredits")}
+                  value={billing.usage30d.grantedCredits}
+                  detail={formatNumber(billing.usage30d.grantedCredits)}
+                />
+                <StatBox
+                  label={t("billing.rawCost")}
+                  value={Math.round(billing.usage30d.rawCostKrw)}
+                  detail={`${formatKrw(Math.round(billing.usage30d.rawCostKrw))} · ${formatUsd(
+                    billing.usage30d.rawCostUsd,
+                  )}`}
+                />
+                <StatBox
+                  label={t("billing.apiFailure")}
+                  value={billing.apiHealth30d.failed}
+                  detail={`${formatNumber(billing.apiHealth30d.total)} req · ${billing.apiHealth30d.avgDurationMs}ms`}
+                  critical={billing.apiHealth30d.failed > 0}
+                />
+              </div>
+              <div className="grid gap-4 xl:grid-cols-2">
+                <Panel title={t("billing.planRevenue")}>
+                  <SimpleRows
+                    rows={billing.planRevenue.plans.map((row) => ({
+                      key: row.plan,
+                      left: `${row.plan} · ${row.users}`,
+                      right: formatKrw(row.estimatedMrrKrw),
+                      sub: `${formatNumber(row.includedMonthlyCredits)} credits`,
+                    }))}
+                  />
+                </Panel>
+                <Panel title={t("billing.creditByPlan")}>
+                  <SimpleRows
+                    rows={billing.creditByPlan.map((row) => ({
+                      key: row.plan,
+                      left: `${row.plan} · ${row.users}`,
+                      right: formatNumber(row.balanceCredits),
+                      sub: `${formatNumber(row.monthlyGrantCredits)} monthly`,
+                    }))}
+                  />
+                </Panel>
+                <Panel title={t("billing.lowCreditUsers")}>
+                  <SimpleRows
+                    rows={billing.lowCreditUsers.map((row) => ({
+                      key: row.id,
+                      left: row.email,
+                      right: formatNumber(row.balanceCredits),
+                      sub: `${row.plan} · ${formatNumber(row.monthlyGrantCredits)} monthly`,
+                    }))}
+                  />
+                </Panel>
+                <Panel title={t("billing.recentLedger")}>
+                  <SimpleRows
+                    rows={billing.recentLedger.map((row) => ({
+                      key: row.id,
+                      left: `${row.kind} · ${row.userEmail ?? row.userId}`,
+                      right: formatNumber(row.deltaCredits),
+                      sub: `${row.sourceType ?? row.billingPath} · ${formatDate(row.createdAt)}`,
+                    }))}
+                  />
+                </Panel>
+              </div>
+            </div>
+          ) : (
+            <Panel title={t("tabs.billing")}>
+              <Empty />
+            </Panel>
+          )
+        )}
+
+        {activeTab === "promotions" && (
+          <div className="space-y-4">
+            <Panel title={t("promotions.create")}>
+              <div className="grid gap-2 xl:grid-cols-[1fr_140px_140px_140px_140px_auto]">
+                <Input
+                  value={campaignName}
+                  onChange={(event) => setCampaignName(event.target.value)}
+                  placeholder={t("promotions.name")}
+                  className="h-9 rounded-none"
+                />
+                <Input
+                  value={campaignCode}
+                  onChange={(event) => setCampaignCode(event.target.value)}
+                  placeholder={t("promotions.code")}
+                  className="h-9 rounded-none"
+                />
+                <Input
+                  type="number"
+                  min={1}
+                  value={campaignCreditAmount}
+                  onChange={(event) =>
+                    setCampaignCreditAmount(Number(event.target.value))
+                  }
+                  aria-label={t("promotions.creditAmount")}
+                  className="h-9 rounded-none"
+                />
+                <select
+                  value={campaignTargetPlan}
+                  onChange={(event) =>
+                    setCampaignTargetPlan(
+                      event.target.value as AdminUser["plan"] | "all",
+                    )
+                  }
+                  aria-label={t("promotions.targetPlan")}
+                  className="h-9 border border-border bg-background px-2 text-sm font-semibold uppercase"
+                >
+                  <option value="all">{t("filters.allUserPlans")}</option>
+                  {userPlanValues.map((plan) => (
+                    <option key={plan} value={plan}>
+                      {plan}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  value={campaignMaxRedemptions}
+                  onChange={(event) =>
+                    setCampaignMaxRedemptions(event.target.value)
+                  }
+                  placeholder={t("promotions.maxRedemptions")}
+                  className="h-9 rounded-none"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    busy !== null || !campaignName.trim() || campaignCreditAmount <= 0
+                  }
+                  onClick={() => void createCreditCampaign()}
+                >
+                  {t("promotions.createAction")}
+                </Button>
+              </div>
+            </Panel>
+            <Panel title={t("bulk.title")}>
+              <div className="grid gap-2 md:grid-cols-[1fr_160px_auto]">
+                <Input
+                  value={subscriptionQuery}
+                  onChange={(event) => setSubscriptionQuery(event.target.value)}
+                  placeholder={t("filters.subscriptionSearch")}
+                  className="h-9 rounded-none"
+                />
+                <select
+                  aria-label={t("filters.userPlan")}
+                  value={subscriptionUserPlanFilter}
+                  onChange={(event) =>
+                    setSubscriptionUserPlanFilter(
+                      event.target.value as AdminUser["plan"] | "all",
+                    )
+                  }
+                  className="h-9 border border-border bg-background px-2 text-sm font-semibold uppercase"
+                >
+                  <option value="all">{t("filters.allUserPlans")}</option>
+                  {userPlanValues.map((plan) => (
+                    <option key={plan} value={plan}>
+                      {plan}
+                    </option>
+                  ))}
+                </select>
+                <div className="text-sm font-semibold text-muted-foreground">
+                  {t("promotions.filteredUsers", {
+                    count: filteredSubscriptionUsers.length,
+                  })}
+                </div>
+              </div>
+            </Panel>
+            <Panel title={t("promotions.active")}>
+              <div className="space-y-2">
+                {creditCampaigns.length === 0 ? <Empty /> : null}
+                {creditCampaigns.map((campaign) => (
+                  <div
+                    key={campaign.id}
+                    className="grid gap-3 border border-border bg-background p-3 xl:grid-cols-[1fr_220px]"
+                  >
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusPill value={campaign.status} />
+                        {campaign.code ? <StatusPill value={campaign.code} /> : null}
+                        <span className="text-sm font-semibold">
+                          {t("promotions.creditLabel", {
+                            credits: formatNumber(campaign.creditAmount),
+                          })}
+                        </span>
+                      </div>
+                      <h3 className="mt-2 font-bold">{campaign.name}</h3>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        {t("promotions.campaignMeta", {
+                          plan: campaign.targetPlan ?? "all",
+                          redeemed: campaign.redeemedCount,
+                          max: campaign.maxRedemptions ?? "∞",
+                        })}
+                      </div>
+                    </div>
+                    <div className="grid content-start gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          busy !== null ||
+                          campaign.status !== "active" ||
+                          filteredSubscriptionUsers.length === 0
+                        }
+                        onClick={() =>
+                          void post(
+                            `/api/admin/credit-campaigns/${campaign.id}/grant`,
+                            {
+                              userIds: filteredSubscriptionUsers.map(
+                                (user) => user.id,
+                              ),
+                              reason: campaign.code ?? campaign.name,
+                            },
+                            async () => {
+                              await Promise.all([
+                                loadCreditCampaigns(),
+                                loadBilling(),
+                                loadSubscriptions(),
+                              ]);
+                            },
+                          )
+                        }
+                      >
+                        {t("promotions.grantFiltered", {
+                          count: filteredSubscriptionUsers.length,
+                        })}
+                      </Button>
+                      {(["active", "paused", "archived"] as const).map((status) => (
+                        <Button
+                          key={status}
+                          type="button"
+                          variant={campaign.status === status ? "default" : "outline"}
+                          size="sm"
+                          disabled={busy !== null || campaign.status === status}
+                          onClick={() =>
+                            void patch(
+                              `/api/admin/credit-campaigns/${campaign.id}`,
+                              { status },
+                              async () => {
+                                await loadCreditCampaigns();
+                              },
+                            )
+                          }
+                        >
+                          {t(`promotions.status.${status}`)}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
           </div>
         )}
 
@@ -1321,6 +1997,31 @@ export function AdminUsersClient({
                   label={t("system.storage")}
                   ok={overview.system.storage.s3Configured}
                 />
+                <ConfigBox
+                  icon={CreditCard}
+                  label={t("system.margin")}
+                  ok={Boolean(overview.system.billing?.marginMultiplier)}
+                  detail={overview.system.billing?.marginMultiplier ?? "default"}
+                />
+                <ConfigBox
+                  icon={Activity}
+                  label={t("system.llmModel")}
+                  ok={Boolean(overview.system.billing?.model)}
+                  detail={overview.system.billing?.model ?? "default"}
+                />
+                {Object.entries(overview.system.billing?.plans ?? {}).map(
+                  ([key, plan]) => (
+                    <ConfigBox
+                      key={key}
+                      icon={CreditCard}
+                      label={t("system.planConfig", { plan: key })}
+                      ok
+                      detail={`${formatKrw(plan.monthlyPriceKrw)} · ${formatNumber(
+                        plan.includedMonthlyCredits,
+                      )} credits`}
+                    />
+                  ),
+                )}
                 {Object.entries(overview.system.featureFlags).map(
                   ([key, value]) => (
                     <ConfigBox
@@ -1393,7 +2094,7 @@ function OperationList({
                 <StatusPill value={op.status} />
               </td>
               <td className="px-2 py-2 text-muted-foreground">
-                {op.detail ?? "-"}
+                {formatOperationDetail(op.detail)}
               </td>
               <td className="whitespace-nowrap px-2 py-2 text-right text-xs tabular-nums text-muted-foreground">
                 {formatDate(op.updatedAt)}
@@ -1404,6 +2105,53 @@ function OperationList({
       </table>
     </ScrollBox>
   );
+}
+
+function SimpleRows({
+  rows,
+}: {
+  rows: Array<{ key: string; left: string; right: string; sub?: string }>;
+}) {
+  if (rows.length === 0) return <Empty />;
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div
+          key={row.key}
+          className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border border-border bg-background p-2"
+        >
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold">{row.left}</div>
+            {row.sub ? (
+              <div className="truncate text-xs text-muted-foreground">
+                {row.sub}
+              </div>
+            ) : null}
+          </div>
+          <div className="text-sm font-bold tabular-nums">{row.right}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatOperationDetail(detail: string | null) {
+  if (!detail) return "-";
+  const trimmed = detail.trim();
+  if (!trimmed.startsWith("{")) return trimmed;
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    const code = typeof parsed.code === "string" ? parsed.code : null;
+    const message =
+      typeof parsed.message === "string"
+        ? parsed.message
+        : typeof parsed.error === "string"
+          ? parsed.error
+          : null;
+    return [code, message].filter(Boolean).join(" · ") || "JSON error";
+  } catch {
+    return trimmed.slice(0, 80);
+  }
 }
 
 function ApiLogTable({ logs }: { logs: ApiRequestLog[] }) {
@@ -1664,6 +2412,7 @@ function PlanTable<T extends { id: string }>({
   getValue,
   getName,
   getMeta,
+  getExtra,
   onChange,
   busy,
 }: {
@@ -1679,6 +2428,7 @@ function PlanTable<T extends { id: string }>({
   getValue: (row: T) => string;
   getName: (row: T) => string;
   getMeta: (row: T) => string;
+  getExtra?: (row: T) => string;
   onChange: (row: T, value: string) => Promise<unknown>;
   busy: boolean;
 }) {
@@ -1702,6 +2452,11 @@ function PlanTable<T extends { id: string }>({
                     <div className="truncate text-xs text-muted-foreground">
                       {getMeta(row)}
                     </div>
+                    {getExtra ? (
+                      <div className="truncate text-xs font-medium text-muted-foreground">
+                        {getExtra(row)}
+                      </div>
+                    ) : null}
                   </div>
                   <select
                     value={getValue(row)}

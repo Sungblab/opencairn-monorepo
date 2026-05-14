@@ -164,6 +164,10 @@
     "confirm_delete_title": "삭제할까요?",
     "confirm_delete_body": "\"{label}\"은 프로젝트 트리에서 삭제됩니다."
   },
+  "tree": {
+    "empty_project": "아직 표시할 파일이나 노트가 없습니다.",
+    "error": "파일 목록을 불러오지 못했어요."
+  },
   "tree_badges": {
     "analysis_completed": "완료",
     "analysis_running": "분석 중",

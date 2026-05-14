@@ -11,6 +11,8 @@
     "analytics": "분석",
     "users": "사용자",
     "subscriptions": "구독",
+    "billing": "크레딧/매출",
+    "promotions": "프로모션",
     "reports": "신고",
     "audit": "감사",
     "logs": "로그",
@@ -29,6 +31,9 @@
     "pendingEmails": "대기 이메일",
     "usageThisMonth": "월 사용량",
     "apiCallsToday": "오늘 API 호출",
+    "apiCalls30d": "30일 {count}",
+    "mau30d": "30일 활성 사용자",
+    "newUsers30d": "신규 {count}",
     "llmCostKrw30d": "30일 LLM 비용"
   },
   "sections": {
@@ -90,14 +95,61 @@
     "title": "대량 작업",
     "selected": "{count}명 선택됨",
     "selectRow": "사용자 선택",
+    "selectVisible": "현재 목록 전체 선택",
     "grantSiteAdmin": "선택 관리자 부여",
     "revokeSiteAdmin": "선택 관리자 해제",
     "userPlan": "모든 사용자 플랜",
     "workspacePlan": "모든 워크스페이스 플랜",
     "reportStatus": "모든 신고 상태",
+    "creditGrant": "크레딧 지급",
+    "creditReason": "사유",
     "applyUserPlan": "사용자 플랜 일괄 적용",
     "applyWorkspacePlan": "워크스페이스 플랜 일괄 적용",
+    "applyCreditGrant": "필터된 {count}명에게 지급",
     "applyReportStatus": "신고 상태 일괄 적용"
+  },
+  "filters": {
+    "subscriptionSearch": "사용자 또는 워크스페이스 검색",
+    "userPlan": "사용자 플랜 필터",
+    "workspacePlan": "워크스페이스 플랜 필터",
+    "allUserPlans": "전체 사용자 플랜",
+    "allWorkspacePlans": "전체 워크스페이스 플랜"
+  },
+  "credits": {
+    "summary": "잔액 {balance} · 월 지급 {monthly}"
+  },
+  "billing": {
+    "mrr": "예상 MRR",
+    "totalCredits": "총 잔여 크레딧",
+    "lowCredits": "저잔액 사용자",
+    "grossMargin": "30일 추정 마진",
+    "chargedCredits": "30일 차감 크레딧",
+    "grantedCredits": "30일 지급 크레딧",
+    "rawCost": "30일 원가",
+    "apiFailure": "30일 API 실패",
+    "planRevenue": "플랜별 예상 매출",
+    "creditByPlan": "플랜별 크레딧",
+    "lowCreditUsers": "저잔액 사용자",
+    "recentLedger": "최근 크레딧 장부"
+  },
+  "promotions": {
+    "create": "프로모션 캠페인 생성",
+    "active": "프로모션 캠페인",
+    "name": "캠페인 이름",
+    "code": "코드",
+    "creditAmount": "지급 크레딧",
+    "targetPlan": "대상 플랜",
+    "maxRedemptions": "최대 지급 수",
+    "createAction": "캠페인 생성",
+    "filteredUsers": "필터된 사용자 {count}명",
+    "campaignMeta": "대상 {plan} · 지급 {redeemed}/{max}",
+    "creditLabel": "{credits} 크레딧",
+    "grantFiltered": "필터된 {count}명에게 지급",
+    "status": {
+      "active": "활성",
+      "paused": "일시정지",
+      "archived": "보관"
+    }
   },
   "pagination": {
     "pageSize": "표시 개수",
@@ -118,7 +170,10 @@
   },
   "system": {
     "environment": "실행 환경",
-    "storage": "오브젝트 스토리지"
+    "storage": "오브젝트 스토리지",
+    "margin": "LLM 마진 설정",
+    "llmModel": "기본 LLM 모델",
+    "planConfig": "{plan} 플랜"
   },
   "searchUsers": "사용자 검색",
   "empty": "표시할 항목이 없습니다.",

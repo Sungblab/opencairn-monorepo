@@ -509,15 +509,29 @@
     {
       "idx": 72,
       "version": "7",
-      "when": 1778608000000,
-      "tag": "0073_task_feedback",
+      "when": 1778607000000,
+      "tag": "0072_curator_ontology_suggestion_types",
       "breakpoints": true
     },
     {
       "idx": 73,
       "version": "7",
+      "when": 1778608000000,
+      "tag": "0073_task_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
       "when": 1778609000000,
       "tag": "0074_task_feedback_project_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1778610000000,
+      "tag": "0075_admin_credit_campaigns",
       "breakpoints": true
     }
   ]

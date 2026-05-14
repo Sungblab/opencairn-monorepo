@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  adminCreditCampaigns,
   adminAuditEvents,
+  creditBalances,
+  creditLedgerEntries,
   db,
   eq,
   siteAdminReports,
@@ -16,8 +19,13 @@ const app = createApp();
 const createdUsers = new Set<string>();
 const createdReports = new Set<string>();
 const createdWorkspaces = new Set<string>();
+const createdCampaigns = new Set<string>();
 
 afterEach(async () => {
+  for (const id of createdCampaigns) {
+    await db.delete(adminCreditCampaigns).where(eq(adminCreditCampaigns.id, id));
+  }
+  createdCampaigns.clear();
   for (const id of createdWorkspaces) {
     await db
       .delete(adminAuditEvents)
@@ -45,6 +53,8 @@ afterEach(async () => {
   }
   createdWorkspaces.clear();
   for (const id of createdUsers) {
+    await db.delete(creditLedgerEntries).where(eq(creditLedgerEntries.userId, id));
+    await db.delete(creditBalances).where(eq(creditBalances.userId, id));
     await db.delete(user).where(eq(user.id, id));
   }
   createdUsers.clear();
@@ -90,6 +100,19 @@ async function authedPatch(
   const cookie = await signSessionCookie(userId);
   return app.request(path, {
     method: "PATCH",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function authedPost(
+  path: string,
+  userId: string,
+  body: unknown,
+): Promise<Response> {
+  const cookie = await signSessionCookie(userId);
+  return app.request(path, {
+    method: "POST",
     headers: { cookie, "content-type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -180,7 +203,7 @@ describe("site admin routes", () => {
     });
   });
 
-  it("lets site admins update user plans", async () => {
+  it("lets site admins update user plans and grant included credits", async () => {
     const caller = await makeUser();
     const target = await makeUser();
     await promoteSiteAdmin(caller.id);
@@ -197,6 +220,19 @@ describe("site admin routes", () => {
       .from(user)
       .where(eq(user.id, target.id));
     expect(row?.plan).toBe("pro");
+    const [balance] = await db
+      .select({
+        plan: creditBalances.plan,
+        balanceCredits: creditBalances.balanceCredits,
+        monthlyGrantCredits: creditBalances.monthlyGrantCredits,
+      })
+      .from(creditBalances)
+      .where(eq(creditBalances.userId, target.id));
+    expect(balance).toMatchObject({
+      plan: "pro",
+      balanceCredits: 8000,
+      monthlyGrantCredits: 8000,
+    });
 
     const [event] = await db
       .select()
@@ -209,6 +245,131 @@ describe("site admin routes", () => {
     });
     expect(event?.before).toMatchObject({ plan: "free" });
     expect(event?.after).toMatchObject({ plan: "pro" });
+
+    const byokRes = await authedPatch(`/api/admin/users/${target.id}/plan`, caller.id, {
+      plan: "byok",
+    });
+    expect(byokRes.status).toBe(200);
+    const [byokBalance] = await db
+      .select({
+        plan: creditBalances.plan,
+        monthlyGrantCredits: creditBalances.monthlyGrantCredits,
+      })
+      .from(creditBalances)
+      .where(eq(creditBalances.userId, target.id));
+    expect(byokBalance).toMatchObject({
+      plan: "byok",
+      monthlyGrantCredits: 0,
+    });
+  });
+
+  it("lets site admins manually grant credits", async () => {
+    const caller = await makeUser();
+    const target = await makeUser();
+    await promoteSiteAdmin(caller.id);
+
+    const res = await authedPatch("/api/admin/users/credits", caller.id, {
+      userIds: [target.id],
+      credits: 1200,
+      reason: "manual correction",
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ updated: 1 });
+    const [balance] = await db
+      .select({ balanceCredits: creditBalances.balanceCredits })
+      .from(creditBalances)
+      .where(eq(creditBalances.userId, target.id));
+    expect(balance?.balanceCredits).toBe(1200);
+    const [ledger] = await db
+      .select()
+      .from(creditLedgerEntries)
+      .where(eq(creditLedgerEntries.userId, target.id));
+    expect(ledger).toMatchObject({
+      kind: "manual_grant",
+      deltaCredits: 1200,
+    });
+  });
+
+  it("lets site admins create credit campaigns and grant them to users", async () => {
+    const caller = await makeUser();
+    const target = await makeUser();
+    await promoteSiteAdmin(caller.id);
+
+    const createRes = await authedPost("/api/admin/credit-campaigns", caller.id, {
+      name: "Launch promo",
+      code: "LAUNCH",
+      creditAmount: 2500,
+      targetPlan: "free",
+      maxRedemptions: 10,
+    });
+
+    expect(createRes.status).toBe(201);
+    const created = (await createRes.json()) as {
+      campaign: { id: string; name: string; creditAmount: number };
+    };
+    createdCampaigns.add(created.campaign.id);
+    expect(created.campaign).toMatchObject({
+      name: "Launch promo",
+      creditAmount: 2500,
+    });
+
+    const grantRes = await authedPost(
+      `/api/admin/credit-campaigns/${created.campaign.id}/grant`,
+      caller.id,
+      { userIds: [target.id], reason: "launch cohort" },
+    );
+
+    expect(grantRes.status).toBe(200);
+    await expect(grantRes.json()).resolves.toEqual({ granted: 1, skipped: 0 });
+    const [balance] = await db
+      .select({ balanceCredits: creditBalances.balanceCredits })
+      .from(creditBalances)
+      .where(eq(creditBalances.userId, target.id));
+    expect(balance?.balanceCredits).toBe(2500);
+    const [ledger] = await db
+      .select()
+      .from(creditLedgerEntries)
+      .where(eq(creditLedgerEntries.userId, target.id));
+    expect(ledger).toMatchObject({
+      kind: "manual_grant",
+      deltaCredits: 2500,
+      sourceType: "credit_campaign",
+      sourceId: created.campaign.id,
+    });
+    const [campaign] = await db
+      .select({ redeemedCount: adminCreditCampaigns.redeemedCount })
+      .from(adminCreditCampaigns)
+      .where(eq(adminCreditCampaigns.id, created.campaign.id));
+    expect(campaign?.redeemedCount).toBe(1);
+  });
+
+  it("exposes billing operations data to site admins", async () => {
+    const caller = await makeUser();
+    const target = await makeUser();
+    await promoteSiteAdmin(caller.id);
+    await authedPatch("/api/admin/users/credits", caller.id, {
+      userIds: [target.id],
+      credits: 300,
+      reason: "low balance probe",
+    });
+
+    const res = await authedGet("/api/admin/billing", caller.id);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      creditSummary: { totalBalanceCredits: number; lowBalanceUsers: number };
+      recentLedger: Array<{ userId: string; deltaCredits: number }>;
+      planRevenue: { estimatedMrrKrw: number };
+    };
+    expect(body.creditSummary.totalBalanceCredits).toBeGreaterThanOrEqual(300);
+    expect(body.creditSummary.lowBalanceUsers).toBeGreaterThanOrEqual(1);
+    expect(body.recentLedger).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: target.id, deltaCredits: 300 }),
+      ]),
+    );
+    expect(body.planRevenue.estimatedMrrKrw).toEqual(expect.any(Number));
   });
 
   it("lets site admins update multiple user plans at once", async () => {

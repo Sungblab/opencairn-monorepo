@@ -8,6 +8,7 @@ import {
   workspaceMembers,
   pagePermissions,
   user,
+  creditBalances,
   eq,
 } from "@opencairn/db";
 import {
@@ -686,6 +687,49 @@ describe("POST /api/chat/message (SSE)", () => {
     } finally {
       await viewerCtx.cleanup();
     }
+  });
+
+  it("blocks managed chat before streaming when the user has no credits", async () => {
+    const create = await authedFetch("/api/chat/conversations", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        workspaceId: ctx.workspaceId,
+        scopeType: "page",
+        scopeId: ctx.noteId,
+        attachedChips: [],
+        memoryFlags: FULL_FLAGS,
+      }),
+    });
+    const { id: conversationId } = (await create.json()) as { id: string };
+    await db
+      .insert(creditBalances)
+      .values({
+        userId: ctx.userId,
+        plan: "free",
+        balanceCredits: 0,
+      })
+      .onConflictDoUpdate({
+        target: creditBalances.userId,
+        set: { balanceCredits: 0, plan: "free" },
+      });
+
+    const res = await authedFetch("/api/chat/message", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ conversationId, content: "hi" }),
+    });
+
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({
+      error: "insufficient_credits",
+      requiredCredits: 1,
+    });
+    const messages = await db
+      .select()
+      .from(conversationMessages)
+      .where(eq(conversationMessages.conversationId, conversationId));
+    expect(messages).toHaveLength(0);
   });
 });
 

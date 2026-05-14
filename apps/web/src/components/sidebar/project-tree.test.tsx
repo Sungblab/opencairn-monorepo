@@ -14,6 +14,19 @@ const toastMock = vi.hoisted(() => ({
 const shortcutMock = vi.hoisted(() => ({
   handlers: new Map<string, () => void>(),
 }));
+const projectTreeMock = vi.hoisted(() => ({
+  roots: [
+    {
+      kind: "note",
+      id: "n-1",
+      parent_id: null,
+      label: "Root note",
+      child_count: 0,
+    },
+  ] as TreeNode[],
+  isLoading: false,
+  isError: false,
+}));
 
 vi.mock("sonner", () => ({
   toast: toastMock,
@@ -34,15 +47,9 @@ vi.mock("@/hooks/use-project-tree", () => ({
   treeQueryKey: (projectId: string, parentId: string | null) =>
     ["project-tree", projectId, parentId ?? "root"] as const,
   useProjectTree: () => ({
-    roots: [
-      {
-        kind: "note",
-        id: "n-1",
-        parent_id: null,
-        label: "Root note",
-        child_count: 0,
-      },
-    ] satisfies TreeNode[],
+    roots: projectTreeMock.roots,
+    isLoading: projectTreeMock.isLoading,
+    isError: projectTreeMock.isError,
     loadChildren: vi.fn(),
   }),
 }));
@@ -126,6 +133,17 @@ describe("ProjectTree", () => {
     toastMock.success.mockReset();
     toastMock.error.mockReset();
     shortcutMock.handlers.clear();
+    projectTreeMock.roots = [
+      {
+        kind: "note",
+        id: "n-1",
+        parent_id: null,
+        label: "Root note",
+        child_count: 0,
+      },
+    ];
+    projectTreeMock.isLoading = false;
+    projectTreeMock.isError = false;
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({}),
@@ -145,6 +163,15 @@ describe("ProjectTree", () => {
       "data-row-height",
       "28",
     );
+  });
+
+  it("shows an explicit empty state instead of a blank file section", () => {
+    projectTreeMock.roots = [];
+
+    renderTree();
+
+    expect(screen.getByText("sidebar.tree.empty_project")).toBeInTheDocument();
+    expect(screen.queryByTestId("arborist-tree")).not.toBeInTheDocument();
   });
 
   it("shows a placeholder child when an expandable row is open but empty", () => {

@@ -11,6 +11,8 @@
     "analytics": "Analytics",
     "users": "Users",
     "subscriptions": "Subscriptions",
+    "billing": "Credits/revenue",
+    "promotions": "Promotions",
     "reports": "Reports",
     "audit": "Audit",
     "logs": "Logs",
@@ -29,6 +31,9 @@
     "pendingEmails": "Pending email",
     "usageThisMonth": "Monthly usage",
     "apiCallsToday": "API calls today",
+    "apiCalls30d": "30d {count}",
+    "mau30d": "30d active users",
+    "newUsers30d": "new {count}",
     "llmCostKrw30d": "30d LLM cost"
   },
   "sections": {
@@ -90,14 +95,61 @@
     "title": "Bulk actions",
     "selected": "{count} selected",
     "selectRow": "Select user",
+    "selectVisible": "Select current list",
     "grantSiteAdmin": "Grant admin to selected",
     "revokeSiteAdmin": "Revoke admin from selected",
     "userPlan": "All user plans",
     "workspacePlan": "All workspace plans",
     "reportStatus": "All report statuses",
+    "creditGrant": "Grant credits",
+    "creditReason": "Reason",
     "applyUserPlan": "Apply user plan",
     "applyWorkspacePlan": "Apply workspace plan",
+    "applyCreditGrant": "Grant to {count} filtered users",
     "applyReportStatus": "Apply report status"
+  },
+  "filters": {
+    "subscriptionSearch": "Search users or workspaces",
+    "userPlan": "User plan filter",
+    "workspacePlan": "Workspace plan filter",
+    "allUserPlans": "All user plans",
+    "allWorkspacePlans": "All workspace plans"
+  },
+  "credits": {
+    "summary": "Balance {balance} · monthly {monthly}"
+  },
+  "billing": {
+    "mrr": "Estimated MRR",
+    "totalCredits": "Total remaining credits",
+    "lowCredits": "Low-credit users",
+    "grossMargin": "30d estimated margin",
+    "chargedCredits": "30d charged credits",
+    "grantedCredits": "30d granted credits",
+    "rawCost": "30d raw cost",
+    "apiFailure": "30d API failures",
+    "planRevenue": "Plan revenue estimate",
+    "creditByPlan": "Credits by plan",
+    "lowCreditUsers": "Low-credit users",
+    "recentLedger": "Recent credit ledger"
+  },
+  "promotions": {
+    "create": "Create promotion campaign",
+    "active": "Promotion campaigns",
+    "name": "Campaign name",
+    "code": "Code",
+    "creditAmount": "Grant credits",
+    "targetPlan": "Target plan",
+    "maxRedemptions": "Max grants",
+    "createAction": "Create campaign",
+    "filteredUsers": "{count} filtered users",
+    "campaignMeta": "Target {plan} · grants {redeemed}/{max}",
+    "creditLabel": "{credits} credits",
+    "grantFiltered": "Grant to {count} filtered users",
+    "status": {
+      "active": "Active",
+      "paused": "Paused",
+      "archived": "Archived"
+    }
   },
   "pagination": {
     "pageSize": "Rows",
@@ -118,7 +170,10 @@
   },
   "system": {
     "environment": "Environment",
-    "storage": "Object storage"
+    "storage": "Object storage",
+    "margin": "LLM margin setting",
+    "llmModel": "Default LLM model",
+    "planConfig": "{plan} plan"
   },
   "searchUsers": "Search users",
   "empty": "No items to show.",

@@ -18,6 +18,10 @@ export const adminAuditActionEnum = pgEnum("admin_audit_action", [
   "site_admin.revoke",
   "user.plan.update",
   "workspace.plan.update",
+  "credit.manual_grant",
+  "credit.campaign.create",
+  "credit.campaign.update",
+  "credit.campaign.grant",
   "report.status.update",
 ]);
 

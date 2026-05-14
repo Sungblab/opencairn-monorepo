@@ -229,7 +229,7 @@ describe("message bubble agent actions", () => {
     useTabsStore.getState().setWorkspace("ws-test");
   });
 
-  it("renders completed generated-note actions and opens the created note in reading mode", async () => {
+  it("renders completed generated-note actions and opens the created note in edit mode", async () => {
     const user = userEvent.setup();
 
     render(
@@ -283,7 +283,7 @@ describe("message bubble agent actions", () => {
         kind: "note",
         targetId: "00000000-0000-4000-8000-000000000043",
         title: "PDF 요약 노트",
-        mode: "reading",
+        mode: "plate",
         preview: false,
       }),
     ]);

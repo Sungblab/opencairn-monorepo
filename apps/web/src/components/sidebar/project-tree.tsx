@@ -1,5 +1,12 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Tree, type NodeApi, type TreeApi } from "react-arborist";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocale } from "next-intl";
@@ -181,7 +188,9 @@ export function ProjectTree({
   height,
   width = "100%",
 }: ProjectTreeProps) {
-  const { roots, loadChildren } = useProjectTree({ projectId });
+  const { roots, isLoading, isError, loadChildren } = useProjectTree({
+    projectId,
+  });
   const router = useRouter();
   const pathname = usePathname() ?? "";
   const locale = useLocale();
@@ -482,19 +491,27 @@ export function ProjectTree({
             </span>
           </div>
         ) : null}
-        <Tree<TreeNode>
-          ref={treeRef}
-          data={data}
-          width={width}
-          height={observedHeight}
-          rowHeight={28}
-          openByDefault={false}
-          searchTerm={typeAheadBuf || undefined}
-          onToggle={handleToggle}
-          onMove={handleMove}
-        >
-          {ProjectTreeNode}
-        </Tree>
+        {isError ? (
+          <ProjectTreeStatus>{tSidebar("tree.error")}</ProjectTreeStatus>
+        ) : isLoading ? (
+          <ProjectTreeStatus>{tSidebar("loading")}</ProjectTreeStatus>
+        ) : roots.length === 0 ? (
+          <ProjectTreeStatus>{tSidebar("tree.empty_project")}</ProjectTreeStatus>
+        ) : (
+          <Tree<TreeNode>
+            ref={treeRef}
+            data={data}
+            width={width}
+            height={observedHeight}
+            rowHeight={28}
+            openByDefault={false}
+            searchTerm={typeAheadBuf || undefined}
+            onToggle={handleToggle}
+            onMove={handleMove}
+          >
+            {ProjectTreeNode}
+          </Tree>
+        )}
       </div>
       <ProjectUploadDialog
         open={pendingUploadFiles.length > 0}
@@ -512,5 +529,13 @@ export function ProjectTree({
         }}
       />
     </ProjectTreeContext.Provider>
+  );
+}
+
+function ProjectTreeStatus({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-full min-h-28 items-center justify-center px-3 text-center text-xs leading-5 text-muted-foreground">
+      {children}
+    </div>
   );
 }

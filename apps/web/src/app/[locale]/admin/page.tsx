@@ -19,7 +19,7 @@ export default async function AdminPage({
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-3 py-4 sm:px-5 lg:px-8">
+      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-3 py-4 sm:px-5 lg:px-8">
         <header className="border-b border-border pb-3">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             {t("title")}

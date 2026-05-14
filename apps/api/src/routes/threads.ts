@@ -25,6 +25,8 @@ import {
   streamChatRunEvents,
   type RunAgentFn,
 } from "../lib/chat-runs";
+import { billingPlanConfigs } from "@opencairn/shared";
+import { getCreditBalance } from "../lib/billing";
 
 const listQuery = z.object({ workspace_id: z.string().uuid() });
 const createBody = z.object({
@@ -77,6 +79,18 @@ async function requireProjectRead(
     return { error: "forbidden" as const, status: 403 as const };
   }
   return null;
+}
+
+async function requireManagedChatCredits(userId: string) {
+  const balance = await getCreditBalance(userId);
+  if (!billingPlanConfigs[balance.plan].managedLlm) return null;
+  if (balance.balanceCredits > 0) return null;
+  return {
+    error: "insufficient_credits" as const,
+    status: 402 as const,
+    requiredCredits: 1,
+    availableCredits: balance.balanceCredits,
+  };
 }
 
 export function __setRunAgentForTest(impl: RunAgentFn | null): void {
@@ -325,6 +339,17 @@ export const threadRoutes = new Hono<AppEnv>()
         return c.json(
           { error: projectReadError.error },
           projectReadError.status,
+        );
+      }
+      const creditError = await requireManagedChatCredits(userId);
+      if (creditError) {
+        return c.json(
+          {
+            error: creditError.error,
+            requiredCredits: creditError.requiredCredits,
+            availableCredits: creditError.availableCredits,
+          },
+          creditError.status,
         );
       }
 

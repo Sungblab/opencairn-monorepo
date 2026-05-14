@@ -80,6 +80,14 @@ describe("site admin observability routes", () => {
       ]),
     );
     expect(body.logs[0]?.durationMs).toEqual(expect.any(Number));
+
+    const overviewRes = await authedGet("/api/admin/overview", caller.id);
+    expect(overviewRes.status).toBe(200);
+    const overview = (await overviewRes.json()) as {
+      stats: { mau30d: number; apiCalls30d: number };
+    };
+    expect(overview.stats.mau30d).toBeGreaterThanOrEqual(1);
+    expect(overview.stats.apiCalls30d).toBeGreaterThanOrEqual(1);
   });
 
   it("aggregates recorded LLM token cost for site admins", async () => {

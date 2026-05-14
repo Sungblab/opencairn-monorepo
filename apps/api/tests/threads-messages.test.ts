@@ -88,6 +88,7 @@ function parseSseEvents(text: string): ParsedEvent[] {
 async function createThread(
   workspaceId: string,
   userId: string,
+  opts: { grantCredits?: boolean } = {},
 ): Promise<string> {
   const res = await authedFetch("/api/threads", {
     method: "POST",
@@ -96,6 +97,13 @@ async function createThread(
   });
   expect(res.status).toBe(201);
   const { id } = (await res.json()) as { id: string };
+  if (opts.grantCredits !== false) {
+    await grantCredits({
+      userId,
+      credits: 100_000,
+      kind: "manual_grant",
+    });
+  }
   return id;
 }
 
@@ -110,6 +118,11 @@ async function createUntitledThread(
   });
   expect(res.status).toBe(201);
   const { id } = (await res.json()) as { id: string };
+  await grantCredits({
+    userId,
+    credits: 100_000,
+    kind: "manual_grant",
+  });
   return id;
 }
 
@@ -997,6 +1010,29 @@ describe("Threads messages — validation + auth", () => {
       body: JSON.stringify({ content: "   ", mode: "auto" }),
     });
     expect(res.status).toBe(400);
+  });
+
+  it("blocks managed chat runs before creating messages when credits are empty", async () => {
+    const threadId = await createThread(ctx.workspaceId, ctx.userId, {
+      grantCredits: false,
+    });
+
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ content: "hi", mode: "auto" }),
+    });
+
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({
+      error: "insufficient_credits",
+      requiredCredits: 1,
+    });
+    const rows = await db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.threadId, threadId));
+    expect(rows).toHaveLength(0);
   });
 
   it("GET on a non-existent thread returns 404", async () => {

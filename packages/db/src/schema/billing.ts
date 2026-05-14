@@ -108,7 +108,44 @@ export const creditLedgerEntries = pgTable(
   ],
 );
 
+export const adminCreditCampaigns = pgTable(
+  "admin_credit_campaigns",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    code: text("code"),
+    status: text("status").notNull().default("active"),
+    creditAmount: bigint("credit_amount", { mode: "number" }).notNull(),
+    targetPlan: userPlanEnum("target_plan"),
+    maxRedemptions: integer("max_redemptions"),
+    redeemedCount: integer("redeemed_count").notNull().default(0),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("admin_credit_campaigns_code_idx")
+      .on(t.code)
+      .where(sql`${t.code} IS NOT NULL`),
+    index("admin_credit_campaigns_status_created_idx").on(t.status, t.createdAt),
+    index("admin_credit_campaigns_target_plan_idx").on(t.targetPlan),
+  ],
+);
+
 export type CreditBalance = typeof creditBalances.$inferSelect;
 export type CreditBalanceInsert = typeof creditBalances.$inferInsert;
 export type CreditLedgerEntry = typeof creditLedgerEntries.$inferSelect;
 export type CreditLedgerEntryInsert = typeof creditLedgerEntries.$inferInsert;
+export type AdminCreditCampaign = typeof adminCreditCampaigns.$inferSelect;
+export type AdminCreditCampaignInsert = typeof adminCreditCampaigns.$inferInsert;

@@ -15,6 +15,10 @@ type AdminAuditTarget =
       targetType: "report";
       targetId: string;
       targetReportId: string;
+    }
+  | {
+      targetType: "credit_campaign";
+      targetId: string;
     };
 
 export type AdminAuditAction =
@@ -22,6 +26,10 @@ export type AdminAuditAction =
   | "site_admin.revoke"
   | "user.plan.update"
   | "workspace.plan.update"
+  | "credit.manual_grant"
+  | "credit.campaign.create"
+  | "credit.campaign.update"
+  | "credit.campaign.grant"
   | "report.status.update";
 
 export async function recordAdminAuditEvent(

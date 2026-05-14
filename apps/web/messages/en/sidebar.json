@@ -164,6 +164,10 @@
     "confirm_delete_title": "Delete item?",
     "confirm_delete_body": "\"{label}\" will be removed from the project tree."
   },
+  "tree": {
+    "empty_project": "No files or notes to show yet.",
+    "error": "Could not load the file list."
+  },
   "tree_badges": {
     "analysis_completed": "Done",
     "analysis_running": "Analyzing",

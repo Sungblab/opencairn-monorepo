@@ -28,6 +28,7 @@ import {
   db,
   conversations,
   conversationMessages,
+  creditBalances,
   user,
   eq,
   asc,
@@ -125,6 +126,11 @@ describe("POST /api/chat/message — real LLM path (Task 8)", () => {
 
   beforeEach(async () => {
     ctx = await seedWorkspace({ role: "owner" });
+    await db.insert(creditBalances).values({
+      userId: ctx.userId,
+      plan: "free",
+      balanceCredits: 100_000,
+    });
     fakeProvider = buildFakeProvider();
     mockedGetChatProvider.mockReturnValue(fakeProvider);
   });

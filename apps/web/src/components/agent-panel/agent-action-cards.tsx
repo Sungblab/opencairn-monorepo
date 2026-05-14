@@ -299,7 +299,7 @@ function openTargetTab(
     kind: target.kind,
     targetId: target.id,
     mode:
-      target.kind === "note" ? ("reading" as const) : ("agent-file" as const),
+      target.kind === "note" ? ("plate" as const) : ("agent-file" as const),
   };
   if (existing) {
     tabs.promoteFromPreview(existing.id);
@@ -312,7 +312,7 @@ function openTargetTab(
       kind: target.kind,
       targetId: target.id,
       title: target.title,
-      mode: target.kind === "note" ? "reading" : "agent-file",
+      mode: target.kind === "note" ? "plate" : "agent-file",
       preview: false,
     }),
   );

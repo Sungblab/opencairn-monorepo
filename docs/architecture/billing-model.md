@@ -48,6 +48,11 @@ Billing Core v1 adds two tables:
   monthly grant amount, monthly grant anchor, and auto-recharge flag.
 - `credit_ledger_entries`: append-only ledger for subscription grants, top-ups,
   usage, refunds, adjustments, and manual grants.
+- `admin_credit_campaigns`: operator-created credit grant campaigns for
+  promotions, launch cohorts, manual recovery, or other non-payment credit
+  programs. Campaign execution writes normal `manual_grant` ledger entries with
+  `sourceType = "credit_campaign"` so balances and audits still use the single
+  credit ledger.
 
 `llm_usage_events` remains the raw operational usage log. The credit ledger is
 the user-facing balance and billing audit trail.
@@ -67,6 +72,11 @@ Billing Core v1 deliberately does not include:
 
 Those should be added behind the existing ledger and plan model rather than
 creating a parallel billing store.
+
+Admin operations can still grant credits, change plans, inspect low-balance
+users, review estimated MRR and provider cost, and run credit campaigns. These
+operator actions are not payment collection; they are control-plane mutations
+over the existing credit ledger.
 
 ## Routing
 
