@@ -589,15 +589,21 @@ function DocumentWorkflow({
   function generate() {
     if (!projectId || selectedSources.length === 0 || !prompt.trim()) return;
     setError(null);
+    const generationPrompt = sourcePayload
+      ? withSourceAnalysisStructure(
+          prompt.trim(),
+          docT("sourceAnalysisStructureInstruction"),
+        )
+      : prompt.trim();
     onSubmitWorkflow({
       kind: workflow.kind,
       toolId: workflow.toolId,
-      prompt: `${workflow.prompt}\n\n${prompt.trim()}\n\n선택한 자료를 바탕으로 ${format.toUpperCase()} 산출물을 만들어줘.`,
+      prompt: `${workflow.prompt}\n\n${generationPrompt}\n\n선택한 자료를 바탕으로 ${format.toUpperCase()} 산출물을 만들어줘.`,
       payload: {
         action: "generate_project_object",
         generation: {
           format,
-          prompt: prompt.trim(),
+          prompt: generationPrompt,
           locale,
           template,
           ...(format === "pdf" ? { renderEngine } : {}),
@@ -768,6 +774,10 @@ function DocumentWorkflow({
       </div>
     </div>
   );
+}
+
+function withSourceAnalysisStructure(prompt: string, instruction: string) {
+  return prompt.includes("[p. N]") ? prompt : `${prompt}\n\n${instruction}`;
 }
 
 function TeachWorkflow({

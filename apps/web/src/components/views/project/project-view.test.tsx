@@ -203,7 +203,7 @@ describe("ProjectView", () => {
     expect(input).toHaveValue("");
   });
 
-  it("opens compact guided starts through existing workflow intents", async () => {
+  it("opens guided starts through a project-home wizard and existing workflow intents", async () => {
     renderProjectView();
 
     await userEvent.click(
@@ -211,21 +211,30 @@ describe("ProjectView", () => {
         name: /project\.commandCenter\.guided\.report\.title/,
       }),
     );
-
-    await waitFor(() =>
-      expect(preflightMock).toHaveBeenCalledWith("p1", {
-        tool: "document",
-        sourceTokenEstimate: 24_000,
+    expect(
+      screen.getByText("project.commandCenter.guidedWizard.description"),
+    ).toBeInTheDocument();
+    await userEvent.type(
+      screen.getByLabelText("project.commandCenter.guidedWizard.topicLabel"),
+      "lab report from uploaded PDFs",
+    );
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "project.commandCenter.guidedWizard.submit",
       }),
     );
+
     expect(usePanelStore.getState().agentPanelTab).toBe("chat");
     expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
       kind: "document_generation",
       presetId: "pdf_report_fast",
+      prompt: expect.stringContaining(
+        "project.commandCenter.guidedWizard.promptBlock",
+      ),
     });
   });
 
-  it("opens prompt guided starts through the existing Agent Panel workflow", async () => {
+  it("submits prompt guided starts with structured wizard context", async () => {
     renderProjectView();
 
     await userEvent.click(
@@ -233,13 +242,27 @@ describe("ProjectView", () => {
         name: /project\.commandCenter\.guided\.studyPrep\.title/,
       }),
     );
+    await userEvent.type(
+      screen.getByLabelText("project.commandCenter.guidedWizard.topicLabel"),
+      "midterm chapters",
+    );
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "project.commandCenter.guidedWizard.submit",
+      }),
+    );
 
     expect(usePanelStore.getState().agentPanelTab).toBe("chat");
     expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
       kind: "agent_prompt",
       toolId: "project_command_center",
-      prompt: "project.commandCenter.guided.studyPrep.prompt",
+      prompt: expect.stringContaining(
+        "project.commandCenter.guided.studyPrep.prompt",
+      ),
     });
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow?.prompt).toContain(
+      "project.commandCenter.guidedWizard.promptBlock",
+    );
   });
 
   it("summarizes active project runs with user-facing timeline steps", async () => {

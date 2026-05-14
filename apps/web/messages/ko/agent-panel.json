@@ -288,6 +288,7 @@
     "renderEngine": "PDF 엔진",
     "imageEngine": "이미지 엔진",
     "promptPlaceholder": "생성할 문서의 목적과 포함할 내용을 입력하세요.",
+    "sourceAnalysisStructureInstruction": "산출물 첫머리에 목차를 만들고, 주요 주장과 근거 뒤에는 가능한 한 [p. N] 형식의 페이지 단위 인용 앵커를 붙여주세요. Markdown/문서 본문에는 섹션 제목을 명확히 남겨 산출물 뷰어 목차에서 이동할 수 있게 해주세요.",
     "toggleFigure": "피규어 만들기",
     "figurePromptPlaceholder": "만들 피규어의 목적, 보여줄 관계, 강조할 내용을 입력하세요.",
     "figureSourceRequired": "피규어를 만들 출처를 하나 이상 선택하세요.",

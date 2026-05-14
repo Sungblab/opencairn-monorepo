@@ -31,6 +31,36 @@
       "title": "Active runs",
       "description": "Use Activity for deep details; this shows only user-facing execution steps."
     },
+    "guidedWizard": {
+      "title": "Configure {goal}",
+      "description": "Set the goal and evidence mode, then continue through the existing Agent Panel workflow.",
+      "topicLabel": "Work scope",
+      "topicPlaceholder": "Example: focus on the methods and limitations in uploaded-paper.pdf",
+      "outputLabel": "Output",
+      "evidenceLabel": "Evidence",
+      "detailLabel": "Depth",
+      "cancel": "Close",
+      "submit": "Start",
+      "topicFallback": "Entire current project",
+      "promptBlock": "Work scope: {topic}\nDesired output: {output}\nEvidence mode: {evidence}\nDepth: {detail}\n\nWhen creating an artifact, start it with a table of contents and add page-level evidence anchors in [p. N] format after key claims whenever possible.",
+      "output": {
+        "analysis": "Paper/source analysis",
+        "outline": "Structured outline",
+        "draft": "Draft",
+        "review": "Review report",
+        "studyPack": "Study material"
+      },
+      "evidence": {
+        "strict": "Page evidence required",
+        "balanced": "Balance evidence and inference",
+        "exploratory": "Allow ideation"
+      },
+      "detail": {
+        "brief": "Brief",
+        "standard": "Standard",
+        "deep": "Deep"
+      }
+    },
     "guided": {
       "paperAnalysis": {
         "title": "Paper analysis",

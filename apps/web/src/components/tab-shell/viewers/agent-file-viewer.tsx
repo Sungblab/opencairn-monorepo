@@ -19,10 +19,12 @@ import {
   FileDown,
   FileText,
   GitBranch,
+  ListTree,
   MessageSquareText,
   Loader2,
   Play,
   Presentation,
+  Quote,
   RefreshCcw,
   Table2,
   UploadCloud,
@@ -441,7 +443,9 @@ function FileBody({
       </div>
     );
   }
-  if (file.kind === "markdown") return <MarkdownPreview fileUrl={fileUrl} />;
+  if (file.kind === "markdown") {
+    return <MarkdownPreview file={file} fileUrl={fileUrl} />;
+  }
   if (file.kind === "json") return <JsonPreview fileUrl={fileUrl} />;
   if (file.kind === "csv") return <CsvPreview fileUrl={fileUrl} />;
   if (textLike) return <TextPreview fileUrl={fileUrl} />;
@@ -726,6 +730,40 @@ function SourceMaterialPanel({
   );
 }
 
+function useOpenArtifactSource(file: AgentFileSummary) {
+  const t = useTranslations("agentFiles.viewer.artifactFocus");
+  const locale = useLocale();
+  const router = useRouter();
+  const params = useParams<{ wsSlug?: string | string[] }>();
+  const wsSlug = firstRouteParam(params.wsSlug);
+
+  return useCallback(
+    (pageNumber?: number) => {
+      if (!file.sourceNoteId || !wsSlug) return;
+      if (pageNumber && typeof window !== "undefined") {
+        localStorage.setItem(
+          pdfViewStateKey("source", file.sourceNoteId),
+          JSON.stringify({ pageNumber }),
+        );
+      }
+      useTabsStore.getState().openTabToRight(
+        newTab({
+          kind: "note",
+          targetId: file.sourceNoteId,
+          title: pageNumber
+            ? t("sourcePageTab", { page: pageNumber })
+            : t("sourceTab"),
+          mode: "source",
+          preview: false,
+        }),
+        { reuseExisting: true },
+      );
+      router.push(urls.workspace.note(locale, wsSlug, file.sourceNoteId));
+    },
+    [file.sourceNoteId, locale, router, t, wsSlug],
+  );
+}
+
 function AgentFilePdfViewer({
   file,
   fileUrl,
@@ -740,7 +778,9 @@ function AgentFilePdfViewer({
   ingestPending: boolean;
 }) {
   const locale = useLocale();
+  const t = useTranslations("agentFiles.viewer.artifactFocus");
   const [registry, setRegistry] = useState<PluginRegistry | null>(null);
+  const openSource = useOpenArtifactSource(file);
   const config = useMemo<PDFViewerConfig>(
     () => ({
       src: fileUrl,
@@ -773,6 +813,19 @@ function AgentFilePdfViewer({
         onIngest={onIngest}
         ingestPending={ingestPending}
       />
+      {file.sourceNoteId ? (
+        <div
+          data-testid="artifact-focus-strip"
+          className="flex flex-wrap items-center gap-2 border-b bg-background px-3 py-1.5 text-xs"
+        >
+          <span className="font-medium text-foreground">{t("label")}</span>
+          <span className="text-muted-foreground">{t("pdfHint")}</span>
+          <Button size="sm" variant="ghost" onClick={() => openSource()}>
+            <Eye className="mr-1.5 h-3.5 w-3.5" />
+            {t("openSource")}
+          </Button>
+        </div>
+      ) : null}
       <div className="relative min-h-0 flex-1">
         <PdfDrawingToolbar registry={registry} floating />
         <EmbedPDFViewer
@@ -804,81 +857,262 @@ function PreviewSourceFrame({
   );
 }
 
-function MarkdownPreview({ fileUrl }: { fileUrl: string }) {
+type ArtifactHeading = {
+  id: string;
+  level: number;
+  text: string;
+};
+
+type ArtifactCitation = {
+  page: number;
+  label: string;
+  excerpt: string;
+};
+
+function MarkdownPreview({
+  file,
+  fileUrl,
+}: {
+  file: AgentFileSummary;
+  fileUrl: string;
+}) {
   const t = useTranslations("agentFiles.viewer");
+  const artifactT = useTranslations("agentFiles.viewer.artifactFocus");
   const { data, isLoading } = useTextFile(fileUrl);
+  const headings = useMemo(() => parseMarkdownHeadings(data ?? ""), [data]);
+  const citations = useMemo(() => parsePageCitations(data ?? ""), [data]);
+  const openSource = useOpenArtifactSource(file);
+  const hasArtifactRail =
+    file.sourceNoteId || headings.length > 0 || citations.length > 0;
 
   return (
-    <div className="app-scrollbar-thin h-full overflow-auto p-6">
-      <div className="mb-4 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-        <Eye className="h-3.5 w-3.5" />
-        {t("preview")}
-      </div>
-      {isLoading ? (
-        <p className="text-sm text-muted-foreground">{t("loadingInline")}</p>
-      ) : (
-        <article className="max-w-4xl space-y-4 text-sm leading-7">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              h1: ({ children }) => (
-                <h1 className="text-2xl font-semibold leading-tight">
-                  {children}
-                </h1>
-              ),
-              h2: ({ children }) => (
-                <h2 className="text-xl font-semibold leading-tight">
-                  {children}
-                </h2>
-              ),
-              h3: ({ children }) => (
-                <h3 className="text-base font-semibold leading-tight">
-                  {children}
-                </h3>
-              ),
-              p: ({ children }) => <p>{children}</p>,
-              ul: ({ children }) => (
-                <ul className="ml-5 list-disc space-y-1">{children}</ul>
-              ),
-              ol: ({ children }) => (
-                <ol className="ml-5 list-decimal space-y-1">{children}</ol>
-              ),
-              blockquote: ({ children }) => (
-                <blockquote className="border-l-2 pl-4 text-muted-foreground">
-                  {children}
-                </blockquote>
-              ),
-              code: ({ children }) => (
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-                  {children}
-                </code>
-              ),
-              pre: ({ children }) => (
-                <pre className="app-scrollbar-thin overflow-auto rounded border bg-muted/40 p-3 text-xs leading-5">
-                  {children}
-                </pre>
-              ),
-              table: ({ children }) => (
-                <table className="min-w-full border-collapse text-xs">
-                  {children}
-                </table>
-              ),
-              th: ({ children }) => (
-                <th className="border-b px-3 py-2 text-left font-medium">
-                  {children}
-                </th>
-              ),
-              td: ({ children }) => (
-                <td className="border-b px-3 py-2 align-top">{children}</td>
-              ),
-            }}
-          >
-            {data ?? ""}
-          </ReactMarkdown>
-        </article>
+    <div
+      data-testid="artifact-focus-viewer"
+      className={cn(
+        "grid h-full min-h-0 bg-background",
+        hasArtifactRail
+          ? "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px]"
+          : "grid-cols-1",
       )}
+    >
+      <div className="app-scrollbar-thin min-h-0 overflow-auto p-6">
+        <div className="mb-4 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Eye className="h-3.5 w-3.5" />
+          {t("preview")}
+        </div>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">{t("loadingInline")}</p>
+        ) : (
+          <article className="max-w-4xl space-y-4 text-sm leading-7">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({ children }) => (
+                  <h1
+                    id={headingIdFromChildren(children)}
+                    className="scroll-mt-6 text-2xl font-semibold leading-tight"
+                  >
+                    {children}
+                  </h1>
+                ),
+                h2: ({ children }) => (
+                  <h2
+                    id={headingIdFromChildren(children)}
+                    className="scroll-mt-6 text-xl font-semibold leading-tight"
+                  >
+                    {children}
+                  </h2>
+                ),
+                h3: ({ children }) => (
+                  <h3
+                    id={headingIdFromChildren(children)}
+                    className="scroll-mt-6 text-base font-semibold leading-tight"
+                  >
+                    {children}
+                  </h3>
+                ),
+                p: ({ children }) => <p>{children}</p>,
+                ul: ({ children }) => (
+                  <ul className="ml-5 list-disc space-y-1">{children}</ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="ml-5 list-decimal space-y-1">{children}</ol>
+                ),
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-2 pl-4 text-muted-foreground">
+                    {children}
+                  </blockquote>
+                ),
+                code: ({ children }) => (
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                    {children}
+                  </code>
+                ),
+                pre: ({ children }) => (
+                  <pre className="app-scrollbar-thin overflow-auto rounded border bg-muted/40 p-3 text-xs leading-5">
+                    {children}
+                  </pre>
+                ),
+                table: ({ children }) => (
+                  <table className="min-w-full border-collapse text-xs">
+                    {children}
+                  </table>
+                ),
+                th: ({ children }) => (
+                  <th className="border-b px-3 py-2 text-left font-medium">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="border-b px-3 py-2 align-top">{children}</td>
+                ),
+              }}
+            >
+              {data ?? ""}
+            </ReactMarkdown>
+          </article>
+        )}
+      </div>
+      {hasArtifactRail ? (
+        <aside className="app-scrollbar-thin min-h-0 overflow-auto border-l bg-muted/10 p-3">
+          <div className="space-y-4">
+            <div>
+              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                <ListTree className="h-3.5 w-3.5" />
+                {artifactT("tocTitle")}
+              </div>
+              {headings.length > 0 ? (
+                <div className="space-y-1">
+                  {headings.slice(0, 18).map((heading) => (
+                    <button
+                      key={`${heading.id}:${heading.text}`}
+                      type="button"
+                      onClick={() =>
+                        document.getElementById(heading.id)?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        })
+                      }
+                      className={cn(
+                        "block w-full rounded-[var(--radius-control)] px-2 py-1 text-left text-xs leading-5 hover:bg-muted",
+                        heading.level === 1
+                          ? "font-medium text-foreground"
+                          : "text-muted-foreground",
+                        heading.level === 3 ? "pl-5" : heading.level === 2 ? "pl-3" : "",
+                      )}
+                    >
+                      {heading.text}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {artifactT("tocEmpty")}
+                </p>
+              )}
+            </div>
+            <div>
+              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                <Quote className="h-3.5 w-3.5" />
+                {artifactT("citationsTitle")}
+              </div>
+              {citations.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {citations.slice(0, 24).map((citation) => (
+                    <button
+                      key={`${citation.page}:${citation.label}`}
+                      type="button"
+                      title={citation.excerpt}
+                      onClick={() => openSource(citation.page)}
+                      disabled={!file.sourceNoteId}
+                      className="rounded-full border border-border bg-background px-2 py-1 text-xs text-foreground hover:border-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {artifactT("pageChip", { page: citation.page })}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {artifactT("citationsEmpty")}
+                </p>
+              )}
+            </div>
+            {file.sourceNoteId ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => openSource()}
+              >
+                <Eye className="mr-1.5 h-3.5 w-3.5" />
+                {artifactT("openSource")}
+              </Button>
+            ) : null}
+          </div>
+        </aside>
+      ) : null}
     </div>
   );
+}
+
+function headingIdFromChildren(children: ReactNode) {
+  return slugifyHeading(plainText(children));
+}
+
+function plainText(value: ReactNode): string {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+  if (Array.isArray(value)) return value.map(plainText).join("");
+  return "";
+}
+
+function slugifyHeading(value: string) {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[`*_~[\]()]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || "section";
+}
+
+function parseMarkdownHeadings(markdown: string): ArtifactHeading[] {
+  const headings: ArtifactHeading[] = [];
+  const seen = new Set<string>();
+  for (const match of markdown.matchAll(/^(#{1,3})\s+(.+)$/gm)) {
+    const text = match[2]?.replace(/#+$/, "").trim();
+    if (!text) continue;
+    const id = slugifyHeading(text);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    headings.push({ id, level: match[1].length, text });
+  }
+  return headings;
+}
+
+function parsePageCitations(markdown: string): ArtifactCitation[] {
+  const citations = new Map<number, ArtifactCitation>();
+  const pageLabel =
+    String.raw`(?:p(?:p|age|ages)?\.?|페이지|쪽|s\.?|seite|seiten|p(?:á|a)g(?:ina|inas)?\.?|str(?:ana)?\.?)`;
+  const pattern =
+    new RegExp(
+      String.raw`(?:\[(?:${pageLabel})\s*(\d{1,4})\]|\((?:${pageLabel})\s*(\d{1,4})\)|(?:${pageLabel})\s*(\d{1,4})|(\d{1,4})\s*(?:쪽|페이지|pages?|seiten?|p(?:á|a)ginas?))`,
+      "giu",
+    );
+  for (const match of markdown.matchAll(pattern)) {
+    const page = Number(match[1] ?? match[2] ?? match[3] ?? match[4]);
+    if (!Number.isInteger(page) || page <= 0 || citations.has(page)) continue;
+    const index = match.index ?? 0;
+    const start = Math.max(0, index - 80);
+    const end = Math.min(markdown.length, index + match[0].length + 80);
+    citations.set(page, {
+      page,
+      label: match[0],
+      excerpt: markdown.slice(start, end).replace(/\s+/g, " ").trim(),
+    });
+  }
+  return [...citations.values()].sort((a, b) => a.page - b.page);
 }
 
 function JsonPreview({ fileUrl }: { fileUrl: string }) {

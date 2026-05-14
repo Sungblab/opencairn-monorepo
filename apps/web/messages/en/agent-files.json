@@ -39,6 +39,18 @@
     "googleExport": "Export to Google Workspace",
     "googleExportConnectRequired": "Google Drive connection required",
     "googleSettingsTitle": "Google Drive settings",
+    "artifactFocus": {
+      "label": "Artifact focus",
+      "tocTitle": "Table of contents",
+      "tocEmpty": "No heading sections yet.",
+      "citationsTitle": "Page evidence",
+      "citationsEmpty": "No page anchors yet.",
+      "openSource": "Open source to the right",
+      "pageChip": "p. {page}",
+      "sourceTab": "Source",
+      "sourcePageTab": "Source p. {page}",
+      "pdfHint": "Open the original beside this output to check evidence."
+    },
     "material": {
       "sourceNoteTab": "Extracted note",
       "graphTab": "Project knowledge map",

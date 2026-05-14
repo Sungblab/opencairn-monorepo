@@ -106,7 +106,7 @@ describe("AgentWorkflowCard", () => {
           action: "generate_project_object",
           generation: expect.objectContaining({
             format: "pdf",
-            prompt: initialPrompt,
+            prompt: expect.stringContaining(initialPrompt),
             locale: "ko",
             sources: [
               {

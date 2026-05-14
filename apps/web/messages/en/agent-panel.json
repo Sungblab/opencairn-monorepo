@@ -288,6 +288,7 @@
     "renderEngine": "PDF engine",
     "imageEngine": "Image engine",
     "promptPlaceholder": "Describe the document goal and what it should include.",
+    "sourceAnalysisStructureInstruction": "Start the artifact with a table of contents, add page-level citation anchors in [p. N] format after major claims and evidence whenever possible, and keep clear section headings so the artifact viewer can build navigation.",
     "toggleFigure": "Create figure",
     "figurePromptPlaceholder": "Describe the figure purpose, relationships, and emphasis.",
     "figureSourceRequired": "Select at least one source for the figure.",
