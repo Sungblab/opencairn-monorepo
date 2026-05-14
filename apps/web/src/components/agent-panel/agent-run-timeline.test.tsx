@@ -49,6 +49,8 @@ describe("AgentRunTimeline", () => {
             runId: "agent_action:action-1",
             runType: "agent_action",
             agentRole: "review",
+            actionKind: "file.update",
+            title: "Localized file edit label",
             status: "approval_required",
             sourceStatus: "approval_required",
             approvals: [
@@ -87,6 +89,9 @@ describe("AgentRunTimeline", () => {
     ).toBeTruthy();
     expect(
       screen.getByText("agentPanel.runTimeline.step.needsReview"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("agentPanel.runTimeline.step.editFile"),
     ).toBeTruthy();
     expect(
       screen.getByText("agentPanel.runTimeline.step.openArtifact"),

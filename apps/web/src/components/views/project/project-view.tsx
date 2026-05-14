@@ -1,7 +1,13 @@
 "use client";
 
 import { urls } from "@/lib/urls";
-import { useMemo, useState, type ComponentType, type FormEvent } from "react";
+import {
+  useMemo,
+  useState,
+  type ComponentType,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -297,7 +303,7 @@ export function ProjectView({
     Boolean(wikiIndex) && canRunLibrarian && hasLibrarianRepairIssue(wikiIndex);
   const workflowConsoleQuery = useQuery({
     queryKey: ["workflow-console-runs", projectId],
-    queryFn: () => workflowConsoleApi.list(projectId, 5),
+    queryFn: () => workflowConsoleApi.list(projectId, 10),
     refetchInterval: (query) => {
       const runs = query.state.data?.runs ?? [];
       return runs.some((run) => !isTerminalWorkflowStatus(run.status))
@@ -699,6 +705,14 @@ function ProjectCommandCenter({
     setValue("");
   }
 
+  function submitFromKeyboard(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    if (!trimmed) return;
+    onSubmitPrompt(trimmed);
+    setValue("");
+  }
+
   return (
     <section
       aria-labelledby="project-command-center-heading"
@@ -728,6 +742,7 @@ function ProjectCommandCenter({
             aria-label={inputLabel}
             value={value}
             onChange={(event) => setValue(event.currentTarget.value)}
+            onKeyDown={submitFromKeyboard}
             placeholder={placeholder}
             rows={3}
             className="min-h-24 w-full resize-none bg-transparent text-sm leading-6 outline-none placeholder:text-muted-foreground"
@@ -766,7 +781,7 @@ function ProjectCommandCenter({
                   key={start.id}
                   type="button"
                   onClick={() => onGuidedStart(start.id)}
-                  className="flex min-h-24 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-card px-3 py-3 text-left transition hover:border-foreground hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex min-h-24 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-card px-3 py-3 text-left transition hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)] bg-muted text-foreground">
                     <Icon aria-hidden className="h-4 w-4" />

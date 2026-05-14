@@ -132,12 +132,11 @@ export function getAgentRunTimelineSteps(
       addStep(steps, "preflight", run);
     }
     if (run.runType === "agent_action") {
-      const title = run.title.toLowerCase();
-      if (title.includes("note.update") || title.includes("note update")) {
+      if (run.actionKind === "note.update") {
         addStep(steps, "updateNote", run);
-      } else if (title.includes("file.update") || title.includes("file update")) {
+      } else if (run.actionKind === "file.update") {
         addStep(steps, "editFile", run);
-      } else if (title.includes("file.create") || title.includes("file create")) {
+      } else if (run.actionKind === "file.create") {
         addStep(steps, "createFile", run);
       }
     }

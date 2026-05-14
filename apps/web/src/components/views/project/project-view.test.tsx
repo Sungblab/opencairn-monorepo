@@ -180,6 +180,27 @@ describe("ProjectView", () => {
       toolId: "project_command_center",
       prompt: "Compare the uploaded paper with our notes",
     });
+    expect(workflowConsoleApi.list).toHaveBeenCalledWith("p1", 10);
+  });
+
+  it("submits the command center prompt with Enter and preserves Shift+Enter for new lines", async () => {
+    renderProjectView();
+
+    const input = await screen.findByLabelText(
+      "project.commandCenter.inputLabel",
+    );
+    await userEvent.type(input, "Draft a review{Shift>}{Enter}{/Shift}with citations");
+    expect(input).toHaveValue("Draft a review\nwith citations");
+
+    await userEvent.keyboard("{Enter}");
+
+    expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+      kind: "agent_prompt",
+      toolId: "project_command_center",
+      prompt: "Draft a review\nwith citations",
+    });
+    expect(input).toHaveValue("");
   });
 
   it("opens compact guided starts through existing workflow intents", async () => {
@@ -228,6 +249,7 @@ describe("ProjectView", () => {
           runId: "agent_action:action-1",
           runType: "agent_action",
           agentRole: "review",
+          actionKind: "note.update",
           workGroupId: "chat:run-1",
           sourceId: "action-1",
           sourceStatus: "approval_required",
