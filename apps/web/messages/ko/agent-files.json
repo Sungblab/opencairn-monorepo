@@ -39,6 +39,18 @@
     "googleExport": "Google Workspace로 내보내기",
     "googleExportConnectRequired": "Google Drive 연결 필요",
     "googleSettingsTitle": "Google Drive 설정",
+    "artifactFocus": {
+      "label": "산출물 집중",
+      "tocTitle": "목차",
+      "tocEmpty": "제목이 있는 섹션이 아직 없습니다.",
+      "citationsTitle": "페이지 근거",
+      "citationsEmpty": "페이지 앵커가 아직 없습니다.",
+      "openSource": "원본을 오른쪽에 열기",
+      "pageChip": "p. {page}",
+      "sourceTab": "원본",
+      "sourcePageTab": "원본 p. {page}",
+      "pdfHint": "원본과 나란히 열어 산출물의 근거를 확인합니다."
+    },
     "material": {
       "sourceNoteTab": "추출 노트",
       "graphTab": "프로젝트 지식맵",

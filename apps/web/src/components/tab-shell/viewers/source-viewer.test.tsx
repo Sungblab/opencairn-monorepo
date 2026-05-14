@@ -221,7 +221,7 @@ const messages = {
           sourceUnsupported: "이 원본 형식은 현재 자동 분석을 지원하지 않습니다.",
           useThisPdf: "이 PDF만 사용",
           paperAnalysis: "논문 분석 리포트",
-          paperAnalysisPrompt: "{title}를 논문 읽기 기준으로 분석해 연구 질문, 방법, 핵심 주장, 증거, 한계, 후속 질문, 페이지 단위 인용 앵커를 포함한 긴 분석 리포트를 만들어줘.",
+          paperAnalysisPrompt: "{title}를 논문 읽기 기준으로 분석해줘. 첫머리에 목차를 만들고, 연구 질문, 방법, 핵심 주장, 증거, 한계, 후속 질문을 섹션별로 정리해. 핵심 주장과 근거 뒤에는 가능한 한 [p. N] 형식의 페이지 단위 인용 앵커를 붙여 긴 분석 리포트로 만들어줘.",
           summarize: "요약",
           decompose: "분해",
           citations: "인용 추출",

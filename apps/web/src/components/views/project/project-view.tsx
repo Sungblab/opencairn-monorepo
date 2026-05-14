@@ -89,6 +89,20 @@ type ProjectGuidedStartId =
   | "review"
   | "ideation"
   | "studyPrep";
+type GuidedWorkflowOutput =
+  | "analysis"
+  | "outline"
+  | "draft"
+  | "review"
+  | "studyPack";
+type GuidedEvidenceMode = "strict" | "balanced" | "exploratory";
+type GuidedDetailLevel = "brief" | "standard" | "deep";
+type GuidedWorkflowDraft = {
+  topic: string;
+  output: GuidedWorkflowOutput;
+  evidenceMode: GuidedEvidenceMode;
+  detailLevel: GuidedDetailLevel;
+};
 
 const PROJECT_GUIDED_STARTS: Array<{
   id: ProjectGuidedStartId;
@@ -109,6 +123,23 @@ const WORKFLOW_TERMINAL_STATUSES = new Set([
   "expired",
   "reverted",
 ]);
+const GUIDED_OUTPUT_OPTIONS: GuidedWorkflowOutput[] = [
+  "analysis",
+  "outline",
+  "draft",
+  "review",
+  "studyPack",
+];
+const GUIDED_EVIDENCE_OPTIONS: GuidedEvidenceMode[] = [
+  "strict",
+  "balanced",
+  "exploratory",
+];
+const GUIDED_DETAIL_OPTIONS: GuidedDetailLevel[] = [
+  "brief",
+  "standard",
+  "deep",
+];
 
 function isTerminalWorkflowStatus(status: WorkflowConsoleRun["status"]) {
   return WORKFLOW_TERMINAL_STATUSES.has(status);
@@ -332,18 +363,46 @@ export function ProjectView({
     openAgentPanelTab("chat");
   }
 
-  function runGuidedStart(id: ProjectGuidedStartId) {
+  function guidedPrompt(id: ProjectGuidedStartId, draft: GuidedWorkflowDraft) {
+    return [
+      t(`commandCenter.guided.${id}.prompt`),
+      t("commandCenter.guidedWizard.promptBlock", {
+        topic: draft.topic.trim() || t("commandCenter.guidedWizard.topicFallback"),
+        output: t(`commandCenter.guidedWizard.output.${draft.output}`),
+        evidence: t(`commandCenter.guidedWizard.evidence.${draft.evidenceMode}`),
+        detail: t(`commandCenter.guidedWizard.detail.${draft.detailLevel}`),
+      }),
+    ].join("\n\n");
+  }
+
+  function runGuidedStart(
+    id: ProjectGuidedStartId,
+    draft?: GuidedWorkflowDraft,
+  ) {
+    const prompt = draft
+      ? guidedPrompt(id, draft)
+      : t(`commandCenter.guided.${id}.prompt`);
     if (id === "paperAnalysis") {
-      const item = projectCommandTools.get("research");
-      if (item) void runProjectToolWithPreflight(item);
+      const item = projectCommandTools.get("pdf_report_fast");
+      if (item && draft) {
+        requestWorkflow({ ...workflowForToolItem(item), prompt });
+        openAgentPanelTab("chat");
+      } else if (item) {
+        void runProjectToolWithPreflight(item);
+      }
       return;
     }
     if (id === "report") {
       const item = projectCommandTools.get("pdf_report_fast");
-      if (item) void runProjectToolWithPreflight(item);
+      if (item && draft) {
+        requestWorkflow({ ...workflowForToolItem(item), prompt });
+        openAgentPanelTab("chat");
+      } else if (item) {
+        void runProjectToolWithPreflight(item);
+      }
       return;
     }
-    queueProjectPrompt(t(`commandCenter.guided.${id}.prompt`));
+    queueProjectPrompt(prompt);
   }
 
   function renderToolItem(item: ToolDiscoveryItem) {
@@ -693,10 +752,22 @@ function ProjectCommandCenter({
   activeRunsDescription: string;
   activeRuns: WorkflowConsoleRun[];
   onSubmitPrompt(prompt: string): void;
-  onGuidedStart(id: ProjectGuidedStartId): void;
+  onGuidedStart(id: ProjectGuidedStartId, draft?: GuidedWorkflowDraft): void;
 }) {
+  const t = useTranslations("project.commandCenter.guidedWizard");
   const [value, setValue] = useState("");
+  const [activeStart, setActiveStart] = useState<ProjectGuidedStartId | null>(
+    null,
+  );
+  const [topic, setTopic] = useState("");
+  const [output, setOutput] = useState<GuidedWorkflowOutput>("analysis");
+  const [evidenceMode, setEvidenceMode] =
+    useState<GuidedEvidenceMode>("strict");
+  const [detailLevel, setDetailLevel] = useState<GuidedDetailLevel>("standard");
   const trimmed = value.trim();
+  const activeGuidedStart = guidedStarts.find(
+    (start) => start.id === activeStart,
+  );
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -711,6 +782,22 @@ function ProjectCommandCenter({
     if (!trimmed) return;
     onSubmitPrompt(trimmed);
     setValue("");
+  }
+
+  function submitGuidedWizard(event: FormEvent) {
+    event.preventDefault();
+    if (!activeStart) return;
+    onGuidedStart(activeStart, {
+      topic,
+      output,
+      evidenceMode,
+      detailLevel,
+    });
+    setTopic("");
+    setOutput("analysis");
+    setEvidenceMode("strict");
+    setDetailLevel("standard");
+    setActiveStart(null);
   }
 
   return (
@@ -780,7 +867,10 @@ function ProjectCommandCenter({
                 <button
                   key={start.id}
                   type="button"
-                  onClick={() => onGuidedStart(start.id)}
+                  onClick={() => {
+                    setActiveStart(start.id);
+                    setOutput(defaultGuidedOutput(start.id));
+                  }}
                   className="flex min-h-24 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-card px-3 py-3 text-left transition hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)] bg-muted text-foreground">
@@ -798,6 +888,78 @@ function ProjectCommandCenter({
               );
             })}
           </div>
+          {activeGuidedStart ? (
+            <form
+              onSubmit={submitGuidedWizard}
+              className="space-y-3 rounded-[var(--radius-card)] border border-border bg-background p-3 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-medium text-foreground">
+                    {t("title", { goal: activeGuidedStart.title })}
+                  </h4>
+                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                    {t("description")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="app-btn-ghost h-7 rounded-[var(--radius-control)] border border-border px-2 text-xs"
+                  onClick={() => setActiveStart(null)}
+                >
+                  {t("cancel")}
+                </button>
+              </div>
+              <label className="block space-y-1 text-xs text-muted-foreground">
+                <span>{t("topicLabel")}</span>
+                <textarea
+                  aria-label={t("topicLabel")}
+                  value={topic}
+                  onChange={(event) => setTopic(event.currentTarget.value)}
+                  rows={2}
+                  placeholder={t("topicPlaceholder")}
+                  className="min-h-16 w-full resize-none rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-foreground"
+                />
+              </label>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <GuidedSelect
+                  label={t("outputLabel")}
+                  value={output}
+                  options={GUIDED_OUTPUT_OPTIONS}
+                  optionLabel={(option) => t(`output.${option}`)}
+                  onChange={(next) => setOutput(next as GuidedWorkflowOutput)}
+                />
+                <GuidedSelect
+                  label={t("evidenceLabel")}
+                  value={evidenceMode}
+                  options={GUIDED_EVIDENCE_OPTIONS}
+                  optionLabel={(option) => t(`evidence.${option}`)}
+                  onChange={(next) =>
+                    setEvidenceMode(next as GuidedEvidenceMode)
+                  }
+                />
+                <GuidedSelect
+                  label={t("detailLabel")}
+                  value={detailLevel}
+                  options={GUIDED_DETAIL_OPTIONS}
+                  optionLabel={(option) => t(`detail.${option}`)}
+                  onChange={(next) => setDetailLevel(next as GuidedDetailLevel)}
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+                <span className="rounded-[var(--radius-control)] bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
+                  {contextValue}
+                </span>
+                <button
+                  type="submit"
+                  className="app-btn-primary inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-3 text-xs"
+                >
+                  <ArrowUp aria-hidden className="h-3.5 w-3.5" />
+                  {t("submit")}
+                </button>
+              </div>
+            </form>
+          ) : null}
         </div>
       </div>
       {activeRuns.length > 0 ? (
@@ -817,6 +979,46 @@ function ProjectCommandCenter({
         </aside>
       ) : null}
     </section>
+  );
+}
+
+function defaultGuidedOutput(id: ProjectGuidedStartId): GuidedWorkflowOutput {
+  if (id === "paperDraft") return "draft";
+  if (id === "review") return "review";
+  if (id === "studyPrep") return "studyPack";
+  if (id === "ideation") return "outline";
+  return "analysis";
+}
+
+function GuidedSelect({
+  label,
+  value,
+  options,
+  optionLabel,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  optionLabel(option: string): string;
+  onChange(value: string): void;
+}) {
+  return (
+    <label className="space-y-1 text-xs text-muted-foreground">
+      <span>{label}</span>
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        className="h-8 w-full rounded-[var(--radius-control)] border border-border bg-background px-2 text-foreground"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {optionLabel(option)}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

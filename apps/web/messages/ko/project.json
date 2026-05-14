@@ -31,6 +31,36 @@
       "title": "진행 중인 실행",
       "description": "깊은 세부정보는 활동 패널에서 보고, 여기서는 사용자가 이해할 단계만 봅니다."
     },
+    "guidedWizard": {
+      "title": "{goal} 설정",
+      "description": "목표와 근거 강도를 정하면 에이전트 패널의 기존 워크플로우로 이어집니다.",
+      "topicLabel": "작업 범위",
+      "topicPlaceholder": "예: uploaded-paper.pdf의 방법론과 한계를 중심으로",
+      "outputLabel": "출력",
+      "evidenceLabel": "근거",
+      "detailLabel": "깊이",
+      "cancel": "닫기",
+      "submit": "시작",
+      "topicFallback": "현재 프로젝트 전체",
+      "promptBlock": "작업 범위: {topic}\n원하는 출력: {output}\n근거 사용: {evidence}\n깊이: {detail}\n\n가능하면 생성 산출물 첫머리에 목차를 만들고, 핵심 주장 뒤에는 [p. N] 형식의 페이지 단위 근거 앵커를 붙여줘.",
+      "output": {
+        "analysis": "논문/자료 분석",
+        "outline": "구조화 개요",
+        "draft": "초안",
+        "review": "검토 리포트",
+        "studyPack": "학습 자료"
+      },
+      "evidence": {
+        "strict": "페이지 근거 필수",
+        "balanced": "근거와 추론 균형",
+        "exploratory": "아이디어 확장 허용"
+      },
+      "detail": {
+        "brief": "짧게",
+        "standard": "표준",
+        "deep": "깊게"
+      }
+    },
     "guided": {
       "paperAnalysis": {
         "title": "논문 분석",

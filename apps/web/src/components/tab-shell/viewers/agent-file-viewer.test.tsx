@@ -155,6 +155,7 @@ const messages = {
       csvTable: "CSV 테이블 · {rows}행",
       column: "열 {index}",
       download: "원본 다운로드",
+      askAgent: "이 산출물로 질문하기",
       ingest: "인제스트 실행",
       compile: "LaTeX 컴파일",
       canvas: "캔버스로 실행",
@@ -162,6 +163,18 @@ const messages = {
       googleExportConnectRequired: "Google Drive 연결 필요",
       googleSettingsTitle: "Google Drive 설정",
       advanced: "고급 보기",
+      artifactFocus: {
+        label: "산출물 집중",
+        tocTitle: "목차",
+        tocEmpty: "제목이 있는 섹션이 아직 없습니다.",
+        citationsTitle: "페이지 근거",
+        citationsEmpty: "페이지 앵커가 아직 없습니다.",
+        openSource: "원본을 오른쪽에 열기",
+        pageChip: "p. {page}",
+        sourceTab: "원본",
+        sourcePageTab: "원본 p. {page}",
+        pdfHint: "원본과 나란히 열어 산출물의 근거를 확인합니다.",
+      },
       material: {
         status: {
           not_started: "분석 전",
@@ -363,6 +376,53 @@ describe("AgentFileViewer", () => {
     expect(await screen.findByText("미리보기")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Report" })).toBeInTheDocument();
     expect(screen.queryByText("원본")).not.toBeInTheDocument();
+  });
+
+  it("builds an artifact focus rail with generated headings and page citations", async () => {
+    const file = fileSummary({
+      sourceNoteId: "55555555-5555-4555-8555-555555555555",
+    });
+    useTabsStore.setState({
+      workspaceId: "ws_slug:acme",
+      tabs: [tab],
+      activeId: tab.id,
+      closedStack: [],
+    });
+
+    renderViewer(
+      file,
+      "# 분석 리포트\n\n## 방법\n\n핵심 근거는 표본 선택이다 [p. 3].\n\n## 한계\n\n추가 검증이 필요하다 (page 12).",
+    );
+
+    expect(await screen.findByTestId("artifact-focus-viewer")).toBeInTheDocument();
+    expect(screen.getByText("목차")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "방법" })).toBeInTheDocument();
+    expect(screen.getByText("페이지 근거")).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "p. 3" })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "p. 3" }));
+
+    expect(
+      JSON.parse(
+        localStorage.getItem(
+          "oc:pdf-view:source:55555555-5555-4555-8555-555555555555",
+        ) ?? "{}",
+      ),
+    ).toMatchObject({ pageNumber: 3 });
+    expect(useTabsStore.getState().split).toMatchObject({
+      primaryTabId: tab.id,
+    });
+    expect(useTabsStore.getState().tabs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "note",
+          targetId: "55555555-5555-4555-8555-555555555555",
+          mode: "source",
+        }),
+      ]),
+    );
   });
 
   it("renders structured study artifact JSON as an interactive study view", async () => {

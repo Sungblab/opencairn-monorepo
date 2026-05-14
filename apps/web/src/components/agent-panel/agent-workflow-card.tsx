@@ -589,15 +589,18 @@ function DocumentWorkflow({
   function generate() {
     if (!projectId || selectedSources.length === 0 || !prompt.trim()) return;
     setError(null);
+    const generationPrompt = sourcePayload
+      ? withSourceAnalysisStructure(prompt.trim(), locale)
+      : prompt.trim();
     onSubmitWorkflow({
       kind: workflow.kind,
       toolId: workflow.toolId,
-      prompt: `${workflow.prompt}\n\n${prompt.trim()}\n\n선택한 자료를 바탕으로 ${format.toUpperCase()} 산출물을 만들어줘.`,
+      prompt: `${workflow.prompt}\n\n${generationPrompt}\n\n선택한 자료를 바탕으로 ${format.toUpperCase()} 산출물을 만들어줘.`,
       payload: {
         action: "generate_project_object",
         generation: {
           format,
-          prompt: prompt.trim(),
+          prompt: generationPrompt,
           locale,
           template,
           ...(format === "pdf" ? { renderEngine } : {}),
@@ -768,6 +771,14 @@ function DocumentWorkflow({
       </div>
     </div>
   );
+}
+
+function withSourceAnalysisStructure(prompt: string, locale: string) {
+  const instruction =
+    locale === "ko"
+      ? "산출물 첫머리에 목차를 만들고, 주요 주장과 근거 뒤에는 가능한 한 [p. N] 형식의 페이지 단위 인용 앵커를 붙여줘. Markdown/문서 본문에는 섹션 제목을 명확히 남겨 산출물 뷰어 목차에서 이동할 수 있게 해줘."
+      : "Start the artifact with a table of contents, add page-level citation anchors in [p. N] format after major claims and evidence whenever possible, and keep clear section headings so the artifact viewer can build navigation.";
+  return prompt.includes("[p. N]") ? prompt : `${prompt}\n\n${instruction}`;
 }
 
 function TeachWorkflow({

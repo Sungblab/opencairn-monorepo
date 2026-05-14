@@ -120,7 +120,7 @@
         "sourceUnsupported": "Automatic analysis does not currently support this source format.",
         "useThisPdf": "Use this PDF only",
         "paperAnalysis": "Paper analysis report",
-        "paperAnalysisPrompt": "Analyze {title} as a paper and create a long report covering the research question, method, core claims, evidence, limitations, follow-up questions, and page-level citation anchors.",
+        "paperAnalysisPrompt": "Analyze {title} as a paper. Start with a table of contents, then organize the research question, method, core claims, evidence, limitations, and follow-up questions by section. Add page-level citation anchors in [p. N] format after key claims and evidence whenever possible.",
         "summarize": "Summarize",
         "decompose": "Decompose",
         "citations": "Extract citations",
