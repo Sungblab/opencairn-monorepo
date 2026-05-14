@@ -59,6 +59,23 @@ describe("IngestEvent", () => {
     expect(ev.kind).toBe("enrichment");
   });
 
+  it("accepts document-level parsed units for office and hwp ingest", () => {
+    const ev = IngestEvent.parse({
+      workflowId: "x",
+      seq: 2,
+      ts: "2026-04-27T10:00:00.000Z",
+      kind: "unit_parsed",
+      payload: {
+        index: 0,
+        unitKind: "document",
+        charCount: 3128,
+        durationMs: 3900,
+      },
+    });
+    expect(ev.kind).toBe("unit_parsed");
+    expect(ev.payload.unitKind).toBe("document");
+  });
+
   it("exposes IngestEventKind enum values", () => {
     const kinds = IngestEventKind.options;
     expect(kinds).toContain("started");

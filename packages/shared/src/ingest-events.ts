@@ -41,7 +41,7 @@ export const IngestUnitStartedPayload = z.object({
 
 export const IngestUnitParsedPayload = z.object({
   index: z.number().int().nonnegative(),
-  unitKind: z.enum(["page", "segment", "section"]),
+  unitKind: z.enum(["page", "segment", "section", "document"]),
   charCount: z.number().int().nonnegative(),
   durationMs: z.number().int().nonnegative(),
 });
