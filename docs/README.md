@@ -10,6 +10,8 @@ workflow files are intentionally excluded from the public repository.
 | --- | --- |
 | Current public roadmap and feature status | `contributing/roadmap.md` |
 | Existing feature ownership and duplicate-work guard | `contributing/feature-registry.md` |
+| Documentation ownership and lifecycle rules | `contributing/docs-governance.md` |
+| Codex/agent maintainer workflow | `contributing/codex-workflow.md` |
 | Local development and self-hosting setup | `contributing/dev-guide.md` |
 | Hosted service and OSS boundary | `contributing/hosted-service.md` |
 | Test strategy | `testing/strategy.md` |
@@ -30,6 +32,7 @@ workflow files are intentionally excluded from the public repository.
 | Agentic workflows across notes, files, code, import, and export | `architecture/agentic-workflow-roadmap.md` |
 | Document generation and file IDE flow | `architecture/document-generation-ide-flow.md` |
 | Workspace ontology classes, predicates, triples, and validation | `architecture/ontology-atlas.md` |
+| Architecture maps and verification routing | `architecture/maps/` |
 | Architecture decisions | `architecture/adr/` |
 
 ## Agents And Runtime

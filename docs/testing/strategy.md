@@ -146,7 +146,58 @@ services:
 
 각 테스트 suite 전에 마이그레이션 실행, 후에 데이터 truncate.
 
-## 5. CI Gate 기준 (필수 통과)
+## 5. Current CI
+
+The public CI gate is intentionally small and fast while the repository is still
+settling public/private documentation boundaries. It currently runs:
+
+- `pnpm docs:check`
+- `pnpm check:health`
+- `pnpm check:secrets`
+- `pnpm --filter @opencairn/web i18n:parity`
+- `pnpm check:types`
+- `pnpm check:unit:fast`
+
+`pnpm check:health` verifies public context routing, architecture map presence,
+feature-registry paths, import-boundary rules, local maintainer context
+availability when present, CI drift, and recommended focused verification for
+the current dirty files. Local-only private docs and Codex skills are warnings,
+not CI failures, because the public GitHub runner does not have them.
+`pnpm check:secrets` runs the lightweight repository secret scan. It is not a
+full replacement for managed secret scanning, but it catches common accidental
+token/key commits without adding an external dependency.
+`pnpm check:types` runs no-emit TypeScript checks for `packages/shared`,
+`packages/db`, `apps/api`, `apps/hocuspocus`, and `apps/web`.
+`pnpm check:unit:fast` runs infrastructure-free unit suites for
+`packages/shared`, `packages/db`, `packages/emails`, and `packages/templates`.
+`apps/hocuspocus` remains a focused local/PR check because its websocket smoke
+suite can be timing-sensitive and should not make the fast public gate flaky.
+
+Worker `ruff`/`pyright`, full E2E, and Hocuspocus websocket smoke are active
+development gates. Keep running them for focused changes, but do not treat their
+absence from the fast public CI gate as accidental drift until those tracks are
+stabilized and intentionally promoted.
+
+## 6. Local Health Harness
+
+Run `pnpm check:health` before opening a PR, after changing repo guidance, or
+whenever feature ownership, private status, skills, and CI feel out of sync.
+The harness is not a replacement for focused tests. It answers:
+
+- whether `AGENTS.md`, public docs, architecture maps, private docs, and local
+  OpenCairn skills are reachable from the current checkout
+- whether feature-registry owning paths still exist
+- whether web/shared/db/worker import boundaries have obvious violations
+- which package-specific checks are recommended for the current dirty files
+- whether `.github/workflows/ci.yml` still trails this target strategy
+
+The map for this flow lives in
+[docs/architecture/maps/testing-map.md](../architecture/maps/testing-map.md).
+
+## 7. Target Gates
+
+These are the intended gates for a stronger CI profile. They may be promoted in
+stages as runtime cost, local infrastructure needs, and flake rate are reduced.
 
 | Gate | 기준 | 실패 시 |
 |------|------|--------|
@@ -159,7 +210,7 @@ services:
 | Security | no `allow-same-origin`, no `postMessage(*,'*')` grep 통과 | block merge |
 | Secret scan | gitleaks 통과 | block merge |
 
-## 6. Collaboration Testing (Hocuspocus)
+## 8. Collaboration Testing (Hocuspocus)
 
 ### Unit
 - Yjs update encoding/decoding
@@ -184,7 +235,7 @@ services:
 - `pnpm --filter @opencairn/hocuspocus test`
 - `playwright test --grep @collaboration` (timeout 15s)
 
-## 7. CI Pipeline
+## 9. Target CI Pipeline
 
 ```yaml
 # .github/workflows/ci.yml

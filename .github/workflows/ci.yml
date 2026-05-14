@@ -37,5 +37,17 @@ jobs:
       - name: Check docs links and public status consistency
         run: pnpm docs:check
 
+      - name: Check project health harness
+        run: pnpm check:health
+
+      - name: Check committed secrets
+        run: pnpm check:secrets
+
       - name: Check web i18n parity
         run: pnpm --filter @opencairn/web i18n:parity
+
+      - name: Check TypeScript package boundaries
+        run: pnpm check:types
+
+      - name: Check fast unit suites
+        run: pnpm check:unit:fast
