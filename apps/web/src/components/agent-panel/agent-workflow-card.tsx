@@ -510,7 +510,10 @@ function DocumentWorkflow({
   const docT = useTranslations("agentPanel.documentGeneration");
   const locale = useLocale();
   const preset = getDocumentGenerationPreset(workflow.presetId ?? "pdf_report_fast");
-  const sourcePayload = getSourcePaperAnalysisPayload(workflow.payload);
+  const sourcePayload = useMemo(
+    () => getSourcePaperAnalysisPayload(workflow.payload),
+    [workflow.payload],
+  );
   const preferredSourceIds = useMemo(
     () => sourcePayload?.sourceIds ?? [],
     [sourcePayload],
