@@ -5,6 +5,7 @@ import {
   inArray,
   isNull,
   notifications,
+  sql,
   user,
   userNotificationPreferences,
 } from "@opencairn/db";
@@ -46,7 +47,13 @@ afterEach(async () => {
   sendMock.mockResolvedValue(undefined);
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  await db.execute(sql`
+    DELETE FROM notifications n
+     WHERE NOT EXISTS (
+       SELECT 1 FROM "user" u WHERE u.id = n.user_id
+     )
+  `);
   sendMock.mockResolvedValue(undefined);
 });
 

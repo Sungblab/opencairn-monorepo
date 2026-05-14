@@ -10,8 +10,10 @@ test functions run directly without @pytest.mark.asyncio.
 """
 from __future__ import annotations
 
+import sys
 import uuid
 
+import pytest
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 from temporalio.testing import WorkflowEnvironment
@@ -21,6 +23,15 @@ from worker.workflows.deep_research_workflow import (
     DeepResearchInput,
     DeepResearchOutput,
     DeepResearchWorkflow,
+)
+
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "Temporal test-server startup can hang on Windows local runs; "
+        "Linux CI still runs this E2E suite, and test_workflow_finalize_wiring.py "
+        "keeps local finalize-path coverage."
+    ),
 )
 
 # --- Activity stubs. Names must match the real @activity.defn registrations.

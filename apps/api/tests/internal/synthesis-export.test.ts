@@ -159,7 +159,11 @@ describe("/api/internal/synthesis-export/*", () => {
       {
         method: "POST",
         headers,
-        body: JSON.stringify({ source_id: crypto.randomUUID(), kind: "note" }),
+        body: JSON.stringify({
+          source_id: crypto.randomUUID(),
+          kind: "note",
+          workspace_id: seed.workspaceId,
+        }),
       },
     );
     expect(res.status).toBe(404);
@@ -181,7 +185,11 @@ describe("/api/internal/synthesis-export/*", () => {
       {
         method: "POST",
         headers,
-        body: JSON.stringify({ source_id: n!.id, kind: "note" }),
+        body: JSON.stringify({
+          source_id: n!.id,
+          kind: "note",
+          workspace_id: seed.workspaceId,
+        }),
       },
     );
     expect(res.status).toBe(200);
@@ -204,7 +212,11 @@ describe("/api/internal/synthesis-export/*", () => {
       {
         method: "POST",
         headers,
-        body: JSON.stringify({ source_id: fakeKey, kind: "s3_object" }),
+        body: JSON.stringify({
+          source_id: fakeKey,
+          kind: "s3_object",
+          workspace_id: seed.workspaceId,
+        }),
       },
     );
     expect(res.status).toBe(200);
@@ -247,7 +259,11 @@ describe("/api/internal/synthesis-export/*", () => {
       {
         method: "POST",
         headers,
-        body: JSON.stringify({ source_id: fakeUuidKey, kind: "s3_object" }),
+        body: JSON.stringify({
+          source_id: fakeUuidKey,
+          kind: "s3_object",
+          workspace_id: seed.workspaceId,
+        }),
       },
     );
     expect(res.status).toBe(200);
@@ -272,6 +288,7 @@ describe("/api/internal/synthesis-export/*", () => {
         body: JSON.stringify({
           source_id: crypto.randomUUID(),
           kind: "dr_result",
+          workspace_id: seed.workspaceId,
         }),
       },
     );

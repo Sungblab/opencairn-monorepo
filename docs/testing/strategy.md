@@ -173,10 +173,10 @@ token/key commits without adding an external dependency.
 `apps/hocuspocus` remains a focused local/PR check because its websocket smoke
 suite can be timing-sensitive and should not make the fast public gate flaky.
 
-Worker `ruff`/`pyright`, full E2E, and Hocuspocus websocket smoke are active
-development gates. Keep running them for focused changes, but do not treat their
-absence from the fast public CI gate as accidental drift until those tracks are
-stabilized and intentionally promoted.
+Worker `ruff`/`pyright`, full E2E, API integration, and Hocuspocus websocket
+smoke are active development gates. Keep running them for focused changes, but
+do not treat their absence from the fast public CI gate as accidental drift
+until those tracks are stabilized and intentionally promoted.
 
 ## 6. Local Health Harness
 
@@ -235,7 +235,7 @@ stages as runtime cost, local infrastructure needs, and flake rate are reduced.
 - `pnpm --filter @opencairn/hocuspocus test`
 - `playwright test --grep @collaboration` (timeout 15s)
 
-## 9. Target CI Pipeline
+## 9. CI Pipeline
 
 ```yaml
 # .github/workflows/ci.yml

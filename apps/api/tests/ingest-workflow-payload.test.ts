@@ -51,7 +51,12 @@ describe("ingest workflow payload", () => {
     });
 
     expect(res.status).toBe(202);
-    const body = (await res.json()) as { workflowId: string; objectKey: string };
+    const body = (await res.json()) as {
+      workflowId: string;
+      objectKey: string;
+      sourceBundleNodeId: string | null;
+      originalFileId: string | null;
+    };
     expect(body.objectKey).toMatch(new RegExp(`^uploads/${seed.userId}/`));
     expect(uploadObjectSpy).toHaveBeenCalledOnce();
     expect(startSpy).toHaveBeenCalledOnce();
@@ -86,12 +91,14 @@ describe("ingest workflow payload", () => {
       user_id: seed.userId,
       workspace_id: seed.workspaceId,
       content_enrichment_enabled: false,
-      source_bundle_node_id: null,
-      original_file_node_id: null,
-      parsed_group_node_id: null,
-      figures_group_node_id: null,
-      analysis_group_node_id: null,
+      source_bundle_node_id: expect.any(String),
+      original_file_node_id: expect.any(String),
+      parsed_group_node_id: expect.any(String),
+      figures_group_node_id: expect.any(String),
+      analysis_group_node_id: expect.any(String),
     });
+    expect(payload.source_bundle_node_id).toBe(body.sourceBundleNodeId);
+    expect(payload.original_file_node_id).toBe(body.originalFileId);
   });
 
   it("returns the original PDF file id so the browser can open it immediately", async () => {

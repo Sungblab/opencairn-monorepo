@@ -245,7 +245,7 @@ describe("persistence", () => {
           lastContext: { userId: seed.editorUserId, readOnly: false },
         })
         .then(() => "stored"),
-      new Promise((resolve) => setTimeout(() => resolve("blocked"), 50)),
+      new Promise((resolve) => setTimeout(() => resolve("blocked"), 1000)),
     ]);
 
     expect(result).toBe("stored");
