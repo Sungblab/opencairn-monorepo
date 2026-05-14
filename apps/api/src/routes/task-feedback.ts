@@ -62,6 +62,7 @@ export const taskFeedbackRoutes = new Hono<AppEnv>()
       })
       .onConflictDoUpdate({
         target: [
+          taskFeedback.projectId,
           taskFeedback.targetType,
           taskFeedback.targetId,
           taskFeedback.userId,
@@ -89,6 +90,7 @@ export const taskFeedbackRoutes = new Hono<AppEnv>()
     zValidator(
       "query",
       z.object({
+        projectId: z.string().uuid(),
         targetType: taskFeedbackTargetSchema,
         targetId: z.string().trim().min(1).max(240),
       }),
@@ -96,6 +98,11 @@ export const taskFeedbackRoutes = new Hono<AppEnv>()
     async (c) => {
       const userId = c.get("userId");
       const query = c.req.valid("query");
+
+      if (!(await canRead(userId, { type: "project", id: query.projectId }))) {
+        return c.json({ error: "forbidden" }, 403);
+      }
+
       const [row] = await db
         .select({
           rating: taskFeedback.rating,
@@ -106,6 +113,7 @@ export const taskFeedbackRoutes = new Hono<AppEnv>()
         .from(taskFeedback)
         .where(
           and(
+            eq(taskFeedback.projectId, query.projectId),
             eq(taskFeedback.targetType, query.targetType),
             eq(taskFeedback.targetId, query.targetId),
             eq(taskFeedback.userId, userId),
