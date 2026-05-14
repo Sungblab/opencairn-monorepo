@@ -39,3 +39,91 @@ jobs:
 
       - name: Check web i18n parity
         run: pnpm --filter @opencairn/web i18n:parity
+
+  api-collab:
+    name: API and collaboration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: opencairn
+          POSTGRES_USER: opencairn
+          POSTGRES_PASSWORD: opencairn
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U opencairn -d opencairn"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://opencairn:opencairn@localhost:5432/opencairn
+      BETTER_AUTH_SECRET: ci-better-auth-secret-at-least-32-chars
+      BETTER_AUTH_URL: http://localhost:4000
+      INTERNAL_API_SECRET: ci-internal-api-secret-at-least-32-chars
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run database migrations
+        working-directory: packages/db
+        run: pnpm exec drizzle-kit migrate
+
+      - name: Run API tests
+        run: pnpm --filter @opencairn/api test
+
+      - name: Run Hocuspocus tests
+        run: pnpm --filter @opencairn/hocuspocus test
+
+  worker:
+    name: Worker tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Check worker import boundaries
+        working-directory: apps/worker
+        run: uv run check-import-boundaries
+
+      - name: Run worker ruff
+        working-directory: apps/worker
+        run: uv run ruff check
+
+      - name: Run worker critical smoke
+        working-directory: apps/worker
+        run: >
+          uv run pytest -q
+          tests/activities/synthesis_export
+          tests/agents/synthesis_export
+          tests/workflows/test_synthesis_export_workflow.py
+          tests/integration/test_synthesis_export_smoke.py
+          tests/activities/test_pdf_activity.py
+          tests/lib/test_opendataloader_pdf.py
+          tests/lib/test_parser_gateway.py
+          tests/agents/test_doc_editor_agent.py
+          tests/agents/test_doc_editor_cite.py
+          tests/agents/test_doc_editor_commands.py
+          tests/agents/test_doc_editor_factcheck.py
+          tests/activities/test_doc_editor_activity.py
+          tests/tools_builtin

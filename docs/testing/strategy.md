@@ -146,18 +146,33 @@ services:
 
 각 테스트 suite 전에 마이그레이션 실행, 후에 데이터 truncate.
 
-## 5. CI Gate 기준 (필수 통과)
+## 5. CI Gate 기준
 
-| Gate | 기준 | 실패 시 |
-|------|------|--------|
-| Lint | ESLint 0 errors (strict) | block merge |
-| Type | `tsc --noEmit` 0 errors (web/api/shared) | block merge |
-| Python type | `ruff check` + `mypy --strict` (apps/worker) | block merge |
-| Unit coverage | ≥75% (packages/db, packages/shared, apps/api/src/lib) | warn (v0.1) → block (v0.3) |
-| Integration coverage | ≥70% (CRUD routes, Hocuspocus, Temporal) | warn (v0.1) → block (v0.3) |
-| E2E | 핵심 경로(signup→upload→wiki→chat) 통과 | block merge |
-| Security | no `allow-same-origin`, no `postMessage(*,'*')` grep 통과 | block merge |
-| Secret scan | gitleaks 통과 | block merge |
+현재 PR CI에서 필수로 막는 게이트와 아직 목표 상태인 게이트를 분리한다.
+문서상 목표만 앞서면 감사 때 실제 검증 공백이 생기므로, mandatory 행은
+`.github/workflows/ci.yml`에 존재하는 명령만 적는다.
+
+| Gate | 현재 기준 | 실패 시 |
+|------|----------|--------|
+| Public docs | `pnpm docs:check` | block merge |
+| i18n parity | `pnpm --filter @opencairn/web i18n:parity` | block merge |
+| API integration | pgvector Postgres + `pnpm --filter @opencairn/api test` | block merge |
+| Collaboration | 같은 DB schema 위에서 `pnpm --filter @opencairn/hocuspocus test` | block merge |
+| Worker import boundary | `cd apps/worker && uv run check-import-boundaries` | block merge |
+| Worker lint | `cd apps/worker && uv run ruff check` | block merge |
+| Worker critical smoke | `cd apps/worker && uv run pytest -q <agent/pdf/synthesis/tool subsets>` | block merge |
+
+아직 mandatory CI로 승격되지 않은 목표 게이트:
+
+| Gate | 목표 기준 | 현재 상태 |
+|------|----------|----------|
+| TypeScript type | package별 `tsc --noEmit` 0 errors | package build/lint 정리 후 승격 |
+| Python type | `pyright` (apps/worker) | 기존 type debt가 많아 별도 정리 필요 |
+| Full worker pytest | `cd apps/worker && uv run pytest -q` | 로컬/수동 검증은 가능하지만 PR mandatory로는 너무 무거움 |
+| Unit coverage | ≥75% (packages/db, packages/shared, apps/api/src/lib) | threshold 미설정 |
+| Integration coverage | ≥70% (CRUD routes, Hocuspocus, Temporal) | threshold 미설정 |
+| Browser E2E | 핵심 경로(signup→upload→wiki→chat) 통과 | fixture 안정화 후 승격 |
+| Security scan | sandbox grep + secret scan | scripts/workflow 정리 후 승격 |
 
 ## 6. Collaboration Testing (Hocuspocus)
 
@@ -182,33 +197,40 @@ services:
 
 ### CI
 - `pnpm --filter @opencairn/hocuspocus test`
-- `playwright test --grep @collaboration` (timeout 15s)
+- `playwright test --grep @collaboration` (target gate; not mandatory yet)
 
 ## 7. CI Pipeline
 
 ```yaml
-# .github/workflows/ci.yml
+# .github/workflows/ci.yml 현재 mandatory jobs
 jobs:
-  lint:
-    - pnpm lint
+  public-surface:
+    - pnpm docs:check
+    - pnpm --filter @opencairn/web i18n:parity
 
-  test-db:
-    services: [postgres-test]
-    - pnpm --filter @opencairn/db test
-
-  test-api:
-    services: [postgres-test, redis]
+  api-collab:
+    services: [pgvector/pgvector:pg16]
+    - cd packages/db && pnpm exec drizzle-kit migrate
     - pnpm --filter @opencairn/api test
+    - pnpm --filter @opencairn/hocuspocus test
 
-  test-web:
-    - pnpm --filter @opencairn/web test
+  worker:
+    - cd apps/worker && uv run check-import-boundaries
+    - cd apps/worker && uv run ruff check
+    - cd apps/worker && uv run pytest -q <agent/pdf/synthesis/tool subsets>
+```
 
-  test-worker:
-    services: [postgres-test]
-    - cd apps/worker && pytest
+Target follow-up jobs, once the suites are made deterministic:
+
+```yaml
+jobs:
+  lint-and-type:
+    - pnpm lint
+    - pnpm build
+    - cd apps/worker && uv run pyright
 
   e2e:
-    services: [postgres, redis, minio]
+    services: [postgres, redis, minio, temporal]
     - pnpm build
     - pnpm playwright test
     # Pyodide 브라우저 sandbox 테스트 포함 (docs/testing/sandbox-testing.md)

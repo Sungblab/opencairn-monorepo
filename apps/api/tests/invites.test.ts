@@ -1,6 +1,15 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { randomBytes, randomUUID } from "node:crypto";
 import { db, workspaces, workspaceMembers, workspaceInvites, user, and, eq } from "@opencairn/db";
+
+vi.mock("../src/lib/email", () => ({
+  sendInviteEmail: vi.fn().mockResolvedValue(undefined),
+  sendVerificationEmail: vi.fn().mockResolvedValue(undefined),
+  sendResetPasswordEmail: vi.fn().mockResolvedValue(undefined),
+  sendEmail: vi.fn().mockResolvedValue(undefined),
+  getEmailProvider: () => "console",
+}));
+
 import { createApp } from "../src/app.js";
 import { createUser } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";

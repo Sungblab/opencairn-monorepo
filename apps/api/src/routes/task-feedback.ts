@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { and, db, eq, projects, taskFeedback } from "@opencairn/db";
+import { and, db, eq, projects, taskFeedback, workspaceMembers } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { canRead } from "../lib/permissions";
 import type { AppEnv } from "../lib/types";
@@ -15,6 +15,20 @@ const taskFeedbackTargetSchema = z.enum([
 ]);
 
 const taskFeedbackRatingSchema = z.enum(["useful", "not_useful", "skipped"]);
+
+async function hasWorkspaceMembership(userId: string, workspaceId: string): Promise<boolean> {
+  const [membership] = await db
+    .select({ userId: workspaceMembers.userId })
+    .from(workspaceMembers)
+    .where(
+      and(
+        eq(workspaceMembers.workspaceId, workspaceId),
+        eq(workspaceMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+  return Boolean(membership);
+}
 
 const postBody = z.object({
   projectId: z.string().uuid(),
@@ -34,16 +48,18 @@ export const taskFeedbackRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const body = c.req.valid("json");
 
-    if (!(await canRead(userId, { type: "project", id: body.projectId }))) {
-      return c.json({ error: "forbidden" }, 403);
-    }
-
     const [project] = await db
       .select({ workspaceId: projects.workspaceId })
       .from(projects)
       .where(eq(projects.id, body.projectId))
       .limit(1);
     if (!project) return c.json({ error: "not_found" }, 404);
+    if (!(await hasWorkspaceMembership(userId, project.workspaceId))) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    if (!(await canRead(userId, { type: "project", id: body.projectId }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
 
     const [row] = await db
       .insert(taskFeedback)
@@ -99,6 +115,15 @@ export const taskFeedbackRoutes = new Hono<AppEnv>()
       const userId = c.get("userId");
       const query = c.req.valid("query");
 
+      const [project] = await db
+        .select({ workspaceId: projects.workspaceId })
+        .from(projects)
+        .where(eq(projects.id, query.projectId))
+        .limit(1);
+      if (!project) return c.json({ error: "not_found" }, 404);
+      if (!(await hasWorkspaceMembership(userId, project.workspaceId))) {
+        return c.json({ error: "not_found" }, 404);
+      }
       if (!(await canRead(userId, { type: "project", id: query.projectId }))) {
         return c.json({ error: "forbidden" }, 403);
       }

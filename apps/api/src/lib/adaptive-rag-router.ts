@@ -232,7 +232,7 @@ function contextBudget(input: {
   workspaceFanout: boolean;
 }): number {
   if (input.graphDepth === 2) {
-    return envInt("CHAT_RAG_ADAPTIVE_DEEP_CONTEXT_TOKENS", 16000);
+    return envInt("CHAT_RAG_ADAPTIVE_DEEP_CONTEXT_TOKENS", 8000);
   }
   if (
     input.graphDepth === 1 ||
@@ -240,9 +240,9 @@ function contextBudget(input: {
     input.researchDepth ||
     input.workspaceFanout
   ) {
-    return envInt("CHAT_RAG_ADAPTIVE_CONTEXT_TOKENS", 12000);
+    return envInt("CHAT_RAG_ADAPTIVE_CONTEXT_TOKENS", 6000);
   }
-  return envInt("CHAT_RAG_ADAPTIVE_SIMPLE_CONTEXT_TOKENS", 6000);
+  return envInt("CHAT_RAG_ADAPTIVE_SIMPLE_CONTEXT_TOKENS", 3000);
 }
 
 function maxChunksPerNote(input: {
