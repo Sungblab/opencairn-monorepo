@@ -119,8 +119,11 @@ const startOfDay = (date: Date) =>
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
   );
 
-function iso(value: Date | null | undefined) {
-  return value ? value.toISOString() : null;
+function iso(value: Date | string | null | undefined) {
+  if (!value) return null;
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(value).toISOString();
 }
 
 function boolEnv(name: string) {
@@ -157,6 +160,22 @@ function hasBackupTarget() {
 function num(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function pct(part: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.round((part / total) * 1000) / 10;
+}
+
+function breakdown<T extends string | null>(
+  rows: Array<{ label: T; value: number }>,
+): Array<{ label: string; value: number; percent: number }> {
+  const total = rows.reduce((sum, row) => sum + Number(row.value ?? 0), 0);
+  return rows.map((row) => ({
+    label: row.label ?? "unknown",
+    value: Number(row.value ?? 0),
+    percent: pct(Number(row.value ?? 0), total),
+  }));
 }
 
 function optionalDate(value: string | null | undefined) {
@@ -555,6 +574,296 @@ export const adminRoutes = new Hono<AppEnv>()
           noteAnalysisDrain: boolEnv("FEATURE_NOTE_ANALYSIS_DRAIN"),
           codeWorkspaceRepair: boolEnv("FEATURE_CODE_WORKSPACE_REPAIR"),
         },
+      },
+    });
+  })
+  .get("/analytics", async (c) => {
+    const now = new Date();
+    const since30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const since7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const since30dIso = since30d.toISOString();
+    const since7dIso = since7d.toISOString();
+
+    const [
+      userTotals,
+      contentTotals,
+      api30d,
+      apiDaily,
+      llm30d,
+      llmDaily,
+      userPlans,
+      workspacePlans,
+      actionStatuses,
+      actionKinds,
+      usageActions,
+      operationHealth,
+      recentAgentRisks,
+      recentJobs,
+      recentImports,
+      recentReports,
+    ] = await runLimited([
+      () =>
+        db
+          .select({
+            total: sql<number>`count(*)::int`,
+            new30d: sql<number>`count(*) filter (where ${user.createdAt} >= ${since30dIso})::int`,
+          })
+          .from(user),
+      () =>
+        db
+          .select({
+            workspaces: sql<number>`(select count(*)::int from ${workspaces})`,
+            projects: sql<number>`(select count(*)::int from ${projects})`,
+            notes: sql<number>`(select count(*)::int from ${notes})`,
+          })
+          .from(user)
+          .limit(1),
+      () =>
+        db
+          .select({
+            total: sql<number>`count(*)::int`,
+            failures: sql<number>`count(*) filter (where ${apiRequestLogs.statusCode} >= 500)::int`,
+            clientErrors: sql<number>`count(*) filter (where ${apiRequestLogs.statusCode} >= 400 and ${apiRequestLogs.statusCode} < 500)::int`,
+            p95DurationMs: sql<number>`coalesce(percentile_cont(0.95) within group (order by ${apiRequestLogs.durationMs}), 0)::int`,
+          })
+          .from(apiRequestLogs)
+          .where(sql`${apiRequestLogs.createdAt} >= ${since30dIso}`),
+      () =>
+        db
+          .select({
+            date: sql<string>`to_char(date_trunc('day', ${apiRequestLogs.createdAt}), 'YYYY-MM-DD')`,
+            total: sql<number>`count(*)::int`,
+            failures: sql<number>`count(*) filter (where ${apiRequestLogs.statusCode} >= 500)::int`,
+            avgDurationMs: sql<number>`coalesce(avg(${apiRequestLogs.durationMs}), 0)::int`,
+          })
+          .from(apiRequestLogs)
+          .where(sql`${apiRequestLogs.createdAt} >= ${since7dIso}`)
+          .groupBy(sql`date_trunc('day', ${apiRequestLogs.createdAt})`)
+          .orderBy(sql`date_trunc('day', ${apiRequestLogs.createdAt})`),
+      () =>
+        db
+          .select({
+            tokensIn: sql<number>`coalesce(sum(${llmUsageEvents.tokensIn}), 0)::int`,
+            tokensOut: sql<number>`coalesce(sum(${llmUsageEvents.tokensOut}), 0)::int`,
+            cachedTokens: sql<number>`coalesce(sum(${llmUsageEvents.cachedTokens}), 0)::int`,
+            costUsd: sql<string>`coalesce(sum(${llmUsageEvents.costUsd}), 0)::text`,
+            costKrw: sql<string>`coalesce(sum(${llmUsageEvents.costKrw}), 0)::text`,
+          })
+          .from(llmUsageEvents)
+          .where(sql`${llmUsageEvents.createdAt} >= ${since30dIso}`),
+      () =>
+        db
+          .select({
+            date: sql<string>`to_char(date_trunc('day', ${llmUsageEvents.createdAt}), 'YYYY-MM-DD')`,
+            tokens: sql<number>`coalesce(sum(${llmUsageEvents.tokensIn} + ${llmUsageEvents.tokensOut}), 0)::int`,
+            costUsd: sql<string>`coalesce(sum(${llmUsageEvents.costUsd}), 0)::text`,
+            costKrw: sql<string>`coalesce(sum(${llmUsageEvents.costKrw}), 0)::text`,
+          })
+          .from(llmUsageEvents)
+          .where(sql`${llmUsageEvents.createdAt} >= ${since7dIso}`)
+          .groupBy(sql`date_trunc('day', ${llmUsageEvents.createdAt})`)
+          .orderBy(sql`date_trunc('day', ${llmUsageEvents.createdAt})`),
+      () =>
+        db
+          .select({ label: user.plan, value: sql<number>`count(*)::int` })
+          .from(user)
+          .groupBy(user.plan)
+          .orderBy(user.plan),
+      () =>
+        db
+          .select({
+            label: workspaces.planType,
+            value: sql<number>`count(*)::int`,
+          })
+          .from(workspaces)
+          .groupBy(workspaces.planType)
+          .orderBy(workspaces.planType),
+      () =>
+        db
+          .select({
+            label: agentActions.status,
+            value: sql<number>`count(*)::int`,
+          })
+          .from(agentActions)
+          .groupBy(agentActions.status)
+          .orderBy(agentActions.status),
+      () =>
+        db
+          .select({
+            label: agentActions.kind,
+            value: sql<number>`count(*)::int`,
+          })
+          .from(agentActions)
+          .where(sql`${agentActions.createdAt} >= ${since30dIso}`)
+          .groupBy(agentActions.kind)
+          .orderBy(sql`count(*) desc`)
+          .limit(12),
+      () =>
+        db
+          .select({
+            label: usageRecords.action,
+            value: sql<number>`sum(${usageRecords.count})::int`,
+          })
+          .from(usageRecords)
+          .where(eq(usageRecords.month, now.toISOString().slice(0, 7)))
+          .groupBy(usageRecords.action)
+          .orderBy(sql`sum(${usageRecords.count}) desc`),
+      () =>
+        db
+          .select({
+            failedJobs: sql<number>`(select count(*)::int from ${jobs} where ${jobs.status} = 'failed')`,
+            failedImports: sql<number>`(select count(*)::int from ${importJobs} where ${importJobs.status} = 'failed')`,
+            failedAgentActions: sql<number>`(select count(*)::int from ${agentActions} where ${agentActions.status} = 'failed')`,
+            approvalRequired: sql<number>`(select count(*)::int from ${agentActions} where ${agentActions.status} = 'approval_required')`,
+            openReports: sql<number>`(select count(*)::int from ${siteAdminReports} where ${siteAdminReports.status} in ('open', 'triaged'))`,
+          })
+          .from(user)
+          .limit(1),
+      () =>
+        db
+          .select({
+            id: agentActions.id,
+            source: sql<string>`'agent_action'`,
+            label: agentActions.kind,
+            status: agentActions.status,
+            detail: agentActions.errorCode,
+            createdAt: agentActions.createdAt,
+            updatedAt: agentActions.updatedAt,
+          })
+          .from(agentActions)
+          .where(
+            sql`${agentActions.status} in ('failed', 'approval_required', 'running')`,
+          )
+          .orderBy(desc(agentActions.updatedAt))
+          .limit(12),
+      () =>
+        db
+          .select({
+            id: jobs.id,
+            source: sql<string>`'job'`,
+            label: jobs.type,
+            status: jobs.status,
+            detail: jobs.error,
+            createdAt: jobs.createdAt,
+            updatedAt: sql<Date>`coalesce(${jobs.completedAt}, ${jobs.createdAt})`,
+          })
+          .from(jobs)
+          .where(sql`${jobs.status} in ('failed', 'running', 'queued')`)
+          .orderBy(desc(jobs.createdAt))
+          .limit(8),
+      () =>
+        db
+          .select({
+            id: importJobs.id,
+            source: sql<string>`'import'`,
+            label: importJobs.source,
+            status: importJobs.status,
+            detail: importJobs.errorSummary,
+            createdAt: importJobs.createdAt,
+            updatedAt: sql<Date>`coalesce(${importJobs.finishedAt}, ${importJobs.createdAt})`,
+          })
+          .from(importJobs)
+          .where(sql`${importJobs.status} in ('failed', 'running', 'queued')`)
+          .orderBy(desc(importJobs.createdAt))
+          .limit(8),
+      () =>
+        db
+          .select({
+            id: siteAdminReports.id,
+            source: sql<string>`'report'`,
+            label: siteAdminReports.type,
+            status: siteAdminReports.status,
+            detail: siteAdminReports.title,
+            createdAt: siteAdminReports.createdAt,
+            updatedAt: siteAdminReports.updatedAt,
+          })
+          .from(siteAdminReports)
+          .where(sql`${siteAdminReports.status} in ('open', 'triaged')`)
+          .orderBy(desc(siteAdminReports.updatedAt))
+          .limit(8),
+    ]);
+
+    const apiTotal = api30d[0]?.total ?? 0;
+    const llmTokens30d =
+      (llm30d[0]?.tokensIn ?? 0) + (llm30d[0]?.tokensOut ?? 0);
+    const riskQueue = [
+      ...recentAgentRisks,
+      ...recentJobs,
+      ...recentImports,
+      ...recentReports,
+    ]
+      .sort((a, b) =>
+        iso(b.updatedAt)?.localeCompare(iso(a.updatedAt) ?? "") ?? 0,
+      )
+      .slice(0, 24)
+      .map((row) => ({
+        id: row.id,
+        source: row.source,
+        label: row.label,
+        status: row.status,
+        detail: row.detail,
+        createdAt: iso(row.createdAt) ?? new Date(0).toISOString(),
+        updatedAt:
+          iso(row.updatedAt) ?? iso(row.createdAt) ?? new Date(0).toISOString(),
+      }));
+
+    return c.json({
+      generatedAt: now.toISOString(),
+      window: { days: 30, trendDays: 7 },
+      overview: {
+        users: {
+          total: userTotals[0]?.total ?? 0,
+          new30d: userTotals[0]?.new30d ?? 0,
+        },
+        content: {
+          workspaces: contentTotals[0]?.workspaces ?? 0,
+          projects: contentTotals[0]?.projects ?? 0,
+          notes: contentTotals[0]?.notes ?? 0,
+        },
+        api: {
+          calls30d: apiTotal,
+          failures30d: api30d[0]?.failures ?? 0,
+          clientErrors30d: api30d[0]?.clientErrors ?? 0,
+          failureRate30d: pct(api30d[0]?.failures ?? 0, apiTotal),
+          p95DurationMs30d: api30d[0]?.p95DurationMs ?? 0,
+        },
+        llm: {
+          tokens30d: llmTokens30d,
+          cachedTokens30d: llm30d[0]?.cachedTokens ?? 0,
+          costUsd30d: num(llm30d[0]?.costUsd),
+          costKrw30d: num(llm30d[0]?.costKrw),
+        },
+      },
+      breakdowns: {
+        userPlans: breakdown(userPlans),
+        workspacePlans: breakdown(workspacePlans),
+        agentActionStatuses: breakdown(actionStatuses),
+        agentActionKinds30d: breakdown(actionKinds),
+        usageActions: breakdown(usageActions),
+      },
+      operations: {
+        health: {
+          failedJobs: operationHealth[0]?.failedJobs ?? 0,
+          failedImports: operationHealth[0]?.failedImports ?? 0,
+          failedAgentActions: operationHealth[0]?.failedAgentActions ?? 0,
+          approvalRequired: operationHealth[0]?.approvalRequired ?? 0,
+          openReports: operationHealth[0]?.openReports ?? 0,
+        },
+        riskQueue,
+      },
+      trends: {
+        apiCallsDaily: apiDaily.map((row) => ({
+          date: row.date,
+          total: row.total,
+          failures: row.failures,
+          avgDurationMs: row.avgDurationMs,
+        })),
+        llmCostDaily: llmDaily.map((row) => ({
+          date: row.date,
+          tokens: row.tokens,
+          costUsd: num(row.costUsd),
+          costKrw: num(row.costKrw),
+        })),
       },
     });
   })

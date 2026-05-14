@@ -134,6 +134,67 @@ interface AdminOverview {
   };
 }
 
+interface AdminAnalytics {
+  generatedAt: string;
+  window: { days: number; trendDays: number };
+  overview: {
+    users: { total: number; new30d: number };
+    content: { workspaces: number; projects: number; notes: number };
+    api: {
+      calls30d: number;
+      failures30d: number;
+      clientErrors30d: number;
+      failureRate30d: number;
+      p95DurationMs30d: number;
+    };
+    llm: {
+      tokens30d: number;
+      cachedTokens30d: number;
+      costUsd30d: number;
+      costKrw30d: number;
+    };
+  };
+  breakdowns: {
+    userPlans: Array<{ label: string; value: number; percent: number }>;
+    workspacePlans: Array<{ label: string; value: number; percent: number }>;
+    agentActionStatuses: Array<{ label: string; value: number; percent: number }>;
+    agentActionKinds30d: Array<{ label: string; value: number; percent: number }>;
+    usageActions: Array<{ label: string; value: number; percent: number }>;
+  };
+  operations: {
+    health: {
+      failedJobs: number;
+      failedImports: number;
+      failedAgentActions: number;
+      approvalRequired: number;
+      openReports: number;
+    };
+    riskQueue: Array<{
+      id: string;
+      source: string;
+      label: string;
+      status: string;
+      detail: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  };
+  trends: {
+    apiCallsDaily: Array<{
+      date: string;
+      total: number;
+      failures: number;
+      avgDurationMs: number;
+    }>;
+    llmCostDaily: Array<{
+      date: string;
+      tokens: number;
+      costUsd: number;
+      costKrw: number;
+    }>;
+  };
+}
+
 interface ApiRequestLog {
   id: string;
   method: string;
@@ -517,6 +578,7 @@ export function AdminUsersClient({
   );
   const [activeTab, setActiveTab] = useState<ExtendedTabKey>("dashboard");
   const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [subscriptionUsers, setSubscriptionUsers] = useState<AdminUser[]>([]);
   const [workspaces, setWorkspaces] = useState<AdminWorkspaceSubscription[]>(
@@ -564,6 +626,13 @@ export function AdminUsersClient({
     const body = await fetchJson<AdminOverview>("/api/admin/overview");
     if (!body) return false;
     setOverview(body);
+    return true;
+  }
+
+  async function loadAnalytics() {
+    const body = await fetchJson<AdminAnalytics>("/api/admin/analytics");
+    if (!body) return false;
+    setAnalytics(body);
     return true;
   }
 
@@ -663,8 +732,8 @@ export function AdminUsersClient({
       if (activeTab === "dashboard" && !overview) {
         ok = await loadOverview();
       }
-      if (activeTab === "analytics" && !overview) {
-        ok = await loadOverview();
+      if (activeTab === "analytics" && !analytics) {
+        ok = await loadAnalytics();
       }
       if (activeTab === "users" && users.length === 0) {
         ok = await loadUsers();
@@ -1028,28 +1097,138 @@ export function AdminUsersClient({
         )}
 
         {activeTab === "analytics" && (
-          overview ? (
-            <div className="grid gap-4 xl:grid-cols-2">
-              <BreakdownPanel
-                title={t("sections.userPlans")}
-                rows={overview.analytics.userPlans}
-                labelKey="plan"
-              />
-              <BreakdownPanel
-                title={t("sections.workspacePlans")}
-                rows={overview.analytics.workspacePlans}
-                labelKey="plan"
-              />
-              <BreakdownPanel
-                title={t("sections.actionStatuses")}
-                rows={overview.analytics.actionStatuses}
-                labelKey="status"
-              />
-              <BreakdownPanel
-                title={t("sections.usage")}
-                rows={overview.analytics.usageByAction}
-                labelKey="action"
-              />
+          analytics ? (
+            <div className="space-y-4">
+              <Panel
+                title={t("analytics.sections.commandCenter")}
+                action={
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {formatDate(analytics.generatedAt)}
+                  </span>
+                }
+              >
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                  <StatBox
+                    label={t("analytics.metrics.totalUsers")}
+                    value={analytics.overview.users.total}
+                    detail={t("analytics.details.newUsers30d", {
+                      count: formatNumber(analytics.overview.users.new30d),
+                    })}
+                  />
+                  <StatBox
+                    label={t("analytics.metrics.content")}
+                    value={analytics.overview.content.notes}
+                    detail={t("analytics.details.content", {
+                      workspaces: formatNumber(
+                        analytics.overview.content.workspaces,
+                      ),
+                      projects: formatNumber(
+                        analytics.overview.content.projects,
+                      ),
+                    })}
+                  />
+                  <StatBox
+                    label={t("analytics.metrics.apiCalls30d")}
+                    value={analytics.overview.api.calls30d}
+                    detail={t("analytics.details.p95", {
+                      ms: formatNumber(analytics.overview.api.p95DurationMs30d),
+                    })}
+                    critical={analytics.overview.api.failures30d > 0}
+                  />
+                  <StatBox
+                    label={t("analytics.metrics.llmCost30d")}
+                    value={Math.round(analytics.overview.llm.costKrw30d)}
+                    detail={`${formatKrw(
+                      Math.round(analytics.overview.llm.costKrw30d),
+                    )} · ${formatCompact(analytics.overview.llm.tokens30d)}`}
+                  />
+                  <StatBox
+                    label={t("analytics.metrics.apiFailureRate")}
+                    value={Math.round(analytics.overview.api.failureRate30d)}
+                    detail={t("analytics.details.apiFailures", {
+                      failures: formatNumber(analytics.overview.api.failures30d),
+                      clientErrors: formatNumber(
+                        analytics.overview.api.clientErrors30d,
+                      ),
+                    })}
+                    critical={analytics.overview.api.failures30d > 0}
+                  />
+                  <StatBox
+                    label={t("analytics.metrics.pendingApprovals")}
+                    value={analytics.operations.health.approvalRequired}
+                    detail={t("analytics.details.failedActions", {
+                      count: formatNumber(
+                        analytics.operations.health.failedAgentActions,
+                      ),
+                    })}
+                    critical={
+                      analytics.operations.health.approvalRequired > 0 ||
+                      analytics.operations.health.failedAgentActions > 0
+                    }
+                  />
+                  <StatBox
+                    label={t("analytics.metrics.failedJobs")}
+                    value={analytics.operations.health.failedJobs}
+                    detail={t("analytics.details.failedImports", {
+                      count: formatNumber(
+                        analytics.operations.health.failedImports,
+                      ),
+                    })}
+                    critical={
+                      analytics.operations.health.failedJobs > 0 ||
+                      analytics.operations.health.failedImports > 0
+                    }
+                  />
+                  <StatBox
+                    label={t("analytics.metrics.openReports")}
+                    value={analytics.operations.health.openReports}
+                    critical={analytics.operations.health.openReports > 0}
+                  />
+                </div>
+              </Panel>
+
+              <div className="grid gap-4 xl:grid-cols-2">
+                <TrendPanel
+                  title={t("analytics.sections.apiTrend")}
+                  rows={analytics.trends.apiCallsDaily}
+                  valueKey="total"
+                  secondaryKey="failures"
+                  secondaryLabel={t("analytics.labels.failures")}
+                  formatter={formatNumber}
+                />
+                <TrendPanel
+                  title={t("analytics.sections.llmTrend")}
+                  rows={analytics.trends.llmCostDaily}
+                  valueKey="costKrw"
+                  secondaryKey="tokens"
+                  secondaryLabel={t("analytics.labels.tokens")}
+                  formatter={(value) => formatKrw(Math.round(value))}
+                />
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-2">
+                <AnalyticsBreakdownPanel
+                  title={t("sections.userPlans")}
+                  rows={analytics.breakdowns.userPlans}
+                />
+                <AnalyticsBreakdownPanel
+                  title={t("sections.workspacePlans")}
+                  rows={analytics.breakdowns.workspacePlans}
+                />
+                <AnalyticsBreakdownPanel
+                  title={t("sections.actionStatuses")}
+                  rows={analytics.breakdowns.agentActionStatuses}
+                />
+                <AnalyticsBreakdownPanel
+                  title={t("analytics.sections.actionKinds")}
+                  rows={analytics.breakdowns.agentActionKinds30d}
+                />
+                <AnalyticsBreakdownPanel
+                  title={t("sections.usage")}
+                  rows={analytics.breakdowns.usageActions}
+                />
+                <RiskQueuePanel rows={analytics.operations.riskQueue} />
+              </div>
             </div>
           ) : (
             <Panel title={t("tabs.analytics")}>
@@ -2479,6 +2658,141 @@ function LlmEventTable({ rows }: { rows: LlmUsageSummary["recentEvents"] }) {
         </tbody>
       </table>
     </ScrollBox>
+  );
+}
+
+function AnalyticsBreakdownPanel({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<{ label: string; value: number; percent: number }>;
+}) {
+  return (
+    <Panel title={title}>
+      <div className="space-y-3">
+        {rows.length === 0 ? (
+          <Empty />
+        ) : (
+          rows.map((row) => (
+            <div key={row.label}>
+              <div className="mb-1 flex justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate font-semibold">
+                  {row.label}
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {formatNumber(row.value)} · {row.percent}%
+                </span>
+              </div>
+              <div className="h-3 border border-border bg-background">
+                <div
+                  className="h-full bg-foreground"
+                  style={{ width: `${Math.min(100, row.percent)}%` }}
+                />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function TrendPanel<T extends Record<string, string | number>>({
+  title,
+  rows,
+  valueKey,
+  secondaryKey,
+  secondaryLabel,
+  formatter,
+}: {
+  title: string;
+  rows: T[];
+  valueKey: keyof T;
+  secondaryKey: keyof T;
+  secondaryLabel: string;
+  formatter: (value: number) => string;
+}) {
+  const max = rows.reduce(
+    (current, row) => Math.max(current, Number(row[valueKey] ?? 0)),
+    0,
+  );
+  return (
+    <Panel title={title}>
+      {rows.length === 0 ? (
+        <Empty />
+      ) : (
+        <div className="space-y-2">
+          {rows.map((row) => {
+            const value = Number(row[valueKey] ?? 0);
+            const width = max > 0 ? Math.max(4, (value / max) * 100) : 0;
+            return (
+              <div
+                key={String(row.date)}
+                className="grid grid-cols-[88px_minmax(0,1fr)_92px] items-center gap-2 text-xs"
+              >
+                <span className="tabular-nums text-muted-foreground">
+                  {String(row.date).slice(5)}
+                </span>
+                <div className="h-6 border border-border bg-background">
+                  <div
+                    className="h-full bg-foreground"
+                    style={{ width: `${width}%` }}
+                  />
+                </div>
+                <span className="text-right tabular-nums">
+                  {formatter(value)}
+                </span>
+                <span className="col-start-2 text-muted-foreground">
+                  {secondaryLabel} · {formatNumber(Number(row[secondaryKey] ?? 0))}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function RiskQueuePanel({
+  rows,
+}: {
+  rows: AdminAnalytics["operations"]["riskQueue"];
+}) {
+  const t = useTranslations("admin");
+  return (
+    <Panel title={t("analytics.sections.riskQueue")}>
+      <ScrollBox>
+        <div className="space-y-2">
+          {rows.length === 0 ? (
+            <Empty />
+          ) : (
+            rows.map((row) => (
+              <div
+                key={`${row.source}:${row.id}`}
+                className="grid gap-2 border border-border bg-background p-2 sm:grid-cols-[1fr_auto]"
+              >
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate font-semibold">{row.label}</span>
+                    <StatusPill value={row.status} />
+                  </div>
+                  <div className="mt-1 truncate text-xs text-muted-foreground">
+                    {row.source} · {formatDate(row.updatedAt)}
+                  </div>
+                  {row.detail ? (
+                    <div className="mt-1 truncate text-xs font-medium text-muted-foreground">
+                      {row.detail}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </ScrollBox>
+    </Panel>
   );
 }
 

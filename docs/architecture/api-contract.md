@@ -93,6 +93,7 @@ site-admin inbox.
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
 | GET | /api/admin/overview | site admin | Global operator snapshot: counts, plan breakdowns, recent reports, recent job/action logs, API call counts, 30-day LLM token/cost rollups, email queue health, system flags | - |
+| GET | /api/admin/analytics | site admin | Dedicated operations analytics command center: 30-day user/content/API/LLM KPIs, 7-day API and LLM trends, plan/action/usage breakdowns, operational health counts, and a combined risk queue for failed or approval-required jobs, imports, reports, and agent actions | - |
 | GET | /api/admin/users | site admin | Site-wide user list with plan, email verification, and site-admin flag | - |
 | PATCH | /api/admin/users/site-admin | site admin | Bulk grant/revoke site admin for up to 200 users. Self-revoke and revoking the last remaining site admin return 400. Successful changes write per-user `site_admin.grant` / `site_admin.revoke` audit events. | `{ userIds: string[], isSiteAdmin: boolean }` |
 | PATCH | /api/admin/users/plan | site admin | Bulk update hosted user plan markers for up to 200 users; changed rows write per-user `user.plan.update` audit events. | `{ userIds: string[], plan: "free"\|"pro"\|"byok" }` |

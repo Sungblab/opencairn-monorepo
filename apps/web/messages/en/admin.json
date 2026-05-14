@@ -134,6 +134,37 @@
     "lowCreditUsers": "Low-credit users",
     "recentLedger": "Recent credit ledger"
   },
+  "analytics": {
+    "sections": {
+      "commandCenter": "Operations analytics summary",
+      "apiTrend": "7-day API call trend",
+      "llmTrend": "7-day LLM cost trend",
+      "actionKinds": "30-day agent action types",
+      "riskQueue": "Operational risk queue"
+    },
+    "metrics": {
+      "totalUsers": "Total users",
+      "content": "Notes/content",
+      "apiCalls30d": "30d API calls",
+      "llmCost30d": "30d LLM cost",
+      "apiFailureRate": "API failure rate",
+      "pendingApprovals": "Pending approvals",
+      "failedJobs": "Failed jobs",
+      "openReports": "Open reports"
+    },
+    "details": {
+      "newUsers30d": "30d new {count}",
+      "content": "Workspaces {workspaces} · projects {projects}",
+      "p95": "p95 {ms}ms",
+      "apiFailures": "5xx {failures} · 4xx {clientErrors}",
+      "failedActions": "Failed actions {count}",
+      "failedImports": "Failed imports {count}"
+    },
+    "labels": {
+      "failures": "Failures",
+      "tokens": "Tokens"
+    }
+  },
   "promotions": {
     "create": "Create promotion campaign",
     "active": "Promotion campaigns",

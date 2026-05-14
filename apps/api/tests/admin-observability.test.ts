@@ -1,15 +1,27 @@
+import { randomUUID } from "crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  agentActions,
   apiRequestLogs,
   db,
   eq,
+  importJobs,
+  jobs,
   llmUsageEvents,
+  notes,
+  projects,
   sql,
   user,
+  workspaces,
 } from "@opencairn/db";
 import { createApp } from "../src/app.js";
 import { recordLlmUsageEvent } from "../src/lib/llm-usage.js";
-import { createUser, type CreatedUser } from "./helpers/seed.js";
+import {
+  createUser,
+  seedWorkspace,
+  type CreatedUser,
+  type SeedResult,
+} from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
 process.env.API_REQUEST_LOGGING_ENABLED = "true";
@@ -17,12 +29,18 @@ process.env.API_REQUEST_LOGGING_ENABLED = "true";
 const app = createApp();
 const createdUsers = new Set<string>();
 const createdLlmEvents = new Set<string>();
+const seededWorkspaces: SeedResult[] = [];
 
 afterEach(async () => {
+  await db.delete(importJobs).where(sql`${importJobs.errorSummary} = 'admin analytics test import failure'`);
+  await db.delete(jobs).where(sql`${jobs.error} = 'admin analytics test job failure'`);
   for (const id of createdLlmEvents) {
     await db.delete(llmUsageEvents).where(eq(llmUsageEvents.id, id));
   }
   createdLlmEvents.clear();
+  for (const seed of seededWorkspaces.splice(0)) {
+    await seed.cleanup();
+  }
   for (const id of createdUsers) {
     await db.delete(apiRequestLogs).where(eq(apiRequestLogs.userId, id));
     await db.delete(user).where(eq(user.id, id));
@@ -50,6 +68,176 @@ async function authedGet(path: string, userId: string): Promise<Response> {
 }
 
 describe("site admin observability routes", () => {
+  it("exposes a detailed analytics command center for site admins", async () => {
+    const caller = await makeUser();
+    await promoteSiteAdmin(caller.id);
+    const seed = await seedWorkspace({ role: "owner" });
+    seededWorkspaces.push(seed);
+
+    await db
+      .update(user)
+      .set({ plan: "max" })
+      .where(eq(user.id, seed.userId));
+    await db
+      .update(workspaces)
+      .set({ planType: "pro" })
+      .where(eq(workspaces.id, seed.workspaceId));
+    await db.insert(notes).values({
+      projectId: seed.projectId,
+      workspaceId: seed.workspaceId,
+      title: "admin analytics extra note",
+      inheritParent: true,
+    });
+    await db.insert(projects).values({
+      workspaceId: seed.workspaceId,
+      name: "admin analytics extra project",
+      createdBy: seed.userId,
+      defaultRole: "editor",
+    });
+    await db.insert(agentActions).values([
+      {
+        requestId: randomUUID(),
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        actorUserId: seed.userId,
+        kind: "note.update",
+        status: "approval_required",
+        risk: "write",
+      },
+      {
+        requestId: randomUUID(),
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        actorUserId: seed.userId,
+        kind: "file.generate",
+        status: "failed",
+        risk: "expensive",
+        errorCode: "provider_timeout",
+      },
+    ]);
+    await db.insert(jobs).values({
+      userId: seed.userId,
+      projectId: seed.projectId,
+      type: "ingest",
+      status: "failed",
+      error: "admin analytics test job failure",
+    });
+    await db.insert(importJobs).values({
+      userId: seed.userId,
+      workspaceId: seed.workspaceId,
+      targetProjectId: seed.projectId,
+      workflowId: `admin-analytics-test-${randomUUID()}`,
+      source: "markdown_zip",
+      status: "failed",
+      sourceMetadata: {},
+      errorSummary: "admin analytics test import failure",
+    });
+    await db.insert(apiRequestLogs).values([
+      {
+        requestId: randomUUID(),
+        method: "GET",
+        path: "/api/admin/analytics-test",
+        statusCode: 200,
+        durationMs: 40,
+        userId: seed.userId,
+      },
+      {
+        requestId: randomUUID(),
+        method: "POST",
+        path: "/api/admin/analytics-test",
+        statusCode: 503,
+        durationMs: 800,
+        userId: seed.userId,
+      },
+    ]);
+    const event = await recordLlmUsageEvent({
+      userId: seed.userId,
+      workspaceId: seed.workspaceId,
+      provider: "gemini",
+      model: "gemini-3-flash-preview",
+      operation: "document.generate",
+      tokensIn: 250_000,
+      tokensOut: 125_000,
+      sourceType: "admin_analytics_test",
+      sourceId: seed.projectId,
+    });
+    createdLlmEvents.add(event.id);
+
+    const res = await authedGet("/api/admin/analytics", caller.id);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      overview: {
+        users: { total: number; new30d: number };
+        content: { workspaces: number; projects: number; notes: number };
+        api: { calls30d: number; failureRate30d: number; p95DurationMs30d: number };
+        llm: { tokens30d: number; costKrw30d: number };
+      };
+      breakdowns: {
+        userPlans: Array<{ label: string; value: number; percent: number }>;
+        workspacePlans: Array<{ label: string; value: number; percent: number }>;
+        agentActionStatuses: Array<{ label: string; value: number; percent: number }>;
+        usageActions: Array<{ label: string; value: number; percent: number }>;
+      };
+      operations: {
+        health: {
+          failedJobs: number;
+          failedImports: number;
+          failedAgentActions: number;
+          approvalRequired: number;
+        };
+        riskQueue: Array<{ source: string; label: string; status: string }>;
+      };
+      trends: {
+        apiCallsDaily: Array<{ date: string; total: number; failures: number }>;
+        llmCostDaily: Array<{ date: string; costKrw: number; tokens: number }>;
+      };
+    };
+    expect(body.overview.users.total).toBeGreaterThanOrEqual(2);
+    expect(body.overview.content.workspaces).toBeGreaterThanOrEqual(1);
+    expect(body.overview.content.projects).toBeGreaterThanOrEqual(2);
+    expect(body.overview.content.notes).toBeGreaterThanOrEqual(2);
+    expect(body.overview.api.calls30d).toBeGreaterThanOrEqual(2);
+    expect(body.overview.api.failureRate30d).toBeGreaterThan(0);
+    expect(body.overview.api.p95DurationMs30d).toBeGreaterThanOrEqual(40);
+    expect(body.overview.llm.tokens30d).toBeGreaterThanOrEqual(375_000);
+    expect(body.overview.llm.costKrw30d).toBeGreaterThan(0);
+    expect(body.breakdowns.userPlans).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "max", value: expect.any(Number) }),
+      ]),
+    );
+    expect(body.breakdowns.workspacePlans).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "pro", value: expect.any(Number) }),
+      ]),
+    );
+    expect(body.breakdowns.agentActionStatuses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "failed", value: expect.any(Number) }),
+        expect.objectContaining({
+          label: "approval_required",
+          value: expect.any(Number),
+        }),
+      ]),
+    );
+    expect(body.operations.health).toMatchObject({
+      failedJobs: expect.any(Number),
+      failedImports: expect.any(Number),
+      failedAgentActions: expect.any(Number),
+      approvalRequired: expect.any(Number),
+    });
+    expect(body.operations.riskQueue).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: "agent_action", status: "failed" }),
+        expect.objectContaining({ source: "job", status: "failed" }),
+        expect.objectContaining({ source: "import", status: "failed" }),
+      ]),
+    );
+    expect(body.trends.apiCallsDaily.length).toBeGreaterThan(0);
+    expect(body.trends.llmCostDaily.length).toBeGreaterThan(0);
+  });
+
   it("exposes hosted readiness signals in the admin overview", async () => {
     const caller = await makeUser();
     await promoteSiteAdmin(caller.id);

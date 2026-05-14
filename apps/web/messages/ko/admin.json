@@ -134,6 +134,37 @@
     "lowCreditUsers": "저잔액 사용자",
     "recentLedger": "최근 크레딧 장부"
   },
+  "analytics": {
+    "sections": {
+      "commandCenter": "운영 분석 요약",
+      "apiTrend": "7일 API 호출 추이",
+      "llmTrend": "7일 LLM 비용 추이",
+      "actionKinds": "30일 에이전트 액션 유형",
+      "riskQueue": "운영 리스크 큐"
+    },
+    "metrics": {
+      "totalUsers": "전체 사용자",
+      "content": "노트/콘텐츠",
+      "apiCalls30d": "30일 API 호출",
+      "llmCost30d": "30일 LLM 비용",
+      "apiFailureRate": "API 실패율",
+      "pendingApprovals": "승인 대기",
+      "failedJobs": "실패 작업",
+      "openReports": "열린 신고"
+    },
+    "details": {
+      "newUsers30d": "30일 신규 {count}",
+      "content": "워크스페이스 {workspaces} · 프로젝트 {projects}",
+      "p95": "p95 {ms}ms",
+      "apiFailures": "5xx {failures} · 4xx {clientErrors}",
+      "failedActions": "실패 액션 {count}",
+      "failedImports": "실패 가져오기 {count}"
+    },
+    "labels": {
+      "failures": "실패",
+      "tokens": "토큰"
+    }
+  },
   "promotions": {
     "create": "프로모션 캠페인 생성",
     "active": "프로모션 캠페인",

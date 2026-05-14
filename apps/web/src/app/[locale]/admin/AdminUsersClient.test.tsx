@@ -39,6 +39,74 @@ describe("AdminUsersClient", () => {
           },
         });
       }
+      if (url.endsWith("/analytics")) {
+        return ok({
+          generatedAt: "2026-05-15T00:00:00.000Z",
+          window: { days: 30, trendDays: 7 },
+          overview: {
+            users: { total: 4, new30d: 2 },
+            content: { workspaces: 3, projects: 8, notes: 22 },
+            api: {
+              calls30d: 1200,
+              failures30d: 3,
+              clientErrors30d: 12,
+              failureRate30d: 0.3,
+              p95DurationMs30d: 820,
+            },
+            llm: {
+              tokens30d: 450000,
+              cachedTokens30d: 50000,
+              costUsd30d: 3.5,
+              costKrw30d: 5775,
+            },
+          },
+          breakdowns: {
+            userPlans: [{ label: "max", value: 1, percent: 25 }],
+            workspacePlans: [{ label: "pro", value: 2, percent: 66.7 }],
+            agentActionStatuses: [
+              { label: "failed", value: 2, percent: 40 },
+              { label: "approval_required", value: 3, percent: 60 },
+            ],
+            agentActionKinds30d: [
+              { label: "note.update", value: 5, percent: 100 },
+            ],
+            usageActions: [{ label: "document.generate", value: 9, percent: 100 }],
+          },
+          operations: {
+            health: {
+              failedJobs: 1,
+              failedImports: 1,
+              failedAgentActions: 2,
+              approvalRequired: 3,
+              openReports: 1,
+            },
+            riskQueue: [
+              {
+                id: "risk-1",
+                source: "agent_action",
+                label: "file.generate",
+                status: "failed",
+                detail: "provider_timeout",
+                createdAt: "2026-05-15T00:00:00.000Z",
+                updatedAt: "2026-05-15T00:01:00.000Z",
+              },
+            ],
+          },
+          trends: {
+            apiCallsDaily: [
+              { date: "2026-05-15", total: 1200, failures: 3, avgDurationMs: 42 },
+            ],
+            llmCostDaily: [
+              {
+                date: "2026-05-15",
+                tokens: 450000,
+                costUsd: 3.5,
+                costKrw: 5775,
+              },
+            ],
+          },
+        });
+      }
       if (url.endsWith("/users")) return ok({ users: [] });
       if (url.endsWith("/subscriptions"))
         return ok({ users: [], workspaces: [] });
@@ -491,6 +559,24 @@ describe("AdminUsersClient", () => {
 
     expect(await screen.findByText("1.2K")).toBeInTheDocument();
     expect(screen.getByText("315K")).toBeInTheDocument();
+  });
+
+  it("renders the detailed analytics command center", async () => {
+    render(<AdminUsersClient />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "tabs.analytics" }));
+
+    await waitFor(() =>
+      expect(globalThis.fetch).toHaveBeenCalledWith("/api/admin/analytics", {
+        cache: "no-store",
+      }),
+    );
+    expect(await screen.findByText("analytics.sections.commandCenter")).toBeInTheDocument();
+    expect(screen.getByText("analytics.metrics.apiFailureRate")).toBeInTheDocument();
+    expect(screen.getByText("analytics.sections.riskQueue")).toBeInTheDocument();
+    expect(screen.getByText("file.generate")).toBeInTheDocument();
+    expect(screen.getByText("provider_timeout")).toBeInTheDocument();
+    expect(screen.getByText("note.update")).toBeInTheDocument();
   });
 
   it("renders billing operations metrics", async () => {
