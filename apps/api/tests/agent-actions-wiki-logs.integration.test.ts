@@ -1,7 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
-import { db, eq, folders, wikiLogs, yjsDocuments } from "@opencairn/db";
+import {
+  and,
+  db,
+  eq,
+  folders,
+  isNull,
+  projectTreeNodes,
+  wikiLogs,
+  yjsDocuments,
+} from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 import { labelFromId } from "../src/lib/tree-queries.js";
@@ -52,6 +61,11 @@ describe("agent action wiki logs", () => {
       action: { status: string; result: { note: { id: string } } };
     };
     expect(body.action.status).toBe("completed");
+    await expectProjectTreeNote(
+      seed.projectId,
+      body.action.result.note.id,
+      "Agent-created note",
+    );
 
     const logs = await db
       .select({
@@ -91,6 +105,11 @@ describe("agent action wiki logs", () => {
     };
     expect(body.action.status).toBe("completed");
     expect(body.action.result.note.contentText).toContain("Maintained by the agent.");
+    await expectProjectTreeNote(
+      seed.projectId,
+      body.action.result.note.id,
+      "Agent markdown note",
+    );
 
     const logs = await db
       .select({
@@ -224,3 +243,34 @@ describe("agent action wiki logs", () => {
     ]));
   });
 });
+
+async function expectProjectTreeNote(
+  projectId: string,
+  noteId: string,
+  label: string,
+) {
+  const rows = await db
+    .select({
+      kind: projectTreeNodes.kind,
+      label: projectTreeNodes.label,
+      targetTable: projectTreeNodes.targetTable,
+      targetId: projectTreeNodes.targetId,
+    })
+    .from(projectTreeNodes)
+    .where(
+      and(
+        eq(projectTreeNodes.projectId, projectId),
+        eq(projectTreeNodes.targetTable, "notes"),
+        eq(projectTreeNodes.targetId, noteId),
+        isNull(projectTreeNodes.deletedAt),
+      ),
+    );
+  expect(rows).toEqual([
+    {
+      kind: "note",
+      label,
+      targetTable: "notes",
+      targetId: noteId,
+    },
+  ]);
+}

@@ -50,8 +50,12 @@ export async function insertFromMarkdown(args: InsertFromMarkdownArgs) {
 
   try {
     const ast = markdownToPlate(markdown);
-    const at = editor.api.end?.([] as never);
-    editor.tf.insertNodes(ast as never, at ? ({ at } as never) : undefined);
+    const childCount = Array.isArray((editor as { children?: unknown }).children)
+      ? (editor as { children: unknown[] }).children.length
+      : null;
+    const options =
+      typeof childCount === "number" ? ({ at: [childCount] } as never) : undefined;
+    editor.tf.insertNodes(ast as never, options);
     onSuccess();
   } catch (err) {
     onError(err);

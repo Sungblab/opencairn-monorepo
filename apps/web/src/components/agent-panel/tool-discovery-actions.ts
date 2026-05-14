@@ -1,6 +1,9 @@
 import { urls } from "@/lib/urls";
 import type { AgentWorkflowIntent } from "@/stores/agent-workbench-store";
-import type { ToolDiscoveryItem } from "./tool-discovery-catalog";
+import {
+  getDocumentGenerationPreset,
+  type ToolDiscoveryItem,
+} from "./tool-discovery-catalog";
 
 export type ToolDiscoveryRoute = Extract<
   ToolDiscoveryItem["action"],
@@ -87,6 +90,8 @@ export function workflowPrompt(toolId: string): string {
       return "현재 프로젝트 자료를 바탕으로 깊이 있는 리서치를 시작해줘. 필요한 외부 자료와 근거를 함께 찾아줘.";
     case "summarize":
       return "현재 프로젝트 자료를 핵심 개념, 근거, 시험/활용 포인트 중심으로 요약해줘.";
+    case "paper_analysis":
+      return "선택한 원본을 논문 읽기 기준으로 분석해줘. 연구 질문, 방법, 핵심 주장, 근거, 한계, 후속 질문을 섹션별로 정리하고 가능한 곳에는 인용 앵커를 붙여줘.";
     case "pdf_report_fast":
       return "현재 프로젝트 자료를 바탕으로 빠르게 공유할 수 있는 PDF 보고서를 만들어줘.";
     case "pdf_report_latex":
@@ -112,6 +117,16 @@ export function workflowPrompt(toolId: string): string {
     default:
       return "현재 프로젝트 자료를 바탕으로 이 작업을 진행해줘.";
   }
+}
+
+function sourceArtifactFilename(title: string, suffix: string, extension: string) {
+  const base = title
+    .trim()
+    .replace(/\.[^.]+$/, "")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .slice(0, 80);
+  return `${base || "source"}-${suffix}.${extension}`;
 }
 
 export function workflowForToolItem(
@@ -160,4 +175,44 @@ export function workflowForToolItem(
         prompt: workflowPrompt(item.id),
       };
   }
+}
+
+export function workflowForSourceToolItem(
+  item: ToolDiscoveryItem,
+  source: { noteId: string; sourceTitle: string },
+): Omit<AgentWorkflowIntent, "id"> {
+  const base = workflowForToolItem(item);
+  if (item.action.type === "document_generation_preset") {
+    const preset = getDocumentGenerationPreset(item.action.presetId);
+    const extension = preset.format === "image" ? "svg" : preset.format;
+    const isPaperAnalysis = item.id === "paper_analysis";
+    return {
+      ...base,
+      payload: {
+        action: isPaperAnalysis
+          ? "source_paper_analysis"
+          : "source_document_generation",
+        sourceIds: [`note:${source.noteId}`],
+        sourceTitle: source.sourceTitle,
+        initialPrompt: `${source.sourceTitle}를 대상으로: ${workflowPrompt(
+          item.id,
+        )}`,
+        initialFilename: sourceArtifactFilename(
+          source.sourceTitle,
+          isPaperAnalysis ? "paper-analysis" : item.id.replace(/_/g, "-"),
+          extension,
+        ),
+      },
+    };
+  }
+  if (item.action.type === "study_artifact_generate") {
+    return {
+      ...base,
+      payload: {
+        sourceNoteIds: [source.noteId],
+        sourceTitle: source.sourceTitle,
+      },
+    };
+  }
+  return base;
 }

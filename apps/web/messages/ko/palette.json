@@ -15,6 +15,7 @@
     "profile": "내 프로필",
     "newProject": "새 프로젝트 만들기",
     "toggleSidebar": "사이드바 토글",
-    "toggleAgent": "에이전트 패널 토글"
+    "toggleAgent": "에이전트 패널 토글",
+    "openAgentTab": "에이전트 패널을 탭으로 열기"
   }
 }

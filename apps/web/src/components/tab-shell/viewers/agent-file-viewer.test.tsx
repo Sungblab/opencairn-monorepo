@@ -131,6 +131,7 @@ const messages = {
       loadingInline: "불러오는 중...",
       error: "파일을 열 수 없습니다.",
       meta: "{kind} · v{version} · {bytes}",
+      askAgent: "이 산출물로 질문하기",
       preview: "미리보기",
       source: "원본",
       showSource: "원본 보기",
@@ -155,13 +156,15 @@ const messages = {
       csvTable: "CSV 테이블 · {rows}행",
       column: "열 {index}",
       download: "원본 다운로드",
-      askAgent: "이 산출물로 질문하기",
       ingest: "인제스트 실행",
       compile: "LaTeX 컴파일",
       canvas: "캔버스로 실행",
       googleExport: "Google Workspace로 내보내기",
       googleExportConnectRequired: "Google Drive 연결 필요",
       googleSettingsTitle: "Google Drive 설정",
+      officeConvertingTitle: "PDF로 변환 중...",
+      officeConvertingDescription:
+        "변환이 끝나면 이 화면이 자동으로 PDF 뷰어로 바뀝니다.",
       advanced: "고급 보기",
       artifactFocus: {
         label: "산출물 집중",
@@ -195,6 +198,13 @@ const messages = {
         actions: {
           note: "정리 노트",
           wiki: "개념 위키",
+          summarize: "요약하기",
+          citations: "인용 추출",
+          report: "리포트",
+          figure: "피규어",
+          slides: "슬라이드",
+          table: "표",
+          research: "리서치",
           quiz: "퀴즈",
           reanalyze: "다시 분석",
           retry: "다시 시도",
@@ -297,6 +307,11 @@ function mockAgentFile(
       if (url.endsWith(`/api/agent-files/${file.id}/file`)) {
         return new Response(body, {
           headers: { "content-type": file.mimeType },
+        });
+      }
+      if (url.endsWith(`/api/agent-files/${file.id}/compiled`)) {
+        return new Response(body, {
+          headers: { "content-type": file.compiledMimeType ?? file.mimeType },
         });
       }
       if (
@@ -618,6 +633,25 @@ describe("AgentFileViewer", () => {
     expect(
       JSON.parse(localStorage.getItem(`oc:pdf-view:agent-file:${file.id}`) ?? "{}"),
     ).toMatchObject({ pageNumber: 7 });
+  });
+
+  it("uses compiled PDF preview for converted Office and HWP-style files", async () => {
+    const file = fileSummary({
+      title: "회의록",
+      filename: "meeting.hwp",
+      extension: "hwp",
+      kind: "binary",
+      mimeType: "application/x-hwp",
+      ingestStatus: "completed",
+      compiledMimeType: "application/pdf",
+    });
+    renderViewer(file, "pdf");
+
+    expect(await screen.findByTestId("agent-file-pdf-viewer")).toBeInTheDocument();
+    expect(await screen.findByTestId("embedpdf-viewer")).toHaveAttribute(
+      "data-src",
+      `/api/agent-files/${file.id}/compiled`,
+    );
   });
 
   it("renders csv as a focused table with source available on demand", async () => {

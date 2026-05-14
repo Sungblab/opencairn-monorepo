@@ -39,6 +39,7 @@ const tabIcons: Record<Tab["kind"], LucideIcon> = {
   ingest: Download,
   lit_search: Search,
   agent_file: Bot,
+  agent_panel: Bot,
   code_workspace: Code2,
 };
 

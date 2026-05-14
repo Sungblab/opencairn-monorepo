@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -14,6 +14,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useIngestUpload } from "@/hooks/use-ingest-upload";
+import { studioToolsApi } from "@/lib/api-client";
+import {
+  recommendedUploadIntentIds,
+  UPLOAD_INTENTS,
+  uploadIntentDefinition,
+  type UploadIntentId,
+} from "./upload-intents";
 
 export const PROJECT_UPLOAD_ACCEPT_ATTR = [
   "application/pdf",
@@ -50,13 +57,16 @@ export function useProjectUploadDialog({
   const [localUploading, setLocalUploading] = useState(false);
   const [localError, setLocalError] = useState(false);
 
-  async function startUpload(files: File[]) {
+  async function startUpload(files: File[], followUpIntent: UploadIntentId) {
     if (!projectId || files.length === 0 || uploadInFlightRef.current) return;
     uploadInFlightRef.current = true;
     setLocalUploading(true);
     setLocalError(false);
     try {
-      const results = await uploadMany(files, projectId, { concurrency: 3 });
+      const results = await uploadMany(files, projectId, {
+        concurrency: 3,
+        followUpIntent,
+      });
       if (openOriginal) {
         const firstOpened = results.find(
           (item) => item.ok && item.result?.originalFileId,
@@ -91,6 +101,7 @@ export function useProjectUploadDialog({
 }
 
 export function ProjectUploadDialog({
+  projectId,
   open,
   files,
   uploading,
@@ -99,17 +110,79 @@ export function ProjectUploadDialog({
   onFilesChange,
   onStart,
 }: {
+  projectId: string | null;
   open: boolean;
   files: File[];
   uploading: boolean;
   error: boolean;
   onOpenChange(open: boolean): void;
   onFilesChange(files: File[]): void;
-  onStart(): void;
+  onStart(intent: UploadIntentId): void;
 }) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const tUpload = useTranslations("sidebar.upload");
+  const tPreflight = useTranslations("project.tools.preflight");
+  const [intent, setIntent] = useState<UploadIntentId>("none");
+  const [preflightNotice, setPreflightNotice] = useState<string | null>(null);
+  const [preflightBlocked, setPreflightBlocked] = useState(false);
+  const [preflightLoading, setPreflightLoading] = useState(false);
+  const recommendedIntentIds = useMemo(
+    () => recommendedUploadIntentIds(files),
+    [files],
+  );
+  const selectedIntent = uploadIntentDefinition(intent);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreflightBlocked(false);
+    setPreflightNotice(null);
+    if (!projectId || files.length === 0 || !selectedIntent.preflight) {
+      setPreflightLoading(false);
+      return;
+    }
+    setPreflightLoading(true);
+    setPreflightNotice(tPreflight("loading"));
+    void studioToolsApi
+      .preflight(projectId, {
+        tool: selectedIntent.preflight.profile,
+        sourceTokenEstimate:
+          selectedIntent.preflight.sourceTokenEstimate * Math.max(1, files.length),
+      })
+      .then(({ preflight }) => {
+        if (cancelled) return;
+        if (!preflight.canStart) {
+          setPreflightBlocked(true);
+          setPreflightNotice(
+            tPreflight("blocked", {
+              credits: preflight.cost.billableCredits,
+              available: preflight.balance.availableCredits,
+            }),
+          );
+          return;
+        }
+        setPreflightBlocked(false);
+        setPreflightNotice(
+          preflight.requiresConfirmation
+            ? tPreflight("confirm", {
+                credits: preflight.cost.billableCredits,
+              })
+            : null,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreflightBlocked(false);
+          setPreflightNotice(tPreflight("error"));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPreflightLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [files.length, projectId, selectedIntent.preflight, tPreflight]);
 
   function pickFiles(nextFiles: FileList | null) {
     onFilesChange(nextFiles ? Array.from(nextFiles) : []);
@@ -172,10 +245,64 @@ export function ProjectUploadDialog({
               {tUpload("error")}
             </p>
           ) : null}
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-semibold uppercase text-muted-foreground">
+              {tUpload("intent.title")}
+            </legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {UPLOAD_INTENTS.map((item) => {
+                const recommended =
+                  files.length === 0 || recommendedIntentIds.has(item.id);
+                return (
+                  <label
+                    key={item.id}
+                    data-testid={`upload-intent-${item.id}`}
+                    className={`flex min-h-20 cursor-pointer items-start gap-2 rounded-[var(--radius-card)] border px-3 py-2 text-sm transition ${
+                      intent === item.id
+                        ? "border-foreground bg-muted/45"
+                        : "border-border bg-background hover:border-foreground hover:bg-muted/35"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`${inputId}-intent`}
+                      value={item.id}
+                      checked={intent === item.id}
+                      onChange={() => setIntent(item.id)}
+                      className="mt-1"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2 font-medium">
+                        <span>{tUpload(`intent.items.${item.i18nKey}.title`)}</span>
+                        {recommended && item.id !== "none" ? (
+                          <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
+                            {tUpload("intent.recommended")}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                        {tUpload(`intent.items.${item.i18nKey}.description`)}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+          {preflightNotice ? (
+            <p className="rounded-[var(--radius-control)] border border-border bg-muted/25 px-3 py-2 text-xs leading-5 text-muted-foreground">
+              {preflightNotice}
+            </p>
+          ) : null}
           <button
             type="button"
-            disabled={files.length === 0 || uploading}
-            onClick={onStart}
+            disabled={
+              files.length === 0 ||
+              uploading ||
+              preflightLoading ||
+              preflightBlocked
+            }
+            onClick={() => onStart(intent)}
             className="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {uploading ? tUpload("uploading") : tUpload("start")}

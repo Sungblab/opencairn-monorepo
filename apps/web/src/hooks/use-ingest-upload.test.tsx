@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useIngestUpload } from "./use-ingest-upload";
@@ -7,6 +9,21 @@ import { useIngestStore } from "@/stores/ingest-store";
 // because the persist middleware re-hydrates from in-memory localStorage.
 function resetStore() {
   useIngestStore.setState({ runs: {} });
+}
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  };
 }
 
 describe("useIngestUpload", () => {
@@ -28,7 +45,9 @@ describe("useIngestUpload", () => {
       ),
     );
 
-    const { result } = renderHook(() => useIngestUpload());
+    const { result } = renderHook(() => useIngestUpload(), {
+      wrapper: createWrapper(),
+    });
 
     const file = new File(["pdf bytes"], "report.pdf", {
       type: "application/pdf",
@@ -40,7 +59,11 @@ describe("useIngestUpload", () => {
       originalFileId: string | null;
     } | null = null;
     await act(async () => {
-      returned = await result.current.upload(file, "00000000-0000-0000-0000-000000000001");
+      returned = await result.current.upload(
+        file,
+        "00000000-0000-0000-0000-000000000001",
+        { followUpIntent: "paper_analysis" },
+      );
     });
 
     // Inspect the request — multipart fields are what /api/ingest/upload reads.
@@ -75,6 +98,9 @@ describe("useIngestUpload", () => {
       status: "running",
       bundleNodeId: "00000000-0000-0000-0000-000000000010",
       bundleStatus: "running",
+      projectId: "00000000-0000-0000-0000-000000000001",
+      followUpIntent: "paper_analysis",
+      followUpLaunched: false,
     });
     expect(result.current.error).toBeNull();
   });
@@ -87,7 +113,9 @@ describe("useIngestUpload", () => {
       }),
     );
 
-    const { result } = renderHook(() => useIngestUpload());
+    const { result } = renderHook(() => useIngestUpload(), {
+      wrapper: createWrapper(),
+    });
     const file = new File(["x"], "x.pdf", { type: "application/pdf" });
 
     let thrown: unknown = null;
@@ -117,7 +145,9 @@ describe("useIngestUpload", () => {
       ),
     );
 
-    const { result } = renderHook(() => useIngestUpload());
+    const { result } = renderHook(() => useIngestUpload(), {
+      wrapper: createWrapper(),
+    });
     const file = new File(["x"], "y.pdf", { type: "application/pdf" });
 
     await act(async () => {
@@ -136,7 +166,9 @@ describe("useIngestUpload", () => {
       ),
     );
 
-    const { result } = renderHook(() => useIngestUpload());
+    const { result } = renderHook(() => useIngestUpload(), {
+      wrapper: createWrapper(),
+    });
     // Some browsers leave .type empty on drag-drop from a quirky source.
     const file = new File(["x"], "noext", { type: "" });
 
@@ -146,6 +178,44 @@ describe("useIngestUpload", () => {
 
     expect(useIngestStore.getState().runs["wf-3"].mime).toBe(
       "application/octet-stream",
+    );
+  });
+
+  it("records a shared follow-up batch for comparison uploads", async () => {
+    let call = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      call += 1;
+      return new Response(
+        JSON.stringify({ workflowId: `wf-${call}`, objectKey: `k-${call}` }),
+        { status: 202 },
+      );
+    });
+
+    const { result } = renderHook(() => useIngestUpload(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.uploadMany(
+        [
+          new File(["a"], "a.pdf", { type: "application/pdf" }),
+          new File(["b"], "b.pdf", { type: "application/pdf" }),
+        ],
+        "proj-1",
+        { followUpIntent: "comparison" },
+      );
+    });
+
+    const runs = Object.values(useIngestStore.getState().runs);
+    expect(runs).toHaveLength(2);
+    expect(new Set(runs.map((run) => run.followUpBatchId)).size).toBe(1);
+    expect(runs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          followUpIntent: "comparison",
+          followUpBatchSize: 2,
+        }),
+      ]),
     );
   });
 });

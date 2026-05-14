@@ -14,9 +14,11 @@ try {
 
 const allowLiveLlm = process.env.OPENCAIRN_E2E_ALLOW_LLM === "1";
 const mockApiSpecs = [
+  "agent-panel.spec.ts",
   "plan-2d-save-suggestion.spec.ts",
   "source-viewer-smoke.spec.ts",
   "live-ingest-visualization.spec.ts",
+  "agentic-upload-workflow-smoke.spec.ts",
   "graph-views.spec.ts",
   "graph.spec.ts",
   "grounded-evidence-browser.spec.ts",
@@ -83,7 +85,7 @@ export default defineConfig({
   // spawn a controlled full-stack pair with the env above.
   webServer: [
     {
-      command: `pnpm --filter @opencairn/web exec next dev --webpack --port ${webPort}`,
+      command: `pnpm --dir apps/web exec next dev --webpack --port ${webPort}`,
       cwd: repoRoot,
       url: webUrl,
       reuseExistingServer,
@@ -97,7 +99,7 @@ export default defineConfig({
     {
       command: useMockApi
         ? "node apps/web/tests/e2e/fixtures/mock-api-server.mjs"
-        : "pnpm --filter @opencairn/api exec tsx watch src/index.ts",
+        : "pnpm --dir apps/api exec tsx watch src/index.ts",
       cwd: repoRoot,
       url: `${apiUrl}/api/health`,
       reuseExistingServer,

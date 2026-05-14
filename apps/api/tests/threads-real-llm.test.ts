@@ -13,6 +13,7 @@ import { __setRunAgentForTest } from "../src/routes/threads.js";
 import type { AgentChunk } from "../src/lib/agent-pipeline.js";
 import { runChat } from "../src/lib/chat-llm.js";
 import type { LLMProvider } from "../src/lib/llm/provider.js";
+import { grantCredits } from "../src/lib/billing.js";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
@@ -85,6 +86,7 @@ describe("POST /api/threads/:id/messages — real LLM path (Task 7)", () => {
 
   beforeEach(async () => {
     ctx = await seedWorkspace({ role: "owner" });
+    await grantCredits({ userId: ctx.userId, credits: 100_000 });
     fakeProvider = buildFakeProvider();
 
     // Inject a runAgent that uses the real runChat with the fake provider.

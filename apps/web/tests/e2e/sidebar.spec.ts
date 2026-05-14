@@ -29,35 +29,33 @@ test.describe("App Shell sidebar", () => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await expect(page.getByTestId("app-shell-sidebar")).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "워크스페이스 전환" }),
+      page.getByRole("button", { name: "프로젝트 전환" }),
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "대시보드" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "홈" })).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Deep Research" }),
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "가져오기" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "온톨로지 아틀라스" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "휴지통" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "피드백" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "업데이트" })).toBeVisible();
   });
 
-  test("workspace switcher lists the current workspace", async ({ page }) => {
+  test("project switcher lists the current project", async ({ page }) => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
-    await page.getByRole("button", { name: "워크스페이스 전환" }).click();
-    const menu = page.locator('[data-slot="dropdown-menu-content"]');
+    await page.getByRole("button", { name: "프로젝트 전환" }).click();
+    const menu = page.getByRole("listbox", { name: "프로젝트 전환" });
     await expect(menu).toBeVisible();
-    await expect(menu.getByText("E2E Workspace")).toBeVisible();
+    await expect(menu.getByText("E2E Mock Project")).toBeVisible();
   });
 
-  test("shows an empty-state CTA when no project is in scope", async ({
+  test("opens the current project by default when a project exists", async ({
     page,
   }) => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
-    // The shell dashboard route has no projectId → SidebarEmptyState.
+    await expect(page.getByTestId("project-tree")).toBeVisible();
     await expect(
-      page.getByTestId("app-shell-sidebar").getByRole("paragraph").filter({
-        hasText: "프로젝트를 만들어 시작하세요",
-      }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "+ 프로젝트 만들기" }),
+      page.getByTestId("project-tree").getByText("E2E Mock Note"),
     ).toBeVisible();
   });
 
@@ -90,24 +88,18 @@ test.describe("App Shell sidebar", () => {
     await expect(tree).toContainText("e2e-folder", { timeout: 5000 });
   });
 
-  test("double-click enters rename and Enter commits (note)", async ({
+  test("row action menu exposes rename for notes", async ({
     page,
   }) => {
     await page.goto(
       `/ko/workspace/${session.wsSlug}/project/${session.projectId}`,
     );
     const tree = page.getByTestId("project-tree");
-    const row = tree.getByRole("treeitem").first();
-    await row.dblclick();
-    const input = row.getByRole("textbox");
-    await input.fill("renamed-by-e2e");
-    const renameResponse = page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/notes/") &&
-        res.request().method() === "PATCH",
-    );
-    await input.press("Enter");
-    expect((await renameResponse).ok()).toBe(true);
-    await expect(row).toContainText("renamed-by-e2e");
+    const row = tree.getByRole("treeitem", { name: "E2E Mock Note" }).last();
+    await row.hover();
+    await row.getByRole("button", { name: "파일 작업" }).click();
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    await expect(menu.getByText("이름 바꾸기")).toBeVisible();
   });
 });

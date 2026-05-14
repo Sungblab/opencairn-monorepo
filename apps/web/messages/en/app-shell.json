@@ -35,7 +35,8 @@
     "import": "Import",
     "help": "Help",
     "report": "Report issue",
-    "ws_settings": "Settings"
+    "ws_settings": "Settings",
+    "agent_panel": "Agent Panel"
   },
   "tabs": {
     "bar": {
@@ -56,6 +57,7 @@
       "unpin": "Unpin",
       "duplicate": "Duplicate",
       "openToRight": "Open to right",
+      "openBelow": "Open below",
       "close": "Close",
       "closeOthers": "Close other tabs",
       "closeRight": "Close tabs to the right",
@@ -65,11 +67,31 @@
         "options": {
           "plate": "Edit (Plate)",
           "reading": "Reading",
-          "source": "Source (PDF)",
+          "source": "Source",
           "data": "Data (JSON)",
           "canvas": "Canvas (Code)"
         }
       }
+    },
+    "layout": {
+      "title": "Tab group",
+      "vertical": "Side-by-side split",
+      "horizontal": "Stacked split",
+      "swap": "Swap split panes",
+      "unsplit": "Close split"
+    }
+  },
+  "bottomDock": {
+    "title": "Run panel",
+    "close": "Close run panel",
+    "noProject": "Select a project to see run status and logs here.",
+    "tabs": {
+      "activity": "Activity",
+      "logs": "Logs"
+    },
+    "logsEmpty": {
+      "title": "Logs view is not connected yet",
+      "body": "Use the Activity tab for run status for now. Detailed log streams will appear here once they are wired."
     }
   },
   "viewers": {
@@ -83,10 +105,24 @@
       "readingTime": "~{min} min"
     },
     "source": {
-      "title": "Source PDF",
-      "frameTitle": "{title} PDF viewer",
+      "title": "Source",
+      "frameTitle": "{title} source viewer",
       "open": "Open in new tab",
       "download": "Download",
+      "generic": {
+        "frameTitle": "{title} source preview",
+        "loading": "Loading source content.",
+        "fallback": "This format cannot be previewed directly in the browser. Open the original in a new tab or download it to inspect it.",
+        "open": "Open source",
+        "download": "Download",
+        "kinds": {
+          "text": "Text",
+          "table": "Table or spreadsheet",
+          "deck": "Deck",
+          "document": "Document",
+          "source": "Source"
+        }
+      },
       "drawing": {
         "label": "PDF drawing tools",
         "move": "Move",
@@ -117,9 +153,24 @@
         "selectionActive": "Selected {count, number} characters. Continue with summary, decomposition, or citation extraction.",
         "sourceProcessing": "This source is still processing. Analysis tools will be more accurate once it finishes.",
         "sourceFailed": "Source processing failed. Check the upload status, then try again.",
-        "sourceUnsupported": "Automatic analysis does not currently support this source format.",
-        "useThisPdf": "Use this PDF only",
-        "paperAnalysis": "Paper analysis report",
+          "sourceUnsupported": "Automatic analysis does not currently support this source format.",
+          "sourceTypes": {
+            "pdf": "this PDF",
+            "document": "this document",
+            "deck": "this deck",
+            "table": "this table",
+            "image": "this image",
+            "recording": "this recording",
+            "source": "this source"
+          },
+          "useThisSource": "Use {source} only",
+          "useThisPdf": "Use this source only",
+          "capabilities": {
+            "paper_analysis": "Paper analysis report",
+            "source_figure": "Source-backed figure",
+            "study_artifact_generator": "Study material"
+          },
+          "paperAnalysis": "Paper analysis report",
         "paperAnalysisPrompt": "Analyze {title} as a paper. Start with a table of contents, then organize the research question, method, core claims, evidence, limitations, and follow-up questions by section. Add page-level citation anchors in [p. N] format after key claims and evidence whenever possible.",
         "summarize": "Summarize",
         "decompose": "Decompose",

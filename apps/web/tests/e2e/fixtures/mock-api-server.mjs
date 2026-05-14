@@ -48,6 +48,17 @@ function makeSession() {
   return {
     seed,
     researchApproved: false,
+    folders: [],
+    notes: [
+      {
+        id: seed.noteId,
+        title: "E2E Mock Note",
+        folderId: null,
+        kind: "manual",
+        contentText: "",
+        updated_at: new Date("2026-05-01T00:00:00.000Z").toISOString(),
+      },
+    ],
     threads: [{ ...fixtureThread }],
     messages: new Map([[fixtureThread.id, []]]),
   };
@@ -71,6 +82,17 @@ function sessionFor(req) {
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     },
     researchApproved: false,
+    folders: [],
+    notes: [
+      {
+        id: seedBase.noteId,
+        title: "E2E Mock Note",
+        folderId: null,
+        kind: "manual",
+        contentText: "",
+        updated_at: new Date("2026-05-01T00:00:00.000Z").toISOString(),
+      },
+    ],
     threads: [{ ...fixtureThread }],
     messages: new Map([[fixtureThread.id, []]]),
   };
@@ -183,21 +205,89 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === `/api/projects/${seed.projectId}/tree`) {
     return json(res, 200, {
       nodes: [
-        {
-          kind: "note",
-          id: seed.noteId,
-          parent_id: null,
-          label: "E2E Mock Note",
+        ...session.folders.map((folder) => ({
+          kind: "folder",
+          id: folder.id,
+          parent_id: folder.parentId,
+          label: folder.name,
           child_count: 0,
           file_kind: null,
           mime_type: null,
-        },
+        })),
+        ...session.notes.map((note) => ({
+          kind: "note",
+          id: note.id,
+          parent_id: note.folderId,
+          label: note.title,
+          child_count: 0,
+          file_kind: null,
+          mime_type: null,
+        })),
       ],
     });
   }
 
   if (url.pathname === `/api/projects/${seed.projectId}/notes`) {
-    return json(res, 200, { notes: [] });
+    return json(res, 200, { notes: session.notes });
+  }
+
+  if (url.pathname === "/api/notes" && req.method === "POST") {
+    const body = await readBody(req);
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const title =
+      typeof body.title === "string" && body.title.trim()
+        ? body.title.trim()
+        : "제목 없음";
+    const note = {
+      id,
+      projectId: body.projectId ?? seed.projectId,
+      workspaceId: seed.workspaceId,
+      folderId: body.folderId ?? null,
+      inheritParent: true,
+      title,
+      content: body.content ?? [{ type: "p", children: [{ text: "" }] }],
+      contentText: "",
+      kind: "manual",
+      updated_at: now,
+      type: "note",
+      sourceType: null,
+      sourceFileKey: null,
+      sourceUrl: null,
+      canvasLanguage: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    session.notes.push({
+      id,
+      title,
+      folderId: note.folderId,
+      kind: "manual",
+      contentText: "",
+      updated_at: note.updatedAt,
+    });
+    return json(res, 201, note);
+  }
+
+  if (url.pathname === "/api/folders" && req.method === "POST") {
+    const body = await readBody(req);
+    const folder = {
+      id: randomUUID(),
+      parentId: body.parentId ?? null,
+      name:
+        typeof body.name === "string" && body.name.trim()
+          ? body.name.trim()
+          : "새 폴더",
+    };
+    session.folders.push(folder);
+    return json(res, 201, {
+      id: folder.id,
+      projectId: body.projectId ?? seed.projectId,
+      parentId: folder.parentId,
+      name: folder.name,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   if (url.pathname === `/api/projects/${seed.projectId}/agent-actions`) {
@@ -237,16 +327,42 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { nodes: [], edges: [] });
   }
 
-  if (url.pathname === `/api/notes/${seed.noteId}`) {
+  const noteMatch = url.pathname.match(/^\/api\/notes\/([^/]+)$/);
+  if (noteMatch) {
+    const noteId = noteMatch[1];
+    const note =
+      session.notes.find((item) => item.id === noteId) ??
+      (noteId === seed.noteId
+        ? {
+            id: seed.noteId,
+            title: "E2E Mock Note",
+            folderId: null,
+            contentText: "",
+          }
+        : null);
+    if (!note) return notFound(res);
+    if (req.method === "PATCH") {
+      const body = await readBody(req);
+      if (typeof body.title === "string" && body.title.trim()) {
+        note.title = body.title.trim();
+      }
+      note.updated_at = new Date().toISOString();
+      return json(res, 200, {
+        id: note.id,
+        title: note.title,
+        updatedAt: note.updated_at,
+      });
+    }
     return json(res, 200, {
-      id: seed.noteId,
+      id: note.id,
       projectId: seed.projectId,
       workspaceId: seed.workspaceId,
-      folderId: null,
+      folderId: note.folderId,
       inheritParent: true,
-      title: "E2E Mock Note",
+      title: note.title,
+      kind: note.kind ?? "manual",
       content: [{ type: "p", children: [{ text: "" }] }],
-      contentText: "",
+      contentText: note.contentText,
       type: "note",
       sourceType: null,
       sourceFileKey: null,
@@ -262,6 +378,18 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === `/api/notes/${seed.noteId}/backlinks`) {
+    return json(res, 200, { data: [], total: 0 });
+  }
+
+  const noteRoleMatch = url.pathname.match(/^\/api\/notes\/([^/]+)\/role$/);
+  if (noteRoleMatch) {
+    return json(res, 200, { role: "owner" });
+  }
+
+  const noteBacklinksMatch = url.pathname.match(
+    /^\/api\/notes\/([^/]+)\/backlinks$/,
+  );
+  if (noteBacklinksMatch) {
     return json(res, 200, { data: [], total: 0 });
   }
 

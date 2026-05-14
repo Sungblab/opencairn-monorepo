@@ -16,6 +16,7 @@ export type TabKind =
   | "ingest"
   | "lit_search"
   | "agent_file"
+  | "agent_panel"
   | "code_workspace";
 
 export type TabMode =
@@ -35,7 +36,8 @@ export type TabMode =
   | "flashcard"
   | "ingest"
   | "lit-search"
-  | "code-workspace";
+  | "code-workspace"
+  | "agent-panel";
 
 /**
  * Map a note's `sourceType` (DB enum) to the Tab Mode that should render it.
@@ -82,7 +84,7 @@ export type SplitPane = "primary" | "secondary";
 export interface SplitLayout {
   primaryTabId: string;
   secondaryTabId: string;
-  orientation: "vertical";
+  orientation: "vertical" | "horizontal";
   ratio: number;
 }
 
@@ -108,6 +110,7 @@ interface State extends Persisted {
   workspaceId: string | null;
   setWorkspace(id: string): void;
   addTab(tab: Tab): void;
+  duplicateTab(tab: Tab): void;
   closeTab(id: string): void;
   setActive(id: string): void;
   updateTab(id: string, patch: Partial<Tab>): void;
@@ -129,8 +132,10 @@ interface State extends Persisted {
   closeRight(id: string): void;
   restoreClosed(): void;
   openTabToRight(tab: Tab, options?: { reuseExisting?: boolean }): void;
+  openTabBelow(tab: Tab, options?: { reuseExisting?: boolean }): void;
   setActivePane(pane: SplitPane): void;
   swapSplitPanes(): void;
+  setSplitOrientation(orientation: SplitLayout["orientation"]): void;
   setSplitRatio(ratio: number): void;
   unsplit(keep?: SplitPane): void;
   toggleActiveSplit(): void;
@@ -200,7 +205,7 @@ function sanitizeSplit(
   return {
     primaryTabId: split.primaryTabId,
     secondaryTabId: split.secondaryTabId,
-    orientation: "vertical",
+    orientation: split.orientation === "horizontal" ? "horizontal" : "vertical",
     ratio:
       typeof split.ratio === "number" && Number.isFinite(split.ratio)
         ? clamp(split.ratio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX)
@@ -354,6 +359,30 @@ export const useTabsStore = create<State>((set, get) => ({
       return;
     }
     const tabs = [...s.tabs, tab];
+    const activeId = tab.id;
+    const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, activeId);
+    set({
+      tabs,
+      activeId,
+      activePane: "primary",
+      split: null,
+      recentlyActiveTabIds,
+    });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        version: 1,
+        tabs,
+        activeId,
+        activePane: "primary",
+        split: null,
+        closedStack: s.closedStack,
+        recentlyActiveTabIds,
+      });
+  },
+
+  duplicateTab: (tab) => {
+    const s = get();
+    const tabs = [...s.tabs, { ...tab, preview: false }];
     const activeId = tab.id;
     const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, activeId);
     set({
@@ -735,6 +764,62 @@ export const useTabsStore = create<State>((set, get) => ({
       });
   },
 
+  openTabBelow: (tab, options) => {
+    const s = get();
+    const reuseExisting = options?.reuseExisting ?? true;
+    const activeId = s.activeId ?? s.tabs[0]?.id ?? null;
+    if (!activeId) {
+      get().addTab({ ...tab, preview: false });
+      return;
+    }
+
+    const existing =
+      reuseExisting && tab.targetId !== null
+        ? s.tabs.find(
+            (candidate) =>
+              candidate.id !== activeId &&
+              candidate.kind === tab.kind &&
+              candidate.targetId === tab.targetId,
+          )
+        : undefined;
+
+    const secondary = existing ?? { ...tab, preview: false };
+    const tabs = existing
+      ? s.tabs.map((candidate) =>
+          candidate.id === existing.id
+            ? { ...candidate, preview: false }
+            : candidate,
+        )
+      : [...s.tabs, secondary];
+    const split: SplitLayout = {
+      primaryTabId: activeId,
+      secondaryTabId: secondary.id,
+      orientation: "horizontal",
+      ratio: s.split?.ratio ?? SPLIT_RATIO_DEFAULT,
+    };
+    const recentlyActiveTabIds = addRecent(
+      addRecent(s.recentlyActiveTabIds, activeId),
+      secondary.id,
+    );
+    set({
+      tabs,
+      activeId: secondary.id,
+      activePane: "secondary",
+      split,
+      recentlyActiveTabIds,
+    });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        version: 1,
+        tabs,
+        activeId: secondary.id,
+        activePane: "secondary",
+        split,
+        closedStack: s.closedStack,
+        recentlyActiveTabIds,
+      });
+  },
+
   setActivePane: (pane) => {
     const s = get();
     if (!s.split || s.activePane === pane) return;
@@ -769,6 +854,26 @@ export const useTabsStore = create<State>((set, get) => ({
         tabs: s.tabs,
         activeId: s.activeId,
         activePane,
+        split,
+        closedStack: s.closedStack,
+        recentlyActiveTabIds: s.recentlyActiveTabIds,
+      });
+  },
+
+  setSplitOrientation: (orientation) => {
+    const s = get();
+    if (!s.split || s.split.orientation === orientation) return;
+    const split: SplitLayout = {
+      ...s.split,
+      orientation,
+    };
+    set({ split });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        version: 1,
+        tabs: s.tabs,
+        activeId: s.activeId,
+        activePane: s.activePane,
         split,
         closedStack: s.closedStack,
         recentlyActiveTabIds: s.recentlyActiveTabIds,

@@ -5,9 +5,7 @@ import { insertFromMarkdown } from "./insert-from-markdown";
 const insertNodes = vi.fn();
 const fakeEditor = {
   tf: { insertNodes },
-  api: {
-    end: () => [0, 0],
-  },
+  children: [{ type: "p", children: [{ text: "" }] }],
 } as never;
 
 const onMissingTarget = vi.fn();
@@ -42,6 +40,7 @@ describe("insertFromMarkdown", () => {
     });
 
     expect(insertNodes).toHaveBeenCalledTimes(1);
+    expect(insertNodes.mock.calls[0]?.[1]).toEqual({ at: [1] });
     expect(onSuccess).toHaveBeenCalledTimes(1);
     expect(onMissingTarget).not.toHaveBeenCalled();
   });

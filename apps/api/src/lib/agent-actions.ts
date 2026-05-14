@@ -91,6 +91,7 @@ import { streamObject } from "./s3-get";
 import { diffPlateValues } from "./note-version-diff";
 import { plateValueToText } from "./plate-text";
 import { emitTreeEvent } from "./tree-events";
+import { createTreeNode } from "./project-tree-service";
 import { markdownToPlateValue } from "./plate-doc";
 import { refreshNoteChunkIndexBestEffort } from "./note-chunk-refresh";
 import { isUuid } from "./validators";
@@ -2655,33 +2656,52 @@ async function createNoteFromAction(
       .where(and(eq(folders.id, payload.folderId), eq(folders.projectId, input.projectId)));
     if (!folder) throw new AgentActionError("folder_not_found", 404);
   }
-  const [note] = await conn
-    .insert(notes)
-    .values({
-      projectId: input.projectId,
-      workspaceId: input.workspaceId,
-      folderId: payload.folderId,
-      title: payload.title,
-      content: null,
-      contentText: "",
-      type: "note",
-      sourceType: "manual",
-    })
-    .returning({
-      id: notes.id,
-      workspaceId: notes.workspaceId,
-      projectId: notes.projectId,
-      folderId: notes.folderId,
-      title: notes.title,
-      contentText: notes.contentText,
-      deletedAt: notes.deletedAt,
+  const note = await conn.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(notes)
+      .values({
+        projectId: input.projectId,
+        workspaceId: input.workspaceId,
+        folderId: payload.folderId,
+        title: payload.title,
+        content: null,
+        contentText: "",
+        type: "note",
+        sourceType: "manual",
+      })
+      .returning({
+        id: notes.id,
+        workspaceId: notes.workspaceId,
+        projectId: notes.projectId,
+        folderId: notes.folderId,
+        title: notes.title,
+        contentText: notes.contentText,
+        deletedAt: notes.deletedAt,
+      });
+    if (!created) throw new AgentActionError("note_create_failed", 409);
+    await createTreeNode(
+      {
+        id: created.id,
+        workspaceId: created.workspaceId,
+        projectId: created.projectId,
+        parentId: payload.folderId,
+        kind: "note",
+        targetTable: "notes",
+        targetId: created.id,
+        label: created.title,
+        icon: "file-text",
+        position: 0,
+        metadata: { sourceType: "manual", noteType: "note" },
+      },
+      tx,
+    );
+    await tx.insert(wikiLogs).values({
+      noteId: created.id,
+      agent: "agent-actions",
+      action: "create",
+      reason: "agent note.create applied",
     });
-  if (!note) throw new AgentActionError("note_create_failed", 409);
-  await conn.insert(wikiLogs).values({
-    noteId: note.id,
-    agent: "agent-actions",
-    action: "create",
-    reason: "agent note.create applied",
+    return created;
   });
 
   emitTreeEvent({
@@ -2737,6 +2757,22 @@ async function createNoteFromMarkdownAction(
         deletedAt: notes.deletedAt,
       });
     if (!created) throw new AgentActionError("note_create_failed", 409);
+    await createTreeNode(
+      {
+        id: created.id,
+        workspaceId: created.workspaceId,
+        projectId: created.projectId,
+        parentId: payload.folderId,
+        kind: "note",
+        targetTable: "notes",
+        targetId: created.id,
+        label: created.title,
+        icon: "file-text",
+        position: 0,
+        metadata: { sourceType: "manual", noteType: "note" },
+      },
+      tx,
+    );
     await syncWikiLinks(
       tx,
       created.id,

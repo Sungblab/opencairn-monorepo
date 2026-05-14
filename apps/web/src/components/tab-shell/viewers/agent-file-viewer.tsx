@@ -39,6 +39,7 @@ import {
 } from "@opencairn/shared";
 import "react-json-view-lite/dist/index.css";
 import type { AgentCommandId } from "@/components/agent-panel/agent-commands";
+import { getAgentCommandsForContexts } from "@/components/agent-panel/agent-commands";
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
 import type { Tab } from "@/stores/tabs-store";
@@ -420,6 +421,17 @@ function FileBody({
       />
     );
   }
+  if (file.kind !== "latex" && file.compiledMimeType === "application/pdf") {
+    return (
+      <AgentFilePdfViewer
+        file={file}
+        fileUrl={compiledUrl}
+        downloadUrl={fileUrl}
+        onIngest={onIngest}
+        ingestPending={ingestPending}
+      />
+    );
+  }
   if (isOfficeDocument(file)) {
     return (
       <OfficeDocumentPreview
@@ -464,11 +476,17 @@ function isOfficeDocument(file: AgentFileSummary) {
     file.kind === "pptx" ||
     file.kind === "xlsx" ||
     filename.endsWith(".docx") ||
+    filename.endsWith(".doc") ||
     filename.endsWith(".pptx") ||
+    filename.endsWith(".ppt") ||
     filename.endsWith(".xlsx") ||
+    filename.endsWith(".xls") ||
+    filename.endsWith(".hwp") ||
+    filename.endsWith(".hwpx") ||
     file.mimeType.includes("officedocument") ||
     file.mimeType.includes("powerpoint") ||
-    file.mimeType.includes("spreadsheet")
+    file.mimeType.includes("spreadsheet") ||
+    file.mimeType.includes("hwp")
   );
 }
 
@@ -548,6 +566,19 @@ function useMaterialCommandRunner() {
   }, []);
 }
 
+function materialActionKey(commandId: AgentCommandId) {
+  if (commandId === "summarize") return "summarize";
+  if (commandId === "extract_citations") return "citations";
+  if (commandId === "generate_figure") return "figure";
+  if (commandId === "generate_report") return "report";
+  if (commandId === "generate_deck") return "slides";
+  if (commandId === "make_table") return "table";
+  if (commandId === "quiz") return "quiz";
+  if (commandId === "research") return "research";
+  if (commandId === "make_note") return "note";
+  return "note";
+}
+
 function firstRouteParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -569,6 +600,10 @@ function SourceMaterialPanel({
   const params = useParams<{ wsSlug?: string | string[] }>();
   const wsSlug = firstRouteParam(params.wsSlug);
   const runCommand = useMaterialCommandRunner();
+  const registryCommands = useMemo(
+    () => getAgentCommandsForContexts(["source", "artifact"], 3),
+    [],
+  );
   const isAnalyzing =
     ingestPending ||
     file.ingestStatus === "queued" ||
@@ -643,30 +678,21 @@ function SourceMaterialPanel({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Button
-            size="sm"
-            variant="default"
-            onClick={() => runCommand("make_note")}
-          >
-            <FileText className="mr-1.5 h-4 w-4" />
-            {t("actions.note")}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => runCommand("concept_wiki")}
-          >
-            <GitBranch className="mr-1.5 h-4 w-4" />
-            {t("actions.wiki")}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => runCommand("quiz")}
-          >
-            <FileText className="mr-1.5 h-4 w-4" />
-            {t("actions.quiz")}
-          </Button>
+          {registryCommands.map((command, index) => (
+            <Button
+              key={command.id}
+              size="sm"
+              variant={index === 0 ? "default" : "outline"}
+              onClick={() => runCommand(command.id)}
+            >
+              {command.id === "research" ? (
+                <GitBranch className="mr-1.5 h-4 w-4" />
+              ) : (
+                <FileText className="mr-1.5 h-4 w-4" />
+              )}
+              {t(`actions.${materialActionKey(command.id)}`)}
+            </Button>
+          ))}
           <Button
             size="sm"
             variant={file.ingestStatus === "failed" ? "default" : "ghost"}

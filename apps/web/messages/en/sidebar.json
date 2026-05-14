@@ -56,6 +56,11 @@
   "sections": {
     "create": "Quick create",
     "active_work": "In progress",
+    "running": "Running",
+    "failed": "Failed",
+    "approval_required": "Review",
+    "workflows": "Workflows",
+    "review_inbox": "Review inbox",
     "favorites": "Favorites",
     "files": "Files",
     "recent": "Recent",
@@ -140,13 +145,82 @@
     "selected_many": "{count} files selected",
     "start": "Start upload",
     "uploading": "Uploading…",
-    "error": "Upload failed. Please try again."
+    "error": "Upload failed. Please try again.",
+    "intent": {
+      "title": "After upload",
+      "recommended": "Recommended",
+      "items": {
+        "none": {
+          "title": "Analyze and save only",
+          "description": "Add the material to the project and choose follow-up work later."
+        },
+        "paper_analysis": {
+          "title": "Paper analysis report",
+          "description": "Prepare a long source-backed analysis report from the material."
+        },
+        "summary": {
+          "title": "Summary note/report",
+          "description": "Turn key claims, evidence, and next actions into a document artifact."
+        },
+        "figure": {
+          "title": "Figure or diagram",
+          "description": "Create a visual explanation of the source structure, comparison, or flow."
+        },
+        "slides": {
+          "title": "Slides",
+          "description": "Turn the uploaded material into a presentation deck outline."
+        },
+          "study": {
+            "title": "Study material",
+            "description": "Prepare quiz, flashcard, and review-material generation from this source."
+          },
+          "comparison": {
+            "title": "Compare materials",
+            "description": "Read multiple sources together and summarize overlap, differences, conflicts, and follow-up questions."
+          },
+          "data_table": {
+          "title": "Data table/insights",
+          "description": "Extract tables, metrics, comparisons, and insights into a spreadsheet-style artifact."
+        }
+      },
+      "workflowPrompts": {
+        "uploadedSourceFallback": "Uploaded source",
+        "paperAnalysis": {
+          "prompt": "Analyze uploaded source \"{sourceTitle}\" as a long paper analysis report.",
+          "initialPrompt": "Turn uploaded source \"{sourceTitle}\" into a paper/source analysis report. Include core claims, method, evidence, limitations, and citation locations."
+        },
+        "study": {
+          "prompt": "Create study material from uploaded source \"{sourceTitle}\"."
+        },
+        "comparison": {
+          "prompt": "Compare and analyze {count} uploaded sources.",
+          "initialPrompt": "Compare {count} uploaded sources and summarize overlap, differences, conflicting claims, evidence strength, and follow-up questions."
+        },
+        "figure": {
+          "prompt": "Create a core figure or diagram from uploaded source \"{sourceTitle}\".",
+          "initialPrompt": "Create a figure or diagram explaining the core structure, comparison, or flow in uploaded source \"{sourceTitle}\"."
+        },
+        "slides": {
+          "prompt": "Turn uploaded source \"{sourceTitle}\" into presentation material.",
+          "initialPrompt": "Turn uploaded source \"{sourceTitle}\" into a slide deck with a clear presentation flow."
+        },
+        "dataTable": {
+          "prompt": "Extract tables and insights from uploaded source \"{sourceTitle}\".",
+          "initialPrompt": "Organize key items, numbers, comparison dimensions, and insights from uploaded source \"{sourceTitle}\" into a table."
+        },
+        "summary": {
+          "prompt": "Turn uploaded source \"{sourceTitle}\" into a summary report.",
+          "initialPrompt": "Summarize uploaded source \"{sourceTitle}\" around core claims, evidence, and next actions."
+        }
+      }
+    }
   },
   "tree_menu": {
     "rename": "Rename",
     "rename_shortcut": "F2",
     "duplicate": "Duplicate",
     "open_to_right": "Open to right",
+    "paper_analysis": "Create paper analysis report",
     "copy_link": "Copy link",
     "favorite": "Pin to favorites",
     "new_child_page": "New child page",

@@ -515,6 +515,7 @@
   "projectTools": {
     "title": "Project tools",
     "noProject": "No current project found.",
+    "sidebarPrimary": "The sidebar is now the primary command rail. Keep this panel for search, configuration, and chat handoff.",
     "importFile": "Import file",
     "importing": "Importing",
     "openActivity": "View work status",

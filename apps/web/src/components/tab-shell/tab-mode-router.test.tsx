@@ -15,6 +15,7 @@ vi.mock("./routed-viewer-loader", () => ({
   LazyIngestViewer: () => <div data-testid="ingest-viewer" />,
   LazyLitSearchViewer: () => <div data-testid="lit-search-viewer" />,
   LazyAgentFileViewer: () => <div data-testid="agent-file-viewer" />,
+  LazyAgentPanelViewer: () => <div data-testid="agent-panel-viewer" />,
   LazyCodeWorkspaceViewer: () => <div data-testid="code-workspace-viewer" />,
 }));
 
@@ -87,5 +88,18 @@ describe("TabModeRouter", () => {
       />,
     );
     expect(screen.getByTestId("code-workspace-viewer")).toBeInTheDocument();
+  });
+
+  it("dispatches agent-panel → AgentPanelViewer", () => {
+    wrap(
+      <TabModeRouter
+        tab={{
+          ...mk("agent-panel"),
+          kind: "agent_panel",
+          targetId: null,
+        }}
+      />,
+    );
+    expect(screen.getByTestId("agent-panel-viewer")).toBeInTheDocument();
   });
 });

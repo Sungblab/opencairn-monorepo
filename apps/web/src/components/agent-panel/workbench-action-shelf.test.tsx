@@ -12,7 +12,7 @@ describe("WorkbenchActionShelf", () => {
     render(<WorkbenchActionShelf activeKind="note" onRun={vi.fn()} />);
 
     expect(screen.getByRole("button", { name: /summarize/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /decompose/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /research/i })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /extract_citations/i }),
     ).toBeInTheDocument();

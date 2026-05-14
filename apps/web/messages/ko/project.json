@@ -224,11 +224,15 @@
         "title": "진행 중인 작업",
         "description": "가져오기, 생성, 에이전트 작업의 상태를 봅니다."
       },
-      "reviewInbox": {
-        "title": "승인할 작업",
-        "description": "제안된 변경과 승인 대기 항목을 확인합니다."
-      },
-      "dataTable": {
+        "reviewInbox": {
+          "title": "승인할 작업",
+          "description": "제안된 변경과 승인 대기 항목을 확인합니다."
+        },
+        "comparison": {
+          "title": "자료 비교",
+          "description": "여러 원본의 공통점, 차이, 충돌하는 주장과 후속 질문을 정리합니다."
+        },
+        "dataTable": {
         "title": "데이터 표",
         "description": "자료를 비교 가능한 구조화 표로 정리합니다."
       },

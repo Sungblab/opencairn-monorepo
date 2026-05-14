@@ -63,6 +63,7 @@ export function tabToUrl(
       return urls.workspace.codeWorkspace(locale, slug, route.targetId ?? "");
     case "ingest":
     case "lit_search":
+    case "agent_panel":
       // Transient in-app tabs without canonical URLs — fall back to the
       // workspace base so URL sync doesn't drop the user on /undefined.
       return urls.workspace.root(locale, slug);

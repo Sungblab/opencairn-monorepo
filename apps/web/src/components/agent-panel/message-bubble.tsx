@@ -22,6 +22,7 @@ import {
   asAgentFileCards,
   asDocumentGenerationCards,
 } from "./message-attachments";
+import { asSaveSuggestion } from "./save-suggestion";
 import {
   InteractionCard,
   isAgentInteractionCard,
@@ -52,17 +53,6 @@ function isStatus(v: unknown): v is { phrase?: string } {
 
 function isTransientThought(summary: string): boolean {
   return summary.trim() === "사용자의 질문 분석 중";
-}
-
-export function asSaveSuggestion(v: unknown): { title: string } | null {
-  if (
-    v &&
-    typeof v === "object" &&
-    typeof (v as { title?: unknown }).title === "string"
-  ) {
-    return v as { title: string };
-  }
-  return null;
 }
 
 function extractNestedErrorMessage(message: string): string {

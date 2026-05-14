@@ -37,7 +37,7 @@ function Harness({ children }: { children: React.ReactNode }) {
 const mk = (p: Partial<Tab> = {}): Tab => ({
   id: "t1",
   kind: "note",
-  targetId: "n1",
+  targetId: p.targetId ?? `n-${p.id ?? "t1"}`,
   mode: "plate",
   title: "Alpha",
   pinned: false,
@@ -61,7 +61,10 @@ describe("TabContextMenuItems", () => {
     useTabsStore.getState().addTab(mk({ id: "a" }));
     render(
       <Harness>
-        <TabContextMenuItems tab={mk({ id: "a" })} wsSlug="acme" />
+        <TabContextMenuItems
+          tab={mk({ id: "a", targetId: "n1" })}
+          wsSlug="acme"
+        />
       </Harness>,
     );
     fireEvent.click(screen.getByText("pin"));
@@ -82,7 +85,10 @@ describe("TabContextMenuItems", () => {
     useTabsStore.getState().addTab(mk({ id: "a", targetId: "n1" }));
     render(
       <Harness>
-        <TabContextMenuItems tab={mk({ id: "a" })} wsSlug="acme" />
+        <TabContextMenuItems
+          tab={mk({ id: "a", targetId: "n1" })}
+          wsSlug="acme"
+        />
       </Harness>,
     );
     fireEvent.click(screen.getByText("duplicate"));
@@ -97,7 +103,10 @@ describe("TabContextMenuItems", () => {
     useTabsStore.getState().addTab(mk({ id: "a", targetId: "n1" }));
     render(
       <Harness>
-        <TabContextMenuItems tab={mk({ id: "a" })} wsSlug="acme" />
+        <TabContextMenuItems
+          tab={mk({ id: "a", targetId: "n1" })}
+          wsSlug="acme"
+        />
       </Harness>,
     );
 
@@ -139,6 +148,34 @@ describe("TabContextMenuItems", () => {
     expect(state.split).toMatchObject({
       primaryTabId: "a",
       secondaryTabId: "existing",
+    });
+  });
+
+  it("openBelow opens a note tab in reading mode in a horizontal split", () => {
+    useTabsStore.getState().addTab(mk({ id: "a", targetId: "n1" }));
+    render(
+      <Harness>
+        <TabContextMenuItems
+          tab={mk({ id: "a", targetId: "n1" })}
+          wsSlug="acme"
+        />
+      </Harness>,
+    );
+
+    fireEvent.click(screen.getByText("openBelow"));
+
+    const state = useTabsStore.getState();
+    expect(state.tabs).toHaveLength(2);
+    expect(state.split).toMatchObject({
+      primaryTabId: "a",
+      secondaryTabId: state.tabs[1].id,
+      orientation: "horizontal",
+    });
+    expect(state.tabs[1]).toMatchObject({
+      kind: "note",
+      targetId: "n1",
+      mode: "reading",
+      preview: false,
     });
   });
 

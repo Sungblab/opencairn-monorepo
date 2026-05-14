@@ -56,6 +56,11 @@
   "sections": {
     "create": "빠른 생성",
     "active_work": "진행 중",
+    "running": "실행",
+    "failed": "실패",
+    "approval_required": "승인",
+    "workflows": "워크플로",
+    "review_inbox": "리뷰함",
     "favorites": "즐겨찾기",
     "files": "파일",
     "recent": "최근 항목",
@@ -140,13 +145,82 @@
     "selected_many": "{count}개 파일 선택됨",
     "start": "업로드 시작",
     "uploading": "업로드 중…",
-    "error": "업로드에 실패했어요. 다시 시도해주세요."
+    "error": "업로드에 실패했어요. 다시 시도해주세요.",
+    "intent": {
+      "title": "업로드 후 할 일",
+      "recommended": "추천",
+      "items": {
+        "none": {
+          "title": "분석하고 저장만 하기",
+          "description": "자료를 프로젝트에 추가하고 후속 작업은 나중에 선택합니다."
+        },
+        "paper_analysis": {
+          "title": "Paper analysis report",
+          "description": "자료를 긴 분석 리포트로 정리하고 원본을 소스로 연결합니다."
+        },
+        "summary": {
+          "title": "요약 노트/리포트",
+          "description": "핵심 주장, 근거, 다음 행동을 문서 산출물로 준비합니다."
+        },
+        "figure": {
+          "title": "피규어/다이어그램",
+          "description": "자료의 구조, 비교, 흐름을 설명하는 시각 자료를 만듭니다."
+        },
+        "slides": {
+          "title": "슬라이드",
+          "description": "업로드한 자료를 발표 흐름에 맞는 deck으로 정리합니다."
+        },
+        "study": {
+          "title": "학습 자료",
+          "description": "퀴즈, 플래시카드, 복습 포인트로 이어갈 준비를 합니다."
+        },
+        "comparison": {
+          "title": "자료 비교",
+          "description": "여러 자료를 함께 읽고 공통점, 차이, 충돌하는 주장, 후속 질문을 정리합니다."
+        },
+        "data_table": {
+          "title": "데이터 표/인사이트",
+          "description": "표, 수치, 비교 기준을 스프레드시트형 산출물로 정리합니다."
+        }
+      },
+      "workflowPrompts": {
+        "uploadedSourceFallback": "업로드한 자료",
+        "paperAnalysis": {
+          "prompt": "업로드한 자료 \"{sourceTitle}\"로 긴 paper analysis report를 만들어줘.",
+          "initialPrompt": "업로드한 자료 \"{sourceTitle}\"를 논문/자료 분석 리포트로 정리해줘. 핵심 주장, 방법, 근거, 한계, 인용 위치를 포함해줘."
+        },
+        "study": {
+          "prompt": "업로드한 자료 \"{sourceTitle}\"를 바탕으로 학습 자료를 만들어줘."
+        },
+        "comparison": {
+          "prompt": "업로드한 자료 {count}개를 비교 분석해줘.",
+          "initialPrompt": "업로드한 자료 {count}개를 비교해서 공통점, 차이, 충돌하는 주장, 근거 강도, 후속 질문을 정리해줘."
+        },
+        "figure": {
+          "prompt": "업로드한 자료 \"{sourceTitle}\"에서 핵심 피규어나 구조도를 만들어줘.",
+          "initialPrompt": "업로드한 자료 \"{sourceTitle}\"의 핵심 구조, 비교, 흐름을 설명하는 피규어나 다이어그램을 만들어줘."
+        },
+        "slides": {
+          "prompt": "업로드한 자료 \"{sourceTitle}\"를 발표자료로 정리해줘.",
+          "initialPrompt": "업로드한 자료 \"{sourceTitle}\"를 발표 흐름에 맞는 슬라이드 deck으로 정리해줘."
+        },
+        "dataTable": {
+          "prompt": "업로드한 자료 \"{sourceTitle}\"에서 표와 인사이트를 추출해줘.",
+          "initialPrompt": "업로드한 자료 \"{sourceTitle}\"의 핵심 항목, 수치, 비교 기준, 인사이트를 표로 정리해줘."
+        },
+        "summary": {
+          "prompt": "업로드한 자료 \"{sourceTitle}\"를 요약 리포트로 정리해줘.",
+          "initialPrompt": "업로드한 자료 \"{sourceTitle}\"를 핵심 주장, 근거, 다음 행동 중심으로 요약해줘."
+        }
+      }
+    }
   },
   "tree_menu": {
     "rename": "이름 바꾸기",
     "rename_shortcut": "F2",
     "duplicate": "복제",
     "open_to_right": "오른쪽에 열기",
+    "paper_analysis": "논문 분석 리포트 만들기",
     "copy_link": "링크 복사",
     "favorite": "즐겨찾기에 고정",
     "new_child_page": "하위 페이지 만들기",

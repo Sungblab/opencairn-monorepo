@@ -31,6 +31,7 @@ export const testShellLabels: ShellLabels = {
       help: "도움말",
       report: "문제 신고",
       ws_settings: "설정",
+      agent_panel: "에이전트 패널",
     },
   },
 };

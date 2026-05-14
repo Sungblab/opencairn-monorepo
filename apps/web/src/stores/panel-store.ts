@@ -10,7 +10,11 @@ const SIDEBAR_DEFAULT = 240;
 const AGENT_MIN = 300;
 const AGENT_MAX = 560;
 const AGENT_DEFAULT = 360;
+const BOTTOM_DOCK_MIN = 180;
+const BOTTOM_DOCK_MAX = 420;
+const BOTTOM_DOCK_DEFAULT = 260;
 export type AgentPanelTab = "chat" | "tools" | "activity" | "notifications";
+export type BottomDockTab = "activity" | "logs";
 
 const PANEL_STORAGE_KEY = "oc:panel";
 const AGENT_PANEL_TABS: AgentPanelTab[] = [
@@ -31,6 +35,9 @@ interface PanelState {
   agentPanelOpen: boolean;
   compactAgentPanelOpen: boolean;
   agentPanelTab: AgentPanelTab;
+  bottomDockOpen: boolean;
+  bottomDockHeight: number;
+  bottomDockTab: BottomDockTab;
   backlinksOpen: boolean;
   enrichmentOpen: boolean;
   toggleSidebar(): void;
@@ -41,6 +48,12 @@ interface PanelState {
   toggleEnrichment(): void;
   setAgentPanelTab(tab: AgentPanelTab): void;
   openAgentPanelTab(tab: AgentPanelTab): void;
+  setBottomDockOpen(open: boolean): void;
+  toggleBottomDock(): void;
+  setBottomDockTab(tab: BottomDockTab): void;
+  openBottomDock(tab: BottomDockTab): void;
+  setBottomDockHeight(h: number): void;
+  resetBottomDockHeight(): void;
   setSidebarOpen(open: boolean): void;
   setCompactSidebarOpen(open: boolean): void;
   setAgentPanelOpen(open: boolean): void;
@@ -61,6 +74,9 @@ type PanelData = Pick<
   | "agentPanelOpen"
   | "compactAgentPanelOpen"
   | "agentPanelTab"
+  | "bottomDockOpen"
+  | "bottomDockHeight"
+  | "bottomDockTab"
   | "backlinksOpen"
   | "enrichmentOpen"
 >;
@@ -73,6 +89,9 @@ const DEFAULT_PANEL_DATA: PanelData = {
   agentPanelOpen: false,
   compactAgentPanelOpen: false,
   agentPanelTab: "chat",
+  bottomDockOpen: false,
+  bottomDockHeight: BOTTOM_DOCK_DEFAULT,
+  bottomDockTab: "activity",
   backlinksOpen: false,
   enrichmentOpen: false,
 };
@@ -143,6 +162,14 @@ function readPersistedPanelState(): PanelData | null {
       agentPanelTab: isAgentPanelTab(stored.agentPanelTab)
         ? stored.agentPanelTab
         : "chat",
+      bottomDockOpen: readBoolean(stored.bottomDockOpen, false),
+      bottomDockHeight: readClampedNumber(
+        stored.bottomDockHeight,
+        BOTTOM_DOCK_DEFAULT,
+        BOTTOM_DOCK_MIN,
+        BOTTOM_DOCK_MAX,
+      ),
+      bottomDockTab: stored.bottomDockTab === "logs" ? "logs" : "activity",
       backlinksOpen: readBoolean(stored.backlinksOpen, false),
       enrichmentOpen: readBoolean(stored.enrichmentOpen, false),
     };
@@ -164,6 +191,9 @@ function persistPanelState(state: PanelState) {
     agentPanelOpen: state.agentPanelOpen,
     compactAgentPanelOpen: false,
     agentPanelTab: state.agentPanelTab,
+    bottomDockOpen: state.bottomDockOpen,
+    bottomDockHeight: state.bottomDockHeight,
+    bottomDockTab: state.bottomDockTab,
     backlinksOpen: state.backlinksOpen,
     enrichmentOpen: state.enrichmentOpen,
   };
@@ -213,6 +243,21 @@ export const usePanelStore = create<PanelState>()((set) => {
         agentPanelOpen: true,
         compactAgentPanelOpen: true,
       }),
+    setBottomDockOpen: (open) => setAndPersist({ bottomDockOpen: open }),
+    toggleBottomDock: () =>
+      setAndPersist((s) => ({ bottomDockOpen: !s.bottomDockOpen })),
+    setBottomDockTab: (tab) => setAndPersist({ bottomDockTab: tab }),
+    openBottomDock: (tab) =>
+      setAndPersist({
+        bottomDockTab: tab,
+        bottomDockOpen: true,
+      }),
+    setBottomDockHeight: (h) =>
+      setAndPersist({
+        bottomDockHeight: clamp(h, BOTTOM_DOCK_MIN, BOTTOM_DOCK_MAX),
+      }),
+    resetBottomDockHeight: () =>
+      setAndPersist({ bottomDockHeight: BOTTOM_DOCK_DEFAULT }),
     setSidebarOpen: (open) => setAndPersist({ sidebarOpen: open }),
     setCompactSidebarOpen: (open) =>
       setAndPersist({ compactSidebarOpen: open }),

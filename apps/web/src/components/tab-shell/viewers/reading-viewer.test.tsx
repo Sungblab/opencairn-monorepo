@@ -5,6 +5,8 @@ import { NextIntlClientProvider } from "next-intl";
 import { ReadingViewer } from "./reading-viewer";
 import { useTabsStore } from "@/stores/tabs-store";
 
+const navigateToTab = vi.hoisted(() => vi.fn());
+
 vi.mock("next/dynamic", () => ({
   default: () => {
     const DynamicReadingViewerBody = (props: Record<string, unknown>) => {
@@ -16,7 +18,7 @@ vi.mock("next/dynamic", () => ({
         fontSize: string;
         readingMode: string;
       };
-      const tab = props.tab as { id: string };
+      const tab = props.tab as { id: string; targetId: string | null };
       const updateTab = useTabsStore.getState().updateTab;
 
       return React.createElement(
@@ -37,7 +39,13 @@ vi.mock("next/dynamic", () => ({
           "button",
           {
             type: "button",
-            onClick: () => updateTab(tab.id, { mode: "plate" }),
+            onClick: () => {
+              updateTab(tab.id, { mode: "plate" });
+              navigateToTab(
+                { kind: "note", targetId: tab.targetId, mode: "plate" },
+                { mode: "replace" },
+              );
+            },
           },
           label.editMode,
         ),
@@ -53,6 +61,10 @@ vi.mock("next/dynamic", () => ({
     };
     return DynamicReadingViewerBody;
   },
+}));
+
+vi.mock("@/hooks/use-tab-navigate", () => ({
+  useTabNavigate: () => navigateToTab,
 }));
 
 // Mock collaborative editor — the hook returns a stub PlateEditor.
@@ -122,6 +134,7 @@ const tab = {
 
 describe("ReadingViewer", () => {
   beforeEach(() => {
+    navigateToTab.mockReset();
     useTabsStore.setState(
       { ...useTabsStore.getInitialState(), tabs: [tab], activeId: tab.id },
       true,
@@ -166,6 +179,10 @@ describe("ReadingViewer", () => {
     fireEvent.click(screen.getByRole("button", { name: "편집" }));
 
     expect(useTabsStore.getState().tabs[0]?.mode).toBe("plate");
+    expect(navigateToTab).toHaveBeenCalledWith(
+      { kind: "note", targetId: "n1", mode: "plate" },
+      { mode: "replace" },
+    );
   });
 
   it("renders nothing when tab.targetId is null", () => {

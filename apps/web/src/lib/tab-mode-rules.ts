@@ -14,6 +14,8 @@ export function isValidTabMode(tab: Tab): boolean {
       return tab.mode === "lit-search";
     case "agent_file":
       return tab.mode === "agent-file";
+    case "agent_panel":
+      return tab.mode === "agent-panel";
     case "code_workspace":
       return tab.mode === "code-workspace";
     case "dashboard":

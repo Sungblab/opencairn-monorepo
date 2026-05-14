@@ -13,20 +13,23 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ wsSlug: "acme" }),
 }));
 
-const mk = (p: Partial<Tab> = {}): Tab => ({
-  id: "t1",
-  kind: "note",
-  targetId: "n1",
-  mode: "plate",
-  title: "Alpha",
-  pinned: false,
-  preview: false,
-  dirty: false,
-  splitWith: null,
-  splitSide: null,
-  scrollY: 0,
-  ...p,
-});
+const mk = (p: Partial<Tab> = {}): Tab => {
+  const id = p.id ?? "t1";
+  return {
+    id: "t1",
+    kind: "note",
+    targetId: `n-${id}`,
+    mode: "plate",
+    title: "Alpha",
+    pinned: false,
+    preview: false,
+    dirty: false,
+    splitWith: null,
+    splitSide: null,
+    scrollY: 0,
+    ...p,
+  };
+};
 
 function renderTabBar() {
   return render(
@@ -68,7 +71,9 @@ describe("TabBar", () => {
   });
 
   it("clicking a transient ingest tab activates it without replacing the URL", () => {
-    useTabsStore.getState().addTab(mk({ id: "project", kind: "project", targetId: "p1" }));
+    useTabsStore
+      .getState()
+      .addTab(mk({ id: "project", kind: "project", targetId: "p1" }));
     useTabsStore.getState().addTab(
       mk({
         id: "ingest-wf-1",

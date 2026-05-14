@@ -2,6 +2,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { useIngestStore } from "@/stores/ingest-store";
+import type { UploadIntentId } from "@/components/upload/upload-intents";
 
 // Bridges upload entry points to /api/ingest/upload and the in-app ingest
 // store. Uploads open the original file first; a background app-shell
@@ -31,6 +32,9 @@ export interface IngestUploadManyResult {
 
 interface IngestUploadOptions {
   noteId?: string;
+  followUpIntent?: UploadIntentId | null;
+  followUpBatchId?: string | null;
+  followUpBatchSize?: number | null;
 }
 
 interface IngestUploadManyOptions extends IngestUploadOptions {
@@ -109,7 +113,13 @@ export function useIngestUpload(): {
           json.workflowId,
           file.type || "application/octet-stream",
           file.name,
-          { sourceBundleNodeId: json.sourceBundleNodeId },
+          {
+            sourceBundleNodeId: json.sourceBundleNodeId,
+            projectId,
+            followUpIntent: opts?.followUpIntent ?? null,
+            followUpBatchId: opts?.followUpBatchId ?? null,
+            followUpBatchSize: opts?.followUpBatchSize ?? null,
+          },
         );
       await refreshProjectTree(projectId);
       return json;
@@ -146,6 +156,17 @@ export function useIngestUpload(): {
         1,
         Math.min(opts?.concurrency ?? 3, selected.length),
       );
+      const followUpBatchId =
+        opts?.followUpIntent === "comparison" && selected.length > 1
+          ? `upload-batch-${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2, 8)}`
+          : (opts?.followUpBatchId ?? null);
+      const uploadOpts: IngestUploadOptions = {
+        ...opts,
+        followUpBatchId,
+        followUpBatchSize: followUpBatchId ? selected.length : null,
+      };
       const results = new Array<IngestUploadManyResult>(selected.length);
       let cursor = 0;
 
@@ -162,7 +183,7 @@ export function useIngestUpload(): {
                 results[index] = {
                   file,
                   ok: true,
-                  result: await uploadOne(file, projectId, opts),
+                  result: await uploadOne(file, projectId, uploadOpts),
                 };
               } catch (err) {
                 results[index] = { file, ok: false, error: err };

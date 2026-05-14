@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { IngestEvent } from "@opencairn/shared";
+import type { UploadIntentId } from "@/components/upload/upload-intents";
 
 export type FigureItem = {
   objectKey: string;
@@ -42,6 +43,11 @@ export type IngestRunState = {
   outline: OutlineNode[];
   error: { reason: string; retryable: boolean } | null;
   noteId: string | null;
+  projectId: string | null;
+  followUpIntent: UploadIntentId | null;
+  followUpBatchId: string | null;
+  followUpBatchSize: number | null;
+  followUpLaunched: boolean;
 };
 
 type IngestStore = {
@@ -50,9 +56,17 @@ type IngestStore = {
     wfid: string,
     mime: string,
     fileName: string | null,
-    opts?: { sourceBundleNodeId?: string | null },
+    opts?: {
+      sourceBundleNodeId?: string | null;
+      projectId?: string | null;
+      followUpIntent?: UploadIntentId | null;
+      followUpBatchId?: string | null;
+      followUpBatchSize?: number | null;
+    },
   ): void;
   applyEvent(wfid: string, ev: IngestEvent): void;
+  markFollowUpLaunched(wfid: string): void;
+  markFollowUpBatchLaunched(batchId: string): void;
 };
 
 function emptyRun(
@@ -76,6 +90,11 @@ function emptyRun(
     outline: [],
     error: null,
     noteId: null,
+    projectId: null,
+    followUpIntent: null,
+    followUpBatchId: null,
+    followUpBatchSize: null,
+    followUpLaunched: false,
   };
 }
 
@@ -90,6 +109,10 @@ export const useIngestStore = create<IngestStore>()(
             run.bundleNodeId = opts.sourceBundleNodeId;
             run.bundleStatus = "running";
           }
+          run.projectId = opts?.projectId ?? null;
+          run.followUpIntent = opts?.followUpIntent ?? null;
+          run.followUpBatchId = opts?.followUpBatchId ?? null;
+          run.followUpBatchSize = opts?.followUpBatchSize ?? null;
           return {
             runs: { ...s.runs, [wfid]: run },
           };
@@ -182,6 +205,28 @@ export const useIngestStore = create<IngestStore>()(
           }
           return { runs: { ...s.runs, [wfid]: next } };
         }),
+      markFollowUpLaunched: (wfid) =>
+        set((s) => {
+          const run = s.runs[wfid];
+          if (!run) return s;
+          return {
+            runs: {
+              ...s.runs,
+              [wfid]: { ...run, followUpLaunched: true },
+            },
+          };
+        }),
+      markFollowUpBatchLaunched: (batchId) =>
+        set((s) => ({
+          runs: Object.fromEntries(
+            Object.entries(s.runs).map(([id, run]) => [
+              id,
+              run.followUpBatchId === batchId
+                ? { ...run, followUpLaunched: true }
+                : run,
+            ]),
+          ),
+        })),
     }),
     {
       name: "ingest-store",

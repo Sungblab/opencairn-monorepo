@@ -36,30 +36,20 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
     ]);
   });
 
-  test("tab bar renders with the new-tab trigger", async ({ page }) => {
+  test("tab bar renders without a generic new-tab trigger", async ({ page }) => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await expect(page.getByTestId("tab-bar")).toBeVisible();
-    await expect(page.getByTestId("tab-bar-new")).toBeVisible();
+    await expect(page.getByTestId("tab-bar-new")).toHaveCount(0);
   });
 
-  test("sidebar click opens a preview tab (italic), first edit promotes", async ({
+  test("note route opens an editable note tab", async ({
     page,
   }) => {
-    await page.goto(`/ko/workspace/${session.wsSlug}/`);
-    const tree = page.getByTestId("project-tree");
-    // Click the first treeitem — it's a note created by test-seed. Using
-    // the locator rather than a specific title keeps the test resilient to
-    // the seed's welcome-note copy evolving.
-    await tree.getByRole("treeitem").first().click();
-    const previewTab = page.locator('[role="tab"]').first();
-    await expect(previewTab).toBeVisible();
-    // Preview-mode tabs render their title as italic text inside the tab.
-    await expect(previewTab.locator("span").first()).toHaveClass(/italic/);
-
-    // Type something in the title field → first keystroke promotes.
+    await page.goto(`/ko/workspace/${session.wsSlug}/note/${session.noteId}`);
+    await expect(page.getByRole("tab", { name: /E2E Mock Note/ })).toBeVisible();
     await page.getByTestId("note-title").click();
-    await page.keyboard.press("a");
-    await expect(previewTab.locator("span").first()).not.toHaveClass(/italic/);
+    await page.keyboard.type(" editable");
+    await expect(page.getByTestId("note-title")).toHaveValue(/editable/);
   });
 
   test("single-clicking another note replaces the preview slot", async ({
@@ -85,7 +75,7 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
     );
     await expect(page.locator('[role="tab"]')).toHaveCount(1);
     await page.keyboard.press("Control+w");
-    await expect(page.locator('[role="tab"]')).toHaveCount(0);
+    await expect(page.locator('[role="tab"]')).toHaveCount(1);
   });
 
   test("Ctrl+T opens a new blank tab", async ({ page }) => {
@@ -103,10 +93,15 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
     );
     const tab = page.locator('[role="tab"]').first();
     await expect(tab).toBeVisible();
-    await tab.click({ button: "right" });
+    await page.getByTestId("tab-bar").hover();
+    const trigger = page.locator('[data-slot="context-menu-trigger"]').first();
+    await expect(trigger).toBeVisible();
+    await trigger.click({ button: "right" });
     // Context menu renders via portal; scope the menu role to avoid
     // matching inactive triggers.
-    await page.getByRole("menuitem", { name: "고정" }).click();
+    const menu = page.locator('[data-slot="context-menu-content"]');
+    await expect(menu).toBeVisible();
+    await menu.locator('[data-slot="context-menu-item"]').filter({ hasText: "고정" }).click();
 
     await expect(tab.getByLabel("닫기")).toHaveCount(0);
     await expect(tab.getByLabel("고정됨")).toBeVisible();
@@ -116,17 +111,15 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
   });
 
   test("overflow menu lists every open tab", async ({ page }) => {
-    // Open all 3 notes (Welcome + 2 extras) then open the overflow menu.
-    await page.goto(`/ko/workspace/${session.wsSlug}/`);
-    const tree = page.getByTestId("project-tree");
-    const rows = await tree.getByRole("treeitem").all();
-    for (const row of rows.slice(0, 3)) {
-      await row.dblclick();
-    }
+    await page.goto(
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}`,
+    );
+    await expect(page.locator('[role="tab"]')).toHaveCount(1);
     const openTabs = await page.locator('[role="tab"]').count();
+    await page.getByTestId("tab-overflow-trigger").hover();
     await page.getByTestId("tab-overflow-trigger").click();
-    const menu = page.getByRole("menu");
+    const menu = page.locator('[data-slot="dropdown-menu-content"]');
     await expect(menu).toBeVisible();
-    await expect(menu.getByRole("menuitem")).toHaveCount(openTabs);
+    await expect(menu.getByRole("option")).toHaveCount(openTabs);
   });
 });

@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
 const mk = (p: Partial<Tab> = {}): Tab => ({
   id: "x",
   kind: "note",
-  targetId: "n",
+  targetId: p.targetId ?? `n-${p.id ?? "x"}`,
   mode: "plate",
   title: "",
   pinned: false,
@@ -47,7 +47,9 @@ function press(
 }
 
 const seed = (ids: string[]) => {
-  ids.forEach((id) => useTabsStore.getState().addTab(mk({ id, title: id })));
+  ids.forEach((id) =>
+    useTabsStore.getState().addTab(mk({ id, title: id })),
+  );
 };
 
 describe("useTabKeyboard", () => {
@@ -106,7 +108,7 @@ describe("useTabKeyboard", () => {
     useTabsStore.getState().setActive("a");
     act(() => press("ArrowRight"));
     expect(useTabsStore.getState().activeId).toBe("b");
-    expect(replace).toHaveBeenCalledWith("/ko/workspace/acme/note/n");
+    expect(replace).toHaveBeenCalledWith("/ko/workspace/acme/note/n-b");
   });
 
   it("⌘→ wraps from the last tab to the first", () => {

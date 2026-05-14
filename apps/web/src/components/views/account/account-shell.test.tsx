@@ -29,9 +29,10 @@ describe("AccountShell", () => {
     const nav = screen.getByRole("navigation", { name: "account.title" });
 
     expect(shell.className).toContain("flex-col");
-    expect(shell.className).toContain("md:flex-row");
-    expect(nav.className).toContain("flex-row");
+    expect(shell.className).toContain("lg:flex-row");
+    expect(nav.className).toContain("flex");
     expect(nav.className).toContain("overflow-x-auto");
+    expect(nav.className).toContain("lg:flex-col");
   });
 
   it("keeps the active tab readable against its active background", () => {
@@ -46,8 +47,8 @@ describe("AccountShell", () => {
       name: "account.tabs.notifications",
     });
 
-    expect(active.className).toContain("bg-muted");
-    expect(active.className).toContain("text-foreground");
+    expect(active.className).toContain("bg-foreground");
+    expect(active.className).toContain("text-background");
     expect(inactive.className).toContain("hover:bg-muted");
     expect(inactive.className).not.toContain("hover:bg-accent");
   });

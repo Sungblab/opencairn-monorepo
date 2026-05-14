@@ -38,6 +38,7 @@ export async function getShellLabels(): Promise<ShellLabels> {
         help: tabTitles("help"),
         report: tabTitles("report"),
         ws_settings: tabTitles("ws_settings"),
+        agent_panel: tabTitles("agent_panel"),
       },
     },
   };

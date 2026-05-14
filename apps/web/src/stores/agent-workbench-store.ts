@@ -32,9 +32,18 @@ export type SourcePaperAnalysisWorkflowPayload = {
   initialFilename: string;
 };
 
+export type SourceDocumentGenerationWorkflowPayload = {
+  action: "source_document_generation";
+  sourceIds: string[];
+  sourceTitle: string;
+  initialPrompt: string;
+  initialFilename: string;
+};
+
 export type AgentWorkflowPayload =
   | Record<string, unknown>
-  | SourcePaperAnalysisWorkflowPayload;
+  | SourcePaperAnalysisWorkflowPayload
+  | SourceDocumentGenerationWorkflowPayload;
 
 export type AgentWorkflowIntent = {
   id: string;

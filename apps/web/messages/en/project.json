@@ -224,11 +224,15 @@
         "title": "Active work",
         "description": "Track import, generation, and agent work progress."
       },
-      "reviewInbox": {
-        "title": "Review approvals",
-        "description": "Check proposed changes and approval items."
-      },
-      "dataTable": {
+        "reviewInbox": {
+          "title": "Review approvals",
+          "description": "Check proposed changes and approval items."
+        },
+        "comparison": {
+          "title": "Compare materials",
+          "description": "Summarize overlap, differences, conflicting claims, and follow-up questions across multiple sources."
+        },
+        "dataTable": {
         "title": "Data table",
         "description": "Organize material into a structured comparison table."
       },

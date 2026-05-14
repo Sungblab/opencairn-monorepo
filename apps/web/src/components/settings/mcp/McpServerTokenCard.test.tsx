@@ -59,6 +59,10 @@ function renderCard() {
 describe("McpServerTokenCard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.mcpServerTokensQueryKey).mockImplementation((workspaceId) => [
+      "mcp-server-tokens",
+      workspaceId,
+    ]);
   });
 
   it("creates a token and displays plaintext once", async () => {

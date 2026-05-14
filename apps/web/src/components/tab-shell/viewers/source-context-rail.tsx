@@ -22,13 +22,20 @@ import {
   Quote,
   Sparkles,
   Square,
+  Table2,
   Workflow,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import { NoteUpdateActionReviewList } from "@/components/agent-panel/note-update-action-review";
+import {
+  getToolDiscoveryItemsForSurface,
+  type ToolDiscoveryItem,
+} from "@/components/agent-panel/tool-discovery-catalog";
+import { workflowForSourceToolItem } from "@/components/agent-panel/tool-discovery-actions";
 import { WorkbenchActivityStack } from "@/components/agent-panel/workbench-activity-stack";
 import {
   WorkbenchActivityButton,
@@ -48,6 +55,7 @@ interface SourceContextRailProps {
   wsSlug: string | null;
   sourceTitle: string;
   viewerElementId: string;
+  sourceContentType?: string | null;
 }
 
 export function SourceContextRail({
@@ -56,6 +64,7 @@ export function SourceContextRail({
   wsSlug,
   sourceTitle,
   viewerElementId,
+  sourceContentType,
 }: SourceContextRailProps) {
   const t = useTranslations("appShell.viewers.source.rail");
   const [active, setActive] = useState<SourceRailTab | null>("analysis");
@@ -148,6 +157,7 @@ export function SourceContextRail({
                 selectedText={selectedText}
                 projectId={projectId}
                 sourceTitle={sourceTitle}
+                sourceContentType={sourceContentType}
               />
             ) : null}
             {active === "wiki" ? (
@@ -200,6 +210,82 @@ function RailButton({
       {children}
     </button>
   );
+}
+
+function SourceRailCapabilityButton({
+  item,
+  projectId,
+  noteId,
+  sourceTitle,
+  title,
+}: {
+  item: ToolDiscoveryItem;
+  projectId: string | null;
+  noteId: string;
+  sourceTitle: string;
+  title: string;
+}) {
+  const Icon = sourceRailIcon(item);
+  const testId =
+    item.id === "paper_analysis"
+      ? "source-rail-paper-analysis-button"
+      : `source-rail-capability-${item.id}`;
+  return (
+    <WorkbenchWorkflowButton
+      workflow={workflowForSourceToolItem(item, { noteId, sourceTitle })}
+      preflight={
+        item.preflight
+          ? {
+              projectId,
+              profile: item.preflight.tool,
+              sourceTokenEstimate: item.preflight.sourceTokenEstimate,
+            }
+          : undefined
+      }
+      data-testid={testId}
+      className="app-hover inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] border border-border px-2.5 text-sm"
+    >
+      <Icon aria-hidden className="h-4 w-4" />
+      {title}
+    </WorkbenchWorkflowButton>
+  );
+}
+
+function sourceRailIcon(item: ToolDiscoveryItem): LucideIcon {
+  if (item.icon === "table") return Table2;
+  if (item.icon === "graduation") return BookOpen;
+  if (item.id === "paper_analysis") return FilePlus2;
+  return Sparkles;
+}
+
+function sourceTypeFromContentType(contentType: string | null | undefined) {
+  const normalized = contentType?.toLowerCase() ?? "";
+  if (normalized.includes("pdf")) return "pdf";
+  if (
+    normalized.includes("presentation") ||
+    normalized.includes("powerpoint")
+  ) {
+    return "deck";
+  }
+  if (
+    normalized.includes("spreadsheet") ||
+    normalized.includes("csv") ||
+    normalized.includes("excel")
+  ) {
+    return "table";
+  }
+  if (normalized.startsWith("image/")) return "image";
+  if (normalized.startsWith("audio/") || normalized.startsWith("video/")) {
+    return "recording";
+  }
+  if (
+    normalized.includes("wordprocessing") ||
+    normalized.includes("text") ||
+    normalized.includes("markdown")
+  ) {
+    return "document";
+  }
+  return "source";
 }
 
 function SourceRailWiki({
@@ -333,14 +419,29 @@ function SourceRailAnalysis({
   selectedText,
   projectId,
   sourceTitle,
+  sourceContentType,
 }: {
   noteId: string;
   selectedText: string;
   projectId: string | null;
   sourceTitle: string;
+  sourceContentType?: string | null;
 }) {
   const t = useTranslations("appShell.viewers.source.rail");
   const selectedCount = selectedText.length;
+  const sourceLabel = t(
+    `sourceTypes.${sourceTypeFromContentType(sourceContentType)}`,
+  );
+  const sourceWorkflowItems = getToolDiscoveryItemsForSurface("source_rail", {
+    contexts: ["source"],
+    contentType: sourceContentType,
+  }).filter((item) =>
+    [
+      "paper_analysis",
+      "source_figure",
+      "study_artifact_generator",
+    ].includes(item.id),
+  );
   const enrichmentQuery = useQuery<EnrichmentResponse | null>({
     queryKey: ["source-rail-enrichment", noteId],
     enabled: Boolean(noteId),
@@ -390,34 +491,18 @@ function SourceRailAnalysis({
           className="app-hover inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] border border-border px-2.5 text-sm"
         >
           <FileSearch aria-hidden className="h-4 w-4" />
-          {t("useThisPdf")}
+          {t("useThisSource", { source: sourceLabel })}
         </WorkbenchContextButton>
-        <WorkbenchWorkflowButton
-          workflow={{
-            kind: "document_generation",
-            toolId: "paper_analysis",
-            i18nKey: "paperAnalysis",
-            prompt: t("paperAnalysisPrompt", { title: sourceTitle }),
-            presetId: "pdf_report_fast",
-            payload: {
-              action: "source_paper_analysis",
-              sourceIds: [`note:${noteId}`],
-              sourceTitle,
-              initialPrompt: t("paperAnalysisPrompt", { title: sourceTitle }),
-              initialFilename: paperAnalysisFilename(sourceTitle),
-            },
-          }}
-          preflight={{
-            projectId,
-            profile: "document",
-            sourceTokenEstimate: 24_000,
-          }}
-          data-testid="source-rail-paper-analysis-button"
-          className="app-hover inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] border border-border px-2.5 text-sm"
-        >
-          <FilePlus2 aria-hidden className="h-4 w-4" />
-          {t("paperAnalysis")}
-        </WorkbenchWorkflowButton>
+        {sourceWorkflowItems.map((item) => (
+          <SourceRailCapabilityButton
+            key={item.id}
+            item={item}
+            projectId={projectId}
+            noteId={noteId}
+            sourceTitle={sourceTitle}
+            title={t(`capabilities.${item.id}`)}
+          />
+        ))}
         <WorkbenchCommandButton
           commandId="summarize"
           preflight={{
@@ -481,18 +566,6 @@ function hasUnsupportedSourceReason(skipReasons: string[]) {
       normalized.includes("parser_unsupported")
     );
   });
-}
-
-function paperAnalysisFilename(sourceTitle: string) {
-  const base = sourceTitle
-    .trim()
-    .replace(/\.[^.]+$/, "")
-    .replace(/[\\/:*?"<>|]+/g, "-")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .toLowerCase();
-  return `${base || "source"}-paper-analysis.pdf`;
 }
 
 function SourceReadinessNotice({

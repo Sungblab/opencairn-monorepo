@@ -1,6 +1,8 @@
 import { urls } from "@/lib/urls";
 import type { useRouter } from "next/navigation";
 import { usePanelStore } from "@/stores/panel-store";
+import { useTabsStore } from "@/stores/tabs-store";
+import { newTab } from "@/lib/tab-factory";
 
 export type PaletteRouter = ReturnType<typeof useRouter>;
 
@@ -76,6 +78,22 @@ export function buildActions(opts: {
             return;
           }
           state.toggleAgentPanel();
+        },
+      },
+      {
+        id: "open-agent-tab",
+        labelKey: "openAgentTab",
+        run: () => {
+          useTabsStore.getState().addTab(
+            newTab({
+              kind: "agent_panel",
+              targetId: null,
+              title: "Agent Panel",
+              titleKey: "appShell.tabTitles.agent_panel",
+              mode: "agent-panel",
+              preview: false,
+            }),
+          );
         },
       },
     );

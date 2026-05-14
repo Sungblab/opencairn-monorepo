@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { useLocale, useTranslations } from "next-intl";
-import { useParams, useRouter } from "next/navigation";
-import { urls } from "@/lib/urls";
+import { useTranslations } from "next-intl";
 import { useIngestStream } from "@/hooks/use-ingest-stream";
 import { useIngestStore, type IngestRunState } from "@/stores/ingest-store";
+import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
+import {
+  uploadIntentToWorkflow,
+  type UploadIntentWorkflowCopy,
+} from "@/components/upload/upload-intents";
 
 const MAX_TERMINAL_TOAST_WORKFLOW_IDS = 200;
 const terminalToastWorkflowIds = new Set<string>();
@@ -26,10 +29,12 @@ export function IngestNotifications() {
     ),
   );
   const t = useTranslations("ingest.notifications");
-  const router = useRouter();
-  const locale = useLocale();
-  const params = useParams<{ wsSlug?: string }>() ?? {};
-  const wsSlug = params.wsSlug;
+  const tWorkflowCopy = useTranslations("sidebar.upload.intent.workflowPrompts");
+  const requestWorkflow = useAgentWorkbenchStore((s) => s.requestWorkflow);
+  const markFollowUpLaunched = useIngestStore((s) => s.markFollowUpLaunched);
+  const markFollowUpBatchLaunched = useIngestStore(
+    (s) => s.markFollowUpBatchLaunched,
+  );
 
   const runningIds = useMemo(
     () =>
@@ -48,15 +53,46 @@ export function IngestNotifications() {
       notifyTerminalRun(run, {
         completed: t("completed"),
         failed: t("failed"),
-        openNote: t("openNote"),
-        openNoteUrl:
-          run.noteId && wsSlug
-            ? urls.workspace.note(locale, wsSlug, run.noteId)
-            : null,
-        push: router.push,
       });
+      if (
+        run.status === "completed" &&
+        run.noteId &&
+        run.followUpIntent &&
+        run.followUpIntent !== "none" &&
+        !run.followUpLaunched
+      ) {
+        const workflow =
+          run.followUpIntent === "comparison" && run.followUpBatchId
+            ? workflowForCompletedComparison(
+                run,
+                Object.values(runsById),
+                tWorkflowCopy,
+              )
+            : uploadIntentToWorkflow({
+                intent: run.followUpIntent,
+                noteId: run.noteId,
+                fileName: run.fileName,
+                copy: tWorkflowCopy,
+              });
+        if (workflow) {
+          requestWorkflow(workflow);
+          if (run.followUpIntent === "comparison" && run.followUpBatchId) {
+            markFollowUpBatchLaunched(run.followUpBatchId);
+          } else {
+            markFollowUpLaunched(run.workflowId);
+          }
+          toast.success(t("followUpReady"));
+        }
+      }
     }
-  }, [runsById, t, router.push, locale, wsSlug]);
+  }, [
+    markFollowUpBatchLaunched,
+    markFollowUpLaunched,
+    requestWorkflow,
+    runsById,
+    t,
+    tWorkflowCopy,
+  ]);
 
   return (
     <>
@@ -65,6 +101,29 @@ export function IngestNotifications() {
       ))}
     </>
   );
+}
+
+function workflowForCompletedComparison(
+  run: IngestRunState,
+  runs: IngestRunState[],
+  copy: UploadIntentWorkflowCopy,
+) {
+  if (!run.followUpBatchId || !run.followUpBatchSize) return null;
+  const batchRuns = runs.filter(
+    (candidate) => candidate.followUpBatchId === run.followUpBatchId,
+  );
+  if (batchRuns.some((candidate) => candidate.followUpLaunched)) return null;
+  const completedNoteIds = batchRuns.flatMap((candidate) =>
+    candidate.status === "completed" && candidate.noteId ? [candidate.noteId] : [],
+  );
+  if (completedNoteIds.length < run.followUpBatchSize) return null;
+  return uploadIntentToWorkflow({
+    intent: "comparison",
+    noteId: completedNoteIds[0]!,
+    sourceNoteIds: completedNoteIds,
+    fileName: `${completedNoteIds.length} uploaded sources`,
+    copy,
+  });
 }
 
 function rememberTerminalToastWorkflowId(workflowId: string): boolean {
@@ -82,21 +141,9 @@ function notifyTerminalRun(
   opts: {
     completed: string;
     failed: string;
-    openNote: string;
-    openNoteUrl: string | null;
-    push: (href: string) => void;
   },
 ) {
   if (run.status === "completed") {
-    if (opts.openNoteUrl) {
-      toast.success(opts.completed, {
-        action: {
-          label: opts.openNote,
-          onClick: () => opts.push(opts.openNoteUrl!),
-        },
-      });
-      return;
-    }
     toast.success(opts.completed);
     return;
   }

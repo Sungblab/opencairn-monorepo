@@ -337,12 +337,11 @@ export function Composer({
           <DropdownMenuTrigger
             type="button"
             aria-label={t("add_menu_aria")}
+            title={t("add_menu_aria")}
             disabled={disabled}
-            className="inline-flex min-h-7 items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-foreground hover:bg-muted disabled:opacity-50"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)] border border-border bg-background text-foreground transition-colors hover:border-foreground hover:bg-muted disabled:opacity-50"
           >
-            <Plus className="h-4 w-4" />
-            <span>{t("add_button")}</span>
-            <ChevronDown aria-hidden className="h-3 w-3" />
+            <Plus aria-hidden className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"

@@ -54,6 +54,7 @@ describe("ProjectMainDropZone", () => {
     );
 
     const surface = screen.getByTestId("main-surface").parentElement!;
+    expect(surface).toHaveClass("min-w-0", "overflow-hidden");
     fireEvent.dragEnter(surface, {
       dataTransfer: { files: [file], types: ["Files"] },
     });
@@ -81,6 +82,7 @@ describe("ProjectMainDropZone", () => {
     await waitFor(() => {
       expect(uploadManyMock).toHaveBeenCalledWith([file], "project-1", {
         concurrency: 3,
+        followUpIntent: "none",
       });
     });
   });

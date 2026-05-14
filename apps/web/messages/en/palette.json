@@ -15,6 +15,7 @@
     "profile": "My profile",
     "newProject": "New project",
     "toggleSidebar": "Toggle sidebar",
-    "toggleAgent": "Toggle agent panel"
+    "toggleAgent": "Toggle agent panel",
+    "openAgentTab": "Open Agent Panel as tab"
   }
 }

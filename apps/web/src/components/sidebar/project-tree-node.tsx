@@ -27,7 +27,9 @@ import { useRouter, useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { TreeNode } from "@/hooks/use-project-tree";
 import { useTabsStore } from "@/stores/tabs-store";
+import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { newTab } from "@/lib/tab-factory";
+import { uploadIntentToWorkflow } from "@/components/upload/upload-intents";
 import { useModKeyLabel } from "@/hooks/use-mod-key-label";
 import {
   treeNodeToDragPayload,
@@ -60,6 +62,7 @@ export function ProjectTreeNode({
   const locale = useLocale();
   const t = useTranslations("sidebar.tree_menu");
   const tBadge = useTranslations("sidebar.tree_badges");
+  const tWorkflowCopy = useTranslations("sidebar.upload.intent.workflowPrompts");
   const router = useRouter();
   const ctx = useProjectTreeCtx();
   const modKeyLabel = useModKeyLabel();
@@ -107,6 +110,8 @@ export function ProjectTreeNode({
   ]);
   const canExpand = canHaveChildren.has(kind);
   const canCreateChildPage = kind === "folder" || kind === "note";
+  const isSourceNote =
+    kind === "note" && node.data.metadata?.role === "source_note";
   const opensOnRowClick = new Set([
     "note",
     "agent_file",
@@ -327,6 +332,19 @@ export function ProjectTreeNode({
     useTabsStore.getState().openTabToRight(tab);
   }
 
+  function openSourcePaperAnalysis() {
+    const targetId = node.data.target_id ?? node.data.id;
+    if (!targetId || !isSourceNote) return;
+    const workflow = uploadIntentToWorkflow({
+      intent: "paper_analysis",
+      noteId: targetId,
+      fileName: displayLabel,
+      copy: tWorkflowCopy,
+    });
+    if (!workflow) return;
+    useAgentWorkbenchStore.getState().requestWorkflow(workflow);
+  }
+
   function closeActionMenu() {
     setActionMenuPos(null);
   }
@@ -534,6 +552,19 @@ export function ProjectTreeNode({
                     >
                       {t("open_to_right")}
                     </button>
+                    {isSourceNote ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left outline-none hover:bg-accent hover:text-accent-foreground"
+                        onClick={() => {
+                          closeActionMenu();
+                          openSourcePaperAnalysis();
+                        }}
+                      >
+                        {t("paper_analysis")}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       role="menuitem"
@@ -601,6 +632,7 @@ export function ProjectTreeNode({
           }
           onCreateFolder={() => ctx.onCreateFolder(node.data.id)}
           onOpenToRight={splitTabForNode() ? openToRight : undefined}
+          onPaperAnalysis={isSourceNote ? openSourcePaperAnalysis : undefined}
           onCopyLink={copyLink}
           onFavorite={nodeHref() && kind === "note" ? pinFavorite : undefined}
           onDelete={() =>

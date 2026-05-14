@@ -4,6 +4,11 @@ import type {
   MemoryPolicy,
   SourcePolicy,
 } from "./context-manifest";
+import {
+  getToolDiscoveryItemsForSurface,
+  type ToolDiscoveryContext,
+  type ToolDiscoveryItem,
+} from "./tool-discovery-catalog";
 
 export type AgentCommandId =
   | "summarize"
@@ -36,6 +41,10 @@ export type AgentCommand = {
   mode?: ChatMode;
   effect: "send" | "context";
   promptKey: AgentCommandId;
+  registryItemId?: string;
+  registryOutputType?: ToolDiscoveryItem["outputType"];
+  registryRisk?: ToolDiscoveryItem["risk"];
+  supportedContexts?: ToolDiscoveryContext[];
   contextPatch?: {
     sourcePolicy?: SourcePolicy;
     memoryPolicy?: MemoryPolicy;
@@ -43,7 +52,7 @@ export type AgentCommand = {
   };
 };
 
-export const AGENT_COMMANDS: AgentCommand[] = [
+const BASE_AGENT_COMMANDS: AgentCommand[] = [
   {
     id: "summarize",
     category: "analyze",
@@ -220,6 +229,60 @@ export const AGENT_COMMANDS: AgentCommand[] = [
   },
 ];
 
+const REGISTRY_COMMAND_ID_BY_ITEM_ID: Partial<Record<string, AgentCommandId>> = {
+  research: "research",
+  summarize: "summarize",
+  paper_analysis: "extract_citations",
+  pdf_report_fast: "generate_report",
+  docx_report: "generate_report",
+  pptx_deck: "generate_deck",
+  xlsx_table: "make_table",
+  source_figure: "generate_figure",
+  study_artifact_generator: "quiz",
+  data_table: "make_table",
+};
+
+function commandMetadataById(): Map<AgentCommandId, ToolDiscoveryItem> {
+  const items = getToolDiscoveryItemsForSurface("slash_command");
+  const mappedItems = [
+    ...items,
+    ...getToolDiscoveryItemsForSurface("source_rail"),
+    ...getToolDiscoveryItemsForSurface("upload_intent"),
+  ];
+  const metadata = new Map<AgentCommandId, ToolDiscoveryItem>();
+  for (const item of mappedItems) {
+    const commandId = REGISTRY_COMMAND_ID_BY_ITEM_ID[item.id];
+    if (commandId && !metadata.has(commandId)) {
+      metadata.set(commandId, item);
+    }
+  }
+  return metadata;
+}
+
+function enrichCommandsFromRegistry(commands: AgentCommand[]): AgentCommand[] {
+  const registry = commandMetadataById();
+  return commands.map((command) => {
+    const item = registry.get(command.id);
+    if (!item) return command;
+    return {
+      ...command,
+      registryItemId: item.id,
+      registryOutputType: item.outputType,
+      registryRisk: item.risk,
+      supportedContexts: item.supportedContexts,
+      aliases: [
+        ...command.aliases,
+        ...(item.aliases ?? []).map((alias) =>
+          alias.startsWith("/") ? alias : `/${alias}`,
+        ),
+      ].filter((alias, index, aliases) => aliases.indexOf(alias) === index),
+    };
+  });
+}
+
+export const AGENT_COMMANDS: AgentCommand[] =
+  enrichCommandsFromRegistry(BASE_AGENT_COMMANDS);
+
 function normalizeCommandText(value: string): string {
   return value.normalize("NFKC").trim().toLowerCase();
 }
@@ -255,4 +318,15 @@ export function parseSlashCommand(input: string):
 export function getAgentCommand(id: AgentCommandId | undefined): AgentCommand | null {
   if (!id) return null;
   return AGENT_COMMANDS.find((command) => command.id === id) ?? null;
+}
+
+export function getAgentCommandsForContexts(
+  contexts: ToolDiscoveryContext[],
+  limit = 6,
+): AgentCommand[] {
+  const contextSet = new Set(contexts);
+  return AGENT_COMMANDS.filter((command) => {
+    if (!command.supportedContexts?.length) return false;
+    return command.supportedContexts.some((context) => contextSet.has(context));
+  }).slice(0, limit);
 }

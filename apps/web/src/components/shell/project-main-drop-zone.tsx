@@ -25,7 +25,7 @@ export function ProjectMainDropZone({
 
   return (
     <div
-      className="relative flex min-h-0 flex-1"
+      className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
       onDragEnter={(event) => {
         if (!projectId || !dataTransferHasFiles(event.dataTransfer)) return;
         event.preventDefault();
@@ -68,6 +68,7 @@ export function ProjectMainDropZone({
         </div>
       ) : null}
       <ProjectUploadDialog
+        projectId={projectId}
         open={files.length > 0}
         files={files}
         uploading={upload.isUploading}
@@ -76,8 +77,8 @@ export function ProjectMainDropZone({
           if (!open) setFiles([]);
         }}
         onFilesChange={setFiles}
-        onStart={() => {
-          void upload.startUpload(files).then((result) => {
+        onStart={(intent) => {
+          void upload.startUpload(files, intent).then((result) => {
             if (result?.ok) setFiles([]);
           });
         }}

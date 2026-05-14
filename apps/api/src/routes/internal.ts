@@ -75,6 +75,7 @@ import { buildProjectWikiIndex } from "../lib/project-wiki-index";
 import { recordAgenticPlanHandoff } from "../lib/agentic-plans";
 import { drainDueNoteAnalysisJobs } from "../lib/note-analysis-jobs";
 import { getChatProvider } from "../lib/llm";
+import { grantCredits } from "../lib/billing";
 import type { AppEnv } from "../lib/types";
 import {
   assertResourceWorkspace,
@@ -3634,6 +3635,13 @@ internal.post("/test-seed", async (c) => {
     email,
     name: `E2E User ${userId.slice(0, 8)}`,
     emailVerified: true,
+  });
+  await grantCredits({
+    userId,
+    credits: 100_000,
+    kind: "manual_grant",
+    idempotencyKey: `test-seed:${userId}:credits`,
+    metadata: { reason: "e2e test seed" },
   });
 
   const { setCookie, name, value, expiresAt } =

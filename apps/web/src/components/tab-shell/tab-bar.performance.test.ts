@@ -24,7 +24,9 @@ describe("TabBar bundle boundary", () => {
       expect(source, path).not.toContain("useTranslations");
     }
 
-    expect(read("src/components/tab-shell/tab-bar.tsx")).toContain(
+    expect(
+      read("src/components/tab-shell/static-tab-list-fallback.tsx"),
+    ).toContain(
       "@/components/shell/shell-labels",
     );
     expect(read("src/lib/resolve-tab-title.tsx")).toContain("useShellLabels");

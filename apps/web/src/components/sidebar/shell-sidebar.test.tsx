@@ -19,8 +19,13 @@ vi.mock("next-intl", () => ({
     ns ? `${ns}.${key}` : key,
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 const panelStoreMock = vi.hoisted(() => ({
   openAgentPanelTab: vi.fn(),
+  openBottomDock: vi.fn(),
 }));
 
 vi.mock("@/stores/panel-store", () => ({
@@ -28,11 +33,13 @@ vi.mock("@/stores/panel-store", () => ({
     selector: (s: {
       toggleSidebar: () => void;
       openAgentPanelTab: (tab: string) => void;
+      openBottomDock: (tab: string) => void;
     }) => unknown,
   ) =>
     selector({
       toggleSidebar: vi.fn(),
       openAgentPanelTab: panelStoreMock.openAgentPanelTab,
+      openBottomDock: panelStoreMock.openBottomDock,
     }),
 }));
 
@@ -105,6 +112,7 @@ vi.mock("@/components/literature/literature-search-button", () => ({
 describe("ShellSidebar", () => {
   beforeEach(() => {
     panelStoreMock.openAgentPanelTab.mockClear();
+    panelStoreMock.openBottomDock.mockClear();
     window.localStorage.clear();
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -139,8 +147,8 @@ describe("ShellSidebar", () => {
       screen.getByRole("link", { name: "sidebar.nav.dashboard_short" }),
     ).toHaveClass("rounded-md");
     expect(
-      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
-    ).toHaveClass("rounded-md");
+      screen.queryByRole("button", { name: "sidebar.nav.more_aria" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("project list")).not.toBeInTheDocument();
     expect(screen.queryByText("global nav")).not.toBeInTheDocument();
     expect(screen.queryByText("workspace switcher")).not.toBeInTheDocument();
@@ -171,6 +179,8 @@ describe("ShellSidebar", () => {
       screen.queryByText("sidebar.favorites.empty"),
     ).not.toBeInTheDocument();
     expect(screen.getByText("sidebar.nav.graph")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.atlas")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.trash")).toBeInTheDocument();
     expect(screen.getByText("sidebar.nav.agents")).toBeInTheDocument();
     expect(screen.getByText("sidebar.nav.learn")).toBeInTheDocument();
     expect(screen.getByText("sidebar.sections.recent")).toBeInTheDocument();
@@ -182,12 +192,12 @@ describe("ShellSidebar", () => {
     expect(
       screen.queryByText("sidebar.nav.public_pages"),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("sidebar.nav.feedback")).not.toBeInTheDocument();
-    expect(screen.queryByText("sidebar.nav.changelog")).not.toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.feedback")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.changelog")).toBeInTheDocument();
     expect(screen.getByText("project tree")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "sidebar.nav.more_aria" }),
+    ).not.toBeInTheDocument();
   });
 
   it("collapses sidebar sections and restores the state for the workspace", async () => {
@@ -225,7 +235,7 @@ describe("ShellSidebar", () => {
     expect(
       screen.queryByText("sidebar.nav.public_pages"),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("sidebar.nav.feedback")).not.toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.feedback")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-tree-region")).toHaveClass(
       "min-h-36",
       "max-h-[52vh]",
@@ -317,6 +327,7 @@ describe("ShellSidebar", () => {
     );
 
     expect(panelStoreMock.openAgentPanelTab).toHaveBeenCalledWith("activity");
+    expect(panelStoreMock.openBottomDock).toHaveBeenCalledWith("activity");
   });
 
   it("moves a used quick-create action to the front after remount", async () => {

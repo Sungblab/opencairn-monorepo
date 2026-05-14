@@ -514,6 +514,7 @@ export function ProjectTree({
         )}
       </div>
       <ProjectUploadDialog
+        projectId={projectId}
         open={pendingUploadFiles.length > 0}
         onOpenChange={(open) => {
           if (!open) setPendingUploadFiles([]);
@@ -522,8 +523,8 @@ export function ProjectTree({
         uploading={upload.isUploading}
         error={upload.hasUploadError}
         onFilesChange={setPendingUploadFiles}
-        onStart={() => {
-          void upload.startUpload(pendingUploadFiles).then((result) => {
+        onStart={(intent) => {
+          void upload.startUpload(pendingUploadFiles, intent).then((result) => {
             if (result?.ok) setPendingUploadFiles([]);
           });
         }}

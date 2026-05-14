@@ -20,6 +20,7 @@ import {
 import type {
   AgentWorkflowIntent,
   AgentWorkflowSubmission,
+  SourceDocumentGenerationWorkflowPayload,
   SourcePaperAnalysisWorkflowPayload,
 } from "@/stores/agent-workbench-store";
 import {
@@ -108,11 +109,20 @@ function selectedSourceIdsFor(
   return sources.slice(0, 5).map((source) => source.id);
 }
 
-function getSourcePaperAnalysisPayload(
+function getSourceDocumentPayload(
   payload: AgentWorkflowIntent["payload"],
-): SourcePaperAnalysisWorkflowPayload | null {
-  if (!payload || payload.action !== "source_paper_analysis") return null;
-  const candidate = payload as Partial<SourcePaperAnalysisWorkflowPayload>;
+): SourcePaperAnalysisWorkflowPayload | SourceDocumentGenerationWorkflowPayload | null {
+  if (
+    !payload ||
+    (payload.action !== "source_paper_analysis" &&
+      payload.action !== "source_document_generation")
+  ) {
+    return null;
+  }
+  const action = payload.action;
+  const candidate = payload as Partial<
+    SourcePaperAnalysisWorkflowPayload | SourceDocumentGenerationWorkflowPayload
+  >;
   if (
     !Array.isArray(candidate.sourceIds) ||
     !candidate.sourceIds.every((id) => typeof id === "string") ||
@@ -123,7 +133,7 @@ function getSourcePaperAnalysisPayload(
     return null;
   }
   return {
-    action: "source_paper_analysis",
+    action,
     sourceIds: candidate.sourceIds,
     sourceTitle: candidate.sourceTitle,
     initialPrompt: candidate.initialPrompt,
@@ -366,6 +376,17 @@ function StudyArtifactWorkflow({
   const [error, setError] = useState(false);
   const artifactType: StudyArtifactType =
     workflow.artifactType ?? "quiz_set";
+  const initialSourceNoteIds = useMemo(() => {
+    const sourcePayload =
+      workflow.payload?.action === "generate_study_artifact"
+        ? (workflow.payload as { sourceNoteIds?: unknown })
+        : null;
+    return Array.isArray(sourcePayload?.sourceNoteIds)
+      ? sourcePayload.sourceNoteIds.filter(
+          (id): id is string => typeof id === "string",
+        )
+      : [];
+  }, [workflow.payload]);
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
@@ -374,7 +395,15 @@ function StudyArtifactWorkflow({
       .then((response) => {
         if (cancelled) return;
         setNotes(response.notes);
-        setSelectedIds(response.notes.slice(0, 3).map((note) => note.id));
+        const available = new Set(response.notes.map((note) => note.id));
+        const selected = initialSourceNoteIds.filter((id) =>
+          available.has(id),
+        );
+        setSelectedIds(
+          selected.length > 0
+            ? selected
+            : response.notes.slice(0, 3).map((note) => note.id),
+        );
       })
       .catch(() => {
         if (!cancelled) setError(true);
@@ -382,7 +411,7 @@ function StudyArtifactWorkflow({
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [initialSourceNoteIds, projectId]);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   function generate() {
     if (!projectId || selectedIds.length === 0) return;
@@ -511,7 +540,7 @@ function DocumentWorkflow({
   const locale = useLocale();
   const preset = getDocumentGenerationPreset(workflow.presetId ?? "pdf_report_fast");
   const sourcePayload = useMemo(
-    () => getSourcePaperAnalysisPayload(workflow.payload),
+    () => getSourceDocumentPayload(workflow.payload),
     [workflow.payload],
   );
   const preferredSourceIds = useMemo(

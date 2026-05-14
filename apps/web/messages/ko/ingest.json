@@ -6,7 +6,8 @@
     "denseToggleOff": "간단히 보기"
   },
   "notifications": {
-    "completed": "분석이 완료되었습니다. 생성된 노트를 확인해보세요.",
+    "completed": "분석이 완료되었습니다.",
+    "followUpReady": "선택한 후속 작업을 에이전트 패널에 준비했어요.",
     "openNote": "확인하기",
     "failed": "분석에 실패했습니다."
   },

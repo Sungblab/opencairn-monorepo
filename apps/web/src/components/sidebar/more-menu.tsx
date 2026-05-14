@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ExternalLink, Network } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 export interface MoreMenuProps {
   base: string;
@@ -20,11 +20,6 @@ export function MoreMenu({
 }: MoreMenuProps) {
   const t = useTranslations("sidebar");
   const primaryItems = [
-    {
-      href: `${base}/atlas`,
-      label: t("more_menu.atlas"),
-      Icon: Network,
-    },
     ...(synthesisExportEnabled
       ? [
           {
@@ -52,28 +47,6 @@ export function MoreMenu({
             <span className="min-w-0 flex-1 truncate">{label}</span>
           </Link>
         ))}
-        <a
-          href="/feedback"
-          target="_blank"
-          rel="noreferrer"
-          className="flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
-        >
-          <ExternalLink aria-hidden className="h-3.5 w-3.5 shrink-0" />
-          <span className="min-w-0 flex-1 truncate">
-            {t("more_menu.feedback")}
-          </span>
-        </a>
-        <a
-          href="/changelog"
-          target="_blank"
-          rel="noreferrer"
-          className="flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
-        >
-          <ExternalLink aria-hidden className="h-3.5 w-3.5 shrink-0" />
-          <span className="min-w-0 flex-1 truncate">
-            {t("more_menu.changelog")}
-          </span>
-        </a>
       </div>
     </div>
   );

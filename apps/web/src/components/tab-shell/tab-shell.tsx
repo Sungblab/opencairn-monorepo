@@ -1,4 +1,9 @@
 "use client";
+import { Columns2, Rows2, Shuffle, X } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { WorkflowConsoleRuns } from "@/components/agent-panel/workflow-console-runs";
+import { useCurrentProjectContext } from "@/components/sidebar/use-current-project";
+import { usePanelStore, type BottomDockTab } from "@/stores/panel-store";
 import { useTabsStore, type SplitPane, type Tab } from "@/stores/tabs-store";
 import { TabBar } from "./tab-bar";
 import { TabModeRouterLoader } from "./tab-mode-router-loader";
@@ -39,6 +44,7 @@ export function TabShell({ children }: { children: React.ReactNode }) {
           <SplitWorkspace
             primary={primary}
             secondary={secondary}
+            orientation={split.orientation}
             ratio={split.ratio}
           >
             {children}
@@ -53,18 +59,89 @@ export function TabShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </div>
+      <WorkspaceBottomDock />
     </main>
+  );
+}
+
+function WorkspaceBottomDock() {
+  const t = useTranslations("appShell.bottomDock");
+  const { projectId: routeProjectId } = useCurrentProjectContext();
+  const tabProjectId = useTabsStore(
+    (s) => s.tabs.find((tab) => tab.kind === "project")?.targetId ?? null,
+  );
+  const projectId = routeProjectId ?? tabProjectId;
+  const bottomDockOpen = usePanelStore((s) => s.bottomDockOpen);
+  const bottomDockHeight = usePanelStore((s) => s.bottomDockHeight);
+  const bottomDockTab = usePanelStore((s) => s.bottomDockTab);
+  const setBottomDockOpen = usePanelStore((s) => s.setBottomDockOpen);
+  const setBottomDockTab = usePanelStore((s) => s.setBottomDockTab);
+  if (!bottomDockOpen) return null;
+
+  return (
+    <section
+      data-testid="workspace-bottom-dock"
+      className="min-h-0 shrink-0 border-t border-border bg-background"
+      style={{ height: bottomDockHeight }}
+      aria-label={t("title")}
+    >
+      <div className="flex h-9 items-center justify-between gap-2 border-b border-border px-2">
+        <div className="flex min-w-0 items-center gap-1">
+          {(["activity", "logs"] satisfies BottomDockTab[]).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              aria-pressed={bottomDockTab === tab}
+              className={`inline-flex h-7 items-center rounded-[var(--radius-control)] px-2 text-xs ${
+                bottomDockTab === tab
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              }`}
+              onClick={() => setBottomDockTab(tab)}
+            >
+              {t(`tabs.${tab}`)}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          aria-label={t("close")}
+          className="grid h-7 w-7 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-muted hover:text-foreground"
+          onClick={() => setBottomDockOpen(false)}
+        >
+          <X aria-hidden className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="app-scrollbar-thin h-[calc(100%-2.25rem)] min-h-0 overflow-y-auto">
+        {bottomDockTab === "activity" ? (
+          <WorkflowConsoleRuns projectId={projectId} />
+        ) : null}
+        {bottomDockTab === "logs" ? (
+          <div className="px-3 py-3 text-sm">
+            <p className="font-medium text-foreground">{t("logsEmpty.title")}</p>
+            <p className="mt-1 text-muted-foreground">{t("logsEmpty.body")}</p>
+          </div>
+        ) : null}
+        {!projectId ? (
+          <p className="px-3 py-3 text-sm text-muted-foreground">
+            {t("noProject")}
+          </p>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
 function SplitWorkspace({
   primary,
   secondary,
+  orientation,
   ratio,
   children,
 }: {
   primary: Tab;
   secondary: Tab;
+  orientation: "vertical" | "horizontal";
   ratio: number;
   children: React.ReactNode;
 }) {
@@ -75,24 +152,104 @@ function SplitWorkspace({
       : null;
 
   return (
-    <div className="flex min-h-0 w-full flex-1 overflow-hidden">
-      <SplitPaneView
-        pane="primary"
-        tab={primary}
-        width={`${ratio * 100}%`}
-        routeChildrenPane={routeChildrenPane}
+    <div
+      data-orientation={orientation}
+      className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+    >
+      <SplitLayoutToolbar orientation={orientation} />
+      <div
+        className={`min-h-0 w-full flex-1 overflow-hidden ${
+          orientation === "horizontal" ? "flex flex-col" : "flex"
+        }`}
       >
-        {children}
-      </SplitPaneView>
-      <div className="w-px shrink-0 bg-border" aria-hidden />
-      <SplitPaneView
-        pane="secondary"
-        tab={secondary}
-        width={`${(1 - ratio) * 100}%`}
-        routeChildrenPane={routeChildrenPane}
-      >
-        {children}
-      </SplitPaneView>
+        <SplitPaneView
+          pane="primary"
+          tab={primary}
+          basis={`${ratio * 100}%`}
+          orientation={orientation}
+          routeChildrenPane={routeChildrenPane}
+        >
+          {children}
+        </SplitPaneView>
+        <div
+          className={`shrink-0 bg-border ${
+            orientation === "horizontal" ? "h-px w-full" : "w-px"
+          }`}
+          aria-hidden
+        />
+        <SplitPaneView
+          pane="secondary"
+          tab={secondary}
+          basis={`${(1 - ratio) * 100}%`}
+          orientation={orientation}
+          routeChildrenPane={routeChildrenPane}
+        >
+          {children}
+        </SplitPaneView>
+      </div>
+    </div>
+  );
+}
+
+function SplitLayoutToolbar({
+  orientation,
+}: {
+  orientation: "vertical" | "horizontal";
+}) {
+  const t = useTranslations("appShell.tabs.layout");
+  const setSplitOrientation = useTabsStore((s) => s.setSplitOrientation);
+  const swapSplitPanes = useTabsStore((s) => s.swapSplitPanes);
+  const unsplit = useTabsStore((s) => s.unsplit);
+  return (
+    <div
+      data-testid="split-layout-toolbar"
+      className="flex h-9 shrink-0 items-center justify-between border-b bg-background px-2"
+    >
+      <span className="truncate text-xs font-medium text-muted-foreground">
+        {t("title")}
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          aria-pressed={orientation === "vertical"}
+          aria-label={t("vertical")}
+          title={t("vertical")}
+          data-testid="split-layout-vertical"
+          className="grid h-7 w-7 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-muted hover:text-foreground aria-pressed:bg-muted aria-pressed:text-foreground"
+          onClick={() => setSplitOrientation("vertical")}
+        >
+          <Columns2 aria-hidden className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          aria-pressed={orientation === "horizontal"}
+          aria-label={t("horizontal")}
+          title={t("horizontal")}
+          data-testid="split-layout-horizontal"
+          className="grid h-7 w-7 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-muted hover:text-foreground aria-pressed:bg-muted aria-pressed:text-foreground"
+          onClick={() => setSplitOrientation("horizontal")}
+        >
+          <Rows2 aria-hidden className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          aria-label={t("swap")}
+          title={t("swap")}
+          className="grid h-7 w-7 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-muted hover:text-foreground"
+          onClick={swapSplitPanes}
+        >
+          <Shuffle aria-hidden className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          aria-label={t("unsplit")}
+          title={t("unsplit")}
+          className="grid h-7 w-7 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-muted hover:text-foreground"
+          onClick={() => unsplit()}
+        >
+          <X aria-hidden className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -100,13 +257,15 @@ function SplitWorkspace({
 function SplitPaneView({
   pane,
   tab,
-  width,
+  basis,
+  orientation,
   routeChildrenPane,
   children,
 }: {
   pane: SplitPane;
   tab: Tab;
-  width: string;
+  basis: string;
+  orientation: "vertical" | "horizontal";
   routeChildrenPane: SplitPane | null;
   children: React.ReactNode;
 }) {
@@ -120,14 +279,20 @@ function SplitPaneView({
       data-testid={`split-pane-${pane}`}
       aria-current={isActivePane ? "true" : undefined}
       onClick={() => setActivePane(pane)}
-      className={`min-w-0 overflow-auto ${
+      className={`h-full min-h-0 min-w-0 overflow-auto ${
         isActivePane ? "bg-background" : "bg-muted/10"
       }`}
-      style={{ width, flexShrink: 0 }}
+      style={
+        orientation === "horizontal"
+          ? { height: basis, flexShrink: 0 }
+          : { width: basis, flexShrink: 0 }
+      }
     >
       {isRouteBacked ? (
         routeChildrenPane === pane ? (
-          <div className="min-w-0 w-full">{children}</div>
+          <div className="h-full min-h-0 min-w-0 w-full overflow-hidden">
+            {children}
+          </div>
         ) : (
           <div className="flex h-full min-h-40 items-center justify-center px-4 text-center text-sm text-muted-foreground">
             {tab.title}

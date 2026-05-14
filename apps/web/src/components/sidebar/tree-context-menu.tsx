@@ -15,6 +15,7 @@ export interface TreeContextMenuItemsProps {
   onCreateFolder?(): void;
   onDuplicate?(): void;
   onOpenToRight?(): void;
+  onPaperAnalysis?(): void;
   onCopyLink?(): void;
   onFavorite?(): void;
 }
@@ -33,6 +34,7 @@ export function TreeContextMenuItems({
   onCreateFolder,
   onDuplicate,
   onOpenToRight,
+  onPaperAnalysis,
   onCopyLink,
   onFavorite,
 }: TreeContextMenuItemsProps) {
@@ -78,6 +80,14 @@ export function TreeContextMenuItems({
       >
         {t("open_to_right")}
       </ContextMenuItem>
+      {onPaperAnalysis ? (
+        <ContextMenuItem
+          className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5"
+          onClick={onPaperAnalysis}
+        >
+          {t("paper_analysis")}
+        </ContextMenuItem>
+      ) : null}
       <ContextMenuItem
         className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5"
         onClick={onCopyLink}

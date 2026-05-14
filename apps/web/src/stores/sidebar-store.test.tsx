@@ -55,8 +55,9 @@ describe("sidebar-store", () => {
       true,
     );
     expect(useSidebarStore.getState().isSectionCollapsed("recent")).toBe(true);
-    expect(useSidebarStore.getState().isSectionCollapsed("publish")).toBe(true);
-    expect(useSidebarStore.getState().isSectionCollapsed("help")).toBe(true);
+    expect(useSidebarStore.getState().isSectionCollapsed("project_tools")).toBe(
+      false,
+    );
     expect(useSidebarStore.getState().isSectionCollapsed("files")).toBe(false);
   });
 

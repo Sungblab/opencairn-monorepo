@@ -23,12 +23,13 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
   const t = useTranslations("appShell.tabs.menu");
   const locale = useLocale();
   const togglePin = useTabsStore((s) => s.togglePin);
-  const addTab = useTabsStore((s) => s.addTab);
+  const duplicateTab = useTabsStore((s) => s.duplicateTab);
   const openTabToRight = useTabsStore((s) => s.openTabToRight);
+  const openTabBelow = useTabsStore((s) => s.openTabBelow);
   const tabActions = useTabActions();
 
   const duplicate = () =>
-    addTab(
+    duplicateTab(
       newTab({
         kind: tab.kind,
         targetId: tab.targetId,
@@ -40,6 +41,17 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
 
   const openToRight = () =>
     openTabToRight(
+      newTab({
+        kind: tab.kind,
+        targetId: tab.targetId,
+        title: tab.title,
+        mode: tab.kind === "note" && tab.mode === "plate" ? "reading" : tab.mode,
+        preview: false,
+      }),
+    );
+
+  const openBelow = () =>
+    openTabBelow(
       newTab({
         kind: tab.kind,
         targetId: tab.targetId,
@@ -75,6 +87,7 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
       <ContextMenuItem onClick={openToRight}>
         {t("openToRight")}
       </ContextMenuItem>
+      <ContextMenuItem onClick={openBelow}>{t("openBelow")}</ContextMenuItem>
       <ContextMenuSeparator />
       <TabModeSubmenu tab={tab} />
       <ContextMenuSeparator />

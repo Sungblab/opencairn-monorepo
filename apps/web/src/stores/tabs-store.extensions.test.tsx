@@ -320,6 +320,27 @@ describe("tabs-store extensions", () => {
       expect(state.activePane).toBe("secondary");
     });
 
+    it("openTabBelow creates a horizontal split and promotes preview tabs", () => {
+      useTabsStore.getState().addTab(mk({ id: "top" }));
+      useTabsStore
+        .getState()
+        .openTabBelow(mk({ id: "bottom", targetId: "n2", preview: true }));
+
+      const state = useTabsStore.getState();
+      expect(state.tabs.map((tab) => tab.id)).toEqual(["top", "bottom"]);
+      expect(state.tabs.find((tab) => tab.id === "bottom")?.preview).toBe(
+        false,
+      );
+      expect(state.split).toEqual({
+        primaryTabId: "top",
+        secondaryTabId: "bottom",
+        orientation: "horizontal",
+        ratio: 0.5,
+      });
+      expect(state.activeId).toBe("bottom");
+      expect(state.activePane).toBe("secondary");
+    });
+
     it("openTabToRight reuses an existing tab with the same kind and target", () => {
       useTabsStore.getState().addTab(mk({ id: "left" }));
       useTabsStore
@@ -407,6 +428,17 @@ describe("tabs-store extensions", () => {
       expect(useTabsStore.getState().split?.ratio).toBe(0.75);
       const raw = JSON.parse(localStorage.getItem("oc:tabs:ws-a")!);
       expect(raw.split.ratio).toBe(0.75);
+    });
+
+    it("setSplitOrientation changes and persists the current group layout", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore.getState().openTabToRight(mk({ id: "right" }));
+
+      useTabsStore.getState().setSplitOrientation("horizontal");
+
+      expect(useTabsStore.getState().split?.orientation).toBe("horizontal");
+      const raw = JSON.parse(localStorage.getItem("oc:tabs:ws-a")!);
+      expect(raw.split.orientation).toBe("horizontal");
     });
 
     it("unsplit keeps the requested pane active", () => {

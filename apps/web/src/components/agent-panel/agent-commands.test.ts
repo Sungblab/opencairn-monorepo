@@ -82,4 +82,14 @@ describe("agent commands", () => {
       content: "관계도",
     });
   });
+
+  it("enriches slash discovery from the shared tool registry", () => {
+    expect(filterSlashCommands("cheat").map((command) => command.id)).toContain(
+      "summarize",
+    );
+    expect(getAgentCommand("generate_figure")).toMatchObject({
+      registryItemId: "source_figure",
+      registryOutputType: "agent_file",
+    });
+  });
 });

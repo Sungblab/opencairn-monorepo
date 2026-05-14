@@ -18,6 +18,9 @@ describe("panel-store", () => {
     expect(s.agentPanelOpen).toBe(false);
     expect(s.compactAgentPanelOpen).toBe(false);
     expect(s.agentPanelTab).toBe("chat");
+    expect(s.bottomDockOpen).toBe(false);
+    expect(s.bottomDockHeight).toBe(260);
+    expect(s.bottomDockTab).toBe("activity");
   });
 
   it("toggleSidebar flips sidebarOpen", () => {
@@ -75,6 +78,9 @@ describe("panel-store", () => {
           agentPanelWidth: 420,
           agentPanelOpen: true,
           agentPanelTab: "notifications",
+          bottomDockOpen: true,
+          bottomDockHeight: 390,
+          bottomDockTab: "logs",
           backlinksOpen: true,
           enrichmentOpen: false,
         },
@@ -96,6 +102,9 @@ describe("panel-store", () => {
       agentPanelWidth: 420,
       agentPanelOpen: true,
       agentPanelTab: "notifications",
+      bottomDockOpen: true,
+      bottomDockHeight: 390,
+      bottomDockTab: "logs",
       backlinksOpen: true,
     });
   });
@@ -141,5 +150,21 @@ describe("panel-store", () => {
     usePanelStore.getState().setAgentPanelWidth(500);
     usePanelStore.getState().resetAgentPanelWidth();
     expect(usePanelStore.getState().agentPanelWidth).toBe(360);
+  });
+
+  it("opens and sizes the bottom dock independently from the agent panel", () => {
+    usePanelStore.getState().openBottomDock("logs");
+    expect(usePanelStore.getState()).toMatchObject({
+      bottomDockOpen: true,
+      bottomDockTab: "logs",
+      agentPanelOpen: false,
+    });
+
+    usePanelStore.getState().setBottomDockHeight(50);
+    expect(usePanelStore.getState().bottomDockHeight).toBe(180);
+    usePanelStore.getState().setBottomDockHeight(999);
+    expect(usePanelStore.getState().bottomDockHeight).toBe(420);
+    usePanelStore.getState().resetBottomDockHeight();
+    expect(usePanelStore.getState().bottomDockHeight).toBe(260);
   });
 });

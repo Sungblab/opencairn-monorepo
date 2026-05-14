@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { NextIntlClientProvider } from "next-intl";
 import { TabShell } from "./tab-shell";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
+import { usePanelStore } from "@/stores/panel-store";
 
 // Stub the TabBar + router loader so we can assert on the branch choice
 // directly without loading routed viewer bundles in jsdom.
@@ -12,8 +13,41 @@ vi.mock("./tab-mode-router-loader", () => ({
     <div data-testid={`router-${tab.mode}`} />
   ),
 }));
+vi.mock("@/components/agent-panel/workflow-console-runs", () => ({
+  WorkflowConsoleRuns: ({ projectId }: { projectId: string | null }) => (
+    <div data-testid="dock-workflow-runs">{projectId}</div>
+  ),
+}));
+vi.mock("@/components/sidebar/use-current-project", () => ({
+  useCurrentProjectContext: () => ({ projectId: "project-1" }),
+}));
 
-const messages = {};
+const messages = {
+  appShell: {
+    tabs: {
+      layout: {
+        title: "탭 그룹",
+        vertical: "좌우 분할",
+        horizontal: "상하 분할",
+        swap: "위치 바꾸기",
+        unsplit: "분할 닫기",
+      },
+    },
+    bottomDock: {
+      title: "실행 패널",
+      close: "닫기",
+      noProject: "프로젝트 없음",
+      tabs: {
+        activity: "활동",
+        logs: "로그",
+      },
+      logsEmpty: {
+        title: "로그 준비 중",
+        body: "활동 탭을 사용하세요.",
+      },
+    },
+  },
+};
 
 function wrap(children: React.ReactNode) {
   return render(
@@ -58,6 +92,7 @@ describe("TabShell", () => {
       false,
     );
     useTabsStore.getState().setWorkspace("ws");
+    usePanelStore.setState(usePanelStore.getInitialState(), true);
   });
 
   it("renders children when active tab is plate-mode", () => {
@@ -152,7 +187,53 @@ describe("TabShell", () => {
 
     expect(screen.getByTestId("split-pane-primary")).toBeInTheDocument();
     expect(screen.getByTestId("split-pane-secondary")).toBeInTheDocument();
+    expect(screen.getByTestId("split-layout-toolbar")).toBeInTheDocument();
     expect(screen.getByTestId("route-child")).toBeInTheDocument();
+    expect(screen.getByTestId("router-source")).toBeInTheDocument();
+  });
+
+  it("lets the split layout toolbar change orientation", () => {
+    act(() => {
+      useTabsStore.getState().addTab(mk({ id: "left", mode: "plate" }));
+      useTabsStore.getState().openTabToRight(
+        mk({
+          id: "right",
+          kind: "note",
+          mode: "source",
+          targetId: "source-1",
+        }),
+      );
+    });
+
+    wrap(<div data-testid="route-child" />);
+    act(() => {
+      screen.getByTestId("split-layout-horizontal").click();
+    });
+
+    expect(useTabsStore.getState().split?.orientation).toBe("horizontal");
+  });
+
+  it("renders a horizontal two-pane split when a tab is opened below", () => {
+    act(() => {
+      useTabsStore.getState().addTab(mk({ id: "top", mode: "plate" }));
+      useTabsStore.getState().openTabBelow(
+        mk({
+          id: "bottom",
+          kind: "note",
+          mode: "source",
+          targetId: "source-1",
+        }),
+      );
+    });
+
+    wrap(<div data-testid="route-child" />);
+
+    expect(screen.getByTestId("split-pane-primary")).toHaveStyle({
+      height: "50%",
+    });
+    expect(screen.getByTestId("split-pane-secondary")).toHaveStyle({
+      height: "50%",
+    });
     expect(screen.getByTestId("router-source")).toBeInTheDocument();
   });
 
@@ -176,5 +257,32 @@ describe("TabShell", () => {
 
     expect(useTabsStore.getState().activePane).toBe("primary");
     expect(useTabsStore.getState().activeId).toBe("left");
+  });
+
+  it("renders the bottom dock without replacing the main workspace", () => {
+    act(() => {
+      useTabsStore.getState().addTab(mk({ mode: "plate" }));
+      usePanelStore.getState().openBottomDock("activity");
+    });
+
+    wrap(<div data-testid="route-child" />);
+
+    expect(screen.getByTestId("route-child")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-bottom-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("dock-workflow-runs")).toHaveTextContent(
+      "project-1",
+    );
+  });
+
+  it("shows a logs placeholder instead of duplicating the activity list", () => {
+    act(() => {
+      useTabsStore.getState().addTab(mk({ mode: "plate" }));
+      usePanelStore.getState().openBottomDock("logs");
+    });
+
+    wrap(<div data-testid="route-child" />);
+
+    expect(screen.queryByTestId("dock-workflow-runs")).toBeNull();
+    expect(screen.getByText("로그 준비 중")).toBeInTheDocument();
   });
 });

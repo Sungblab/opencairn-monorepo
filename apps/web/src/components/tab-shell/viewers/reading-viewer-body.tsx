@@ -25,6 +25,7 @@ import {
 } from "@/hooks/useCollaborativeEditor";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
 import { HorizontalRuleElement } from "@/components/editor/elements/horizontal-rule";
+import { useTabNavigate } from "@/hooks/use-tab-navigate";
 
 // Same content block coverage as NoteEditor minus wiki-link + slash menu.
 // Reading mode is content-only, so interactive overlays are off.
@@ -72,6 +73,7 @@ export function ReadingViewerBody({
   label,
 }: ReadingViewerBodyProps) {
   const updateTab = useTabsStore((s) => s.updateTab);
+  const navigateToTab = useTabNavigate();
   // useCollaborativeEditor is called unconditionally here: rules-of-hooks.
   // The outer host gates on targetId/note/me before this body is loaded.
   const editor = useCollaborativeEditor({
@@ -108,7 +110,13 @@ export function ReadingViewerBody({
           <button
             type="button"
             className="app-hover inline-flex min-h-8 items-center gap-1.5 rounded-[var(--radius-control)] border border-border px-2.5 text-xs font-medium text-foreground"
-            onClick={() => updateTab(tab.id, { mode: "plate" })}
+            onClick={() => {
+              updateTab(tab.id, { mode: "plate" });
+              navigateToTab(
+                { kind: "note", targetId: tab.targetId, mode: "plate" },
+                { mode: "replace" },
+              );
+            }}
           >
             <Pencil aria-hidden className="h-3.5 w-3.5" />
             {label.editMode}

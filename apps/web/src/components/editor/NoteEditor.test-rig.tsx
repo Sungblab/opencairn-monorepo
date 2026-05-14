@@ -3,6 +3,8 @@ import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { NoteEditor, type NoteEditorProps } from "./NoteEditor";
+import editorMessages from "@/../messages/ko/editor.json";
+import shareDialogMessages from "@/../messages/ko/share-dialog.json";
 
 // Heavy dependencies are shallow-mocked via vi.mock in the spec file; this
 // rig only wires providers the component assumes at render. See the test
@@ -63,12 +65,10 @@ const messages = {
         "PDF와 업로드 자료를 바탕으로 현재 노트를 만들고, 근거를 붙이고, 선택한 문단을 AI로 다듬습니다.",
       activityDescription: "이 노트와 프로젝트에서 진행 중인 작업을 봅니다.",
     },
-    embed: {},
-    image: {},
+    embed: editorMessages.embed,
+    image: editorMessages.image,
   },
-  shareDialog: {
-    title: "공유",
-  },
+  shareDialog: shareDialogMessages,
 };
 
 const defaults: NoteEditorProps = {

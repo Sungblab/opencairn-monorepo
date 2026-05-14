@@ -52,6 +52,14 @@ export const LazyAgentFileViewer = dynamic<TabViewerProps>(
   { ssr: false, loading },
 );
 
+export const LazyAgentPanelViewer = dynamic<TabViewerProps>(
+  () =>
+    import("./viewers/agent-panel-viewer").then(
+      (mod) => mod.AgentPanelViewer,
+    ),
+  { ssr: false, loading },
+);
+
 export const LazyCodeWorkspaceViewer = dynamic<TabViewerProps>(
   () =>
     import("./viewers/code-workspace-viewer").then(

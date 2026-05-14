@@ -20,6 +20,7 @@ export function LazyAgentPanel({ wsSlug }: { wsSlug?: string }) {
 function AgentPanelSkeleton() {
   return (
     <div
+      data-testid="app-shell-agent-panel"
       aria-hidden
       className="flex h-full flex-col gap-3 border-l border-border bg-background p-3"
     >

@@ -25,7 +25,7 @@ interface Props {
 
 const DOCUMENT_ACTIONS: AgentCommandId[] = [
   "summarize",
-  "decompose",
+  "research",
   "extract_citations",
   "make_note",
 ];

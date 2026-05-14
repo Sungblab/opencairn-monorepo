@@ -4,7 +4,7 @@ import { useTabsStore, type Tab } from "./tabs-store";
 const mkTab = (overrides: Partial<Tab> = {}): Tab => ({
   id: "t1",
   kind: "note",
-  targetId: "n1",
+  targetId: overrides.targetId ?? `n-${overrides.id ?? "t1"}`,
   mode: "plate",
   title: "Note 1",
   pinned: false,
@@ -63,6 +63,21 @@ describe("tabs-store", () => {
     useTabsStore.getState().setWorkspace("ws-a");
     useTabsStore.getState().addTab(mkTab({ id: "t1" }));
     useTabsStore.getState().addTab(mkTab({ id: "t2" }));
+    expect(useTabsStore.getState().activeId).toBe("t2");
+  });
+
+  it("duplicateTab appends a second tab even when the target matches", () => {
+    useTabsStore.getState().setWorkspace("ws-a");
+    useTabsStore.getState().addTab(mkTab({ id: "t1", targetId: "n1" }));
+    useTabsStore
+      .getState()
+      .duplicateTab(mkTab({ id: "t2", targetId: "n1", preview: true }));
+
+    expect(useTabsStore.getState().tabs.map((tab) => tab.id)).toEqual([
+      "t1",
+      "t2",
+    ]);
+    expect(useTabsStore.getState().tabs[1]?.preview).toBe(false);
     expect(useTabsStore.getState().activeId).toBe("t2");
   });
 

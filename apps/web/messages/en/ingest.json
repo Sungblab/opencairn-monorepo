@@ -6,7 +6,8 @@
     "denseToggleOff": "Hide details"
   },
   "notifications": {
-    "completed": "Analysis is complete. Check the generated note.",
+    "completed": "Analysis is complete.",
+    "followUpReady": "The selected follow-up is ready in the Agent Panel.",
     "openNote": "View",
     "failed": "Analysis failed."
   },

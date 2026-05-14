@@ -232,6 +232,9 @@ export function ProjectToolsPanel({
           {panelT("noProject")}
         </p>
       ) : null}
+      <p className="mb-3 rounded-[var(--radius-control)] border border-border bg-muted/20 px-3 py-2 text-xs leading-5 text-muted-foreground">
+        {panelT("sidebarPrimary")}
+      </p>
       <div className="mb-3">
         <input
           type="search"
@@ -285,6 +288,7 @@ export function ProjectToolsPanel({
         ) : null}
       </div>
       <ProjectUploadDialog
+        projectId={projectId}
         open={uploadDialogOpen}
         onOpenChange={(open) => {
           setUploadDialogOpen(open);
@@ -294,8 +298,8 @@ export function ProjectToolsPanel({
         uploading={uploading}
         error={upload.hasUploadError}
         onFilesChange={setPendingUploadFiles}
-        onStart={() => {
-          void upload.startUpload(pendingUploadFiles).then((result) => {
+        onStart={(intent) => {
+          void upload.startUpload(pendingUploadFiles, intent).then((result) => {
             if (result?.ok) {
               setPendingUploadFiles([]);
               setUploadDialogOpen(false);

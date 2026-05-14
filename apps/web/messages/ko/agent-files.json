@@ -71,6 +71,13 @@
       "actions": {
         "note": "정리 노트",
         "wiki": "개념 위키",
+        "summarize": "요약하기",
+        "citations": "인용 추출",
+        "report": "리포트",
+        "figure": "피규어",
+        "slides": "슬라이드",
+        "table": "표",
+        "research": "리서치",
         "quiz": "퀴즈",
         "reanalyze": "다시 분석",
         "retry": "재시도",

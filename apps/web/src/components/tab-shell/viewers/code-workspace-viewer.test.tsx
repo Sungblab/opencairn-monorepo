@@ -26,6 +26,7 @@ const messages = {
       error: "열 수 없음",
       archive: "아카이브 다운로드",
       meta: "{files}개 파일 · {directories}개 폴더",
+      bytes: "{bytes} B",
       currentSnapshot: "스냅샷 {id}",
     },
   },

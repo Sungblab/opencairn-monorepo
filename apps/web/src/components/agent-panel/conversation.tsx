@@ -35,7 +35,7 @@ import {
 } from "./message-attachments";
 import { AgentActionCards, asAgentActionCards } from "./agent-action-cards";
 import { SaveSuggestionCard } from "./save-suggestion-card";
-import { asSaveSuggestion } from "./message-bubble";
+import { asSaveSuggestion } from "./save-suggestion";
 import { MessageBubbleLoader } from "./message-bubble-loader";
 import { StatusLine } from "./status-line";
 import { ThoughtBubble } from "./thought-bubble";

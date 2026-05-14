@@ -94,6 +94,7 @@ export function WorkflowConsoleRuns({
 
   return (
     <section
+      data-testid="dock-workflow-runs"
       aria-label={t("title")}
       className="border-b border-border px-3 py-2"
     >

@@ -53,6 +53,9 @@ describe("Composer", () => {
     expect(screen.getByLabelText(ADD_MENU_LABEL)).toHaveClass(
       "rounded-[var(--radius-control)]",
     );
+    expect(screen.getByLabelText(ADD_MENU_LABEL)).not.toHaveTextContent(
+      "agentPanel.composer.add_button",
+    );
   });
 
   it("passes selected files to the attachment handler", () => {

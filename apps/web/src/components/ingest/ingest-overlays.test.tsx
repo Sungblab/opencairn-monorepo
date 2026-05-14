@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useIngestStore } from "@/stores/ingest-store";
+import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { IngestOverlays } from "./ingest-overlays";
 
 const mocks = vi.hoisted(() => ({
@@ -14,7 +15,8 @@ vi.mock("next-intl", () => ({
   useLocale: () => "ko",
   useTranslations: (ns?: string) => {
     const messages: Record<string, string> = {
-      "ingest.notifications.completed": "분석이 완료되었습니다. 생성된 노트를 확인해보세요.",
+      "ingest.notifications.completed": "분석이 완료되었습니다.",
+      "ingest.notifications.followUpReady": "후속 작업이 준비되었습니다.",
       "ingest.notifications.openNote": "확인하기",
       "ingest.notifications.failed": "분석에 실패했습니다.",
     };
@@ -60,6 +62,7 @@ class FakeEventSource {
 describe("IngestOverlays", () => {
   beforeEach(() => {
     useIngestStore.setState({ runs: {} });
+    useAgentWorkbenchStore.setState({ pendingWorkflow: null });
     FakeEventSource.instances = [];
     mocks.push.mockReset();
     mocks.toastSuccess.mockReset();
@@ -68,7 +71,7 @@ describe("IngestOverlays", () => {
     globalThis.EventSource = FakeEventSource;
   });
 
-  it("subscribes in the background and shows only a completion toast", async () => {
+  it("subscribes in the background and shows only a completion toast without note navigation", async () => {
     useIngestStore.getState().startRun("wf-1", "application/pdf", "paper.pdf");
 
     render(<IngestOverlays />);
@@ -93,20 +96,12 @@ describe("IngestOverlays", () => {
 
     await waitFor(() => {
       expect(mocks.toastSuccess).toHaveBeenCalledWith(
-        "분석이 완료되었습니다. 생성된 노트를 확인해보세요.",
-        expect.objectContaining({
-          action: expect.objectContaining({ label: "확인하기" }),
-        }),
+        "분석이 완료되었습니다.",
       );
     });
 
-    const options = mocks.toastSuccess.mock.calls[0]?.[1] as
-      | { action?: { onClick?: () => void } }
-      | undefined;
-    options?.action?.onClick?.();
-    expect(mocks.push).toHaveBeenCalledWith(
-      "/ko/workspace/acme/note/00000000-0000-0000-0000-000000000001",
-    );
+    expect(mocks.toastSuccess.mock.calls[0]).toHaveLength(1);
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 
   it("does not replay terminal toasts for persisted historical runs", () => {
@@ -128,6 +123,11 @@ describe("IngestOverlays", () => {
           error: null,
           lastSeq: 1,
           noteId: "00000000-0000-0000-0000-000000000001",
+          projectId: null,
+          followUpIntent: null,
+          followUpBatchId: null,
+          followUpBatchSize: null,
+          followUpLaunched: false,
         },
       },
     });
@@ -137,6 +137,105 @@ describe("IngestOverlays", () => {
     expect(mocks.toastSuccess).not.toHaveBeenCalled();
     expect(mocks.toastError).not.toHaveBeenCalled();
     expect(FakeEventSource.instances).toHaveLength(0);
+  });
+
+  it("opens the selected upload follow-up when ingest completes with a note", async () => {
+    useIngestStore
+      .getState()
+      .startRun("wf-followup", "application/pdf", "paper.pdf", {
+        followUpIntent: "paper_analysis",
+        projectId: "project-1",
+      });
+
+    render(<IngestOverlays />);
+
+    act(() => {
+      FakeEventSource.instances[0]?.emit({
+        workflowId: "wf-followup",
+        seq: 1,
+        ts: "2026-05-12T00:00:00.000Z",
+        kind: "completed",
+        payload: {
+          noteId: "00000000-0000-0000-0000-000000000101",
+          totalDurationMs: 1000,
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+        kind: "document_generation",
+        toolId: "paper_analysis",
+        payload: {
+          action: "source_paper_analysis",
+          sourceIds: ["note:00000000-0000-0000-0000-000000000101"],
+        },
+      });
+    });
+    expect(useIngestStore.getState().runs["wf-followup"]?.followUpLaunched).toBe(
+      true,
+    );
+  });
+
+  it("launches one comparison workflow after every file in the batch completes", async () => {
+    useIngestStore.getState().startRun("wf-a", "application/pdf", "a.pdf", {
+      followUpIntent: "comparison",
+      followUpBatchId: "batch-1",
+      followUpBatchSize: 2,
+      projectId: "project-1",
+    });
+    useIngestStore.getState().startRun("wf-b", "application/pdf", "b.pdf", {
+      followUpIntent: "comparison",
+      followUpBatchId: "batch-1",
+      followUpBatchSize: 2,
+      projectId: "project-1",
+    });
+
+    render(<IngestOverlays />);
+
+    act(() => {
+      FakeEventSource.instances[0]?.emit({
+        workflowId: "wf-a",
+        seq: 1,
+        ts: "2026-05-12T00:00:00.000Z",
+        kind: "completed",
+        payload: {
+          noteId: "00000000-0000-0000-0000-000000000201",
+          totalDurationMs: 1000,
+        },
+      });
+    });
+
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toBeNull();
+
+    act(() => {
+      FakeEventSource.instances[1]?.emit({
+        workflowId: "wf-b",
+        seq: 1,
+        ts: "2026-05-12T00:00:00.000Z",
+        kind: "completed",
+        payload: {
+          noteId: "00000000-0000-0000-0000-000000000202",
+          totalDurationMs: 1000,
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+        kind: "document_generation",
+        toolId: "source_comparison",
+        payload: {
+          action: "source_document_generation",
+          sourceIds: [
+            "note:00000000-0000-0000-0000-000000000201",
+            "note:00000000-0000-0000-0000-000000000202",
+          ],
+        },
+      });
+    });
+    expect(useIngestStore.getState().runs["wf-a"]?.followUpLaunched).toBe(true);
+    expect(useIngestStore.getState().runs["wf-b"]?.followUpLaunched).toBe(true);
   });
 
   it("deduplicates completion toasts if overlays are mounted twice", async () => {

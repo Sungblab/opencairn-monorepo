@@ -8,33 +8,25 @@ vi.mock("next-intl", () => ({
 }));
 
 describe("MoreMenu", () => {
-  it("keeps more menu focused on non-settings utility links", () => {
+  it("keeps more menu focused on gated overflow-only utilities", () => {
     render(<MoreMenu base="/ko/workspace/acme" />);
 
     expect(
-      screen.getByText("sidebar.more_menu.atlas").closest("a"),
-    ).toHaveAttribute("href", "/ko/workspace/acme/atlas");
+      screen.queryByText("sidebar.more_menu.atlas"),
+    ).not.toBeInTheDocument();
 
     expect(screen.queryByText("sidebar.more_menu.settings")).not.toBeInTheDocument();
     expect(screen.queryByText("sidebar.more_menu.shared_links")).not.toBeInTheDocument();
     expect(screen.queryByText("sidebar.more_menu.trash")).not.toBeInTheDocument();
+    expect(screen.queryByText("sidebar.more_menu.feedback")).not.toBeInTheDocument();
+    expect(screen.queryByText("sidebar.more_menu.changelog")).not.toBeInTheDocument();
   });
 
-  it("renders external items as new-tab links", () => {
-    render(<MoreMenu base="/ko/workspace/acme" />);
+  it("renders synthesis export only when the feature is enabled", () => {
+    render(<MoreMenu base="/ko/workspace/acme" synthesisExportEnabled />);
 
-    const feedback = (
-      screen.getByText("sidebar.more_menu.feedback")
-    ).closest("a");
-    expect(feedback).toHaveAttribute("href", "/feedback");
-    expect(feedback).toHaveAttribute("target", "_blank");
-    expect(feedback).toHaveAttribute("rel", "noreferrer");
-
-    const changelog = (
-      screen.getByText("sidebar.more_menu.changelog")
-    ).closest("a");
-    expect(changelog).toHaveAttribute("href", "/changelog");
-    expect(changelog).toHaveAttribute("target", "_blank");
-    expect(changelog).toHaveAttribute("rel", "noreferrer");
+    expect(
+      screen.getByText("sidebar.more_menu.synthesis_export").closest("a"),
+    ).toHaveAttribute("href", "/ko/workspace/acme/synthesis-export");
   });
 });

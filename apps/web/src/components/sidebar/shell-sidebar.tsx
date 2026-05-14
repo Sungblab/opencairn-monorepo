@@ -4,6 +4,7 @@ import { urls } from "@/lib/urls";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bot,
@@ -16,9 +17,14 @@ import {
   MoreHorizontal,
   Network,
   Newspaper,
+  Presentation,
   Plus,
   Search,
+  Sparkles,
   Star,
+  Table2,
+  Trash2,
+  type LucideIcon,
 } from "lucide-react";
 import { ScopedSearch } from "./scoped-search";
 import { ProjectTree } from "./project-tree";
@@ -34,6 +40,7 @@ import { ProjectHero } from "./project-hero";
 import { MoreMenu } from "./more-menu";
 import { SidebarEmptyState } from "./sidebar-empty-state";
 import { usePanelStore } from "@/stores/panel-store";
+import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { LiteratureSearchButton } from "@/components/literature/literature-search-button";
 import { SidebarFavorites } from "./sidebar-favorites";
 import { SidebarRecentNotes } from "./sidebar-recent-notes";
@@ -43,6 +50,15 @@ import {
   useSidebarStore,
 } from "@/stores/sidebar-store";
 import { workflowConsoleApi, type WorkflowConsoleRun } from "@/lib/api-client";
+import {
+  getToolDiscoveryItemsForSurface,
+  type ToolDiscoveryItem,
+} from "@/components/agent-panel/tool-discovery-catalog";
+import {
+  getToolRouteHref,
+  routeShouldOpenAsWorkflow,
+  workflowForToolItem,
+} from "@/components/agent-panel/tool-discovery-actions";
 import {
   Popover,
   PopoverContent,
@@ -72,14 +88,57 @@ export function ShellSidebar({
 }: ShellSidebarProps) {
   const { wsSlug, projectId } = useCurrentProjectContext();
   const locale = useLocale();
+  const router = useRouter();
   const tNav = useTranslations("sidebar.nav");
   const tSections = useTranslations("sidebar.sections");
+  const tTools = useTranslations("project.tools");
   const toggleSidebar = usePanelStore((s) => s.toggleSidebar);
   const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
+  const openBottomDock = usePanelStore((s) => s.openBottomDock);
+  const requestWorkflow = useAgentWorkbenchStore((s) => s.requestWorkflow);
   const setSidebarWorkspace = useSidebarStore((s) => s.setWorkspace);
   const quickCreateOrder = useSidebarStore((s) => s.quickCreateOrder);
   const recordQuickCreateUse = useSidebarStore((s) => s.recordQuickCreateUse);
   const base = wsSlug ? urls.workspace.root(locale, wsSlug) : null;
+  const sidebarCapabilities = getToolDiscoveryItemsForSurface(
+    "sidebar_command_rail",
+    { contexts: ["project"] },
+  );
+  const workflowCapabilities = sidebarCapabilities.filter((item) =>
+    item.sidebarSection === "workflow",
+  );
+  const reviewCapabilities = sidebarCapabilities.filter((item) =>
+    item.sidebarSection === "review",
+  );
+
+  function executeSidebarCapability(item: ToolDiscoveryItem) {
+    if (!projectId || !wsSlug) return;
+    if (item.action.type === "upload") return;
+    if (item.action.type === "open_activity" || item.action.type === "open_review") {
+      openBottomDock("activity");
+      openAgentPanelTab("activity");
+      return;
+    }
+    if (item.action.type === "route") {
+      if (routeShouldOpenAsWorkflow(item.action.route)) {
+        requestWorkflow(workflowForToolItem(item));
+        openAgentPanelTab("chat");
+        return;
+      }
+      router.push(
+        getToolRouteHref({
+          route: item.action.route,
+          locale,
+          wsSlug,
+          projectId,
+        }),
+      );
+      return;
+    }
+    requestWorkflow(workflowForToolItem(item));
+    openAgentPanelTab("chat");
+  }
+
   useEffect(() => {
     if (wsSlug) {
       setSidebarWorkspace(wsSlug);
@@ -122,7 +181,13 @@ export function ShellSidebar({
       <div className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 py-2.5 pb-8">
         <ScopedSearch />
         {base && wsSlug ? (
-          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-1.5">
+          <div
+            className={`mt-2 grid items-center gap-1.5 ${
+              synthesisExportEnabled
+                ? "grid-cols-[minmax(0,1fr)_2rem]"
+                : "grid-cols-1"
+            }`}
+          >
             <SidebarNavLink
               href={
                 projectId
@@ -134,11 +199,13 @@ export function ShellSidebar({
               }
               Icon={Home}
             />
-            <ProjectToolsMenu
-              base={base}
-              compact
-              synthesisExportEnabled={synthesisExportEnabled}
-            />
+            {synthesisExportEnabled ? (
+              <ProjectToolsMenu
+                base={base}
+                compact
+                synthesisExportEnabled={synthesisExportEnabled}
+              />
+            ) : null}
           </div>
         ) : null}
 
@@ -169,8 +236,45 @@ export function ShellSidebar({
 
             <SidebarActiveWorkSection
               projectId={projectId}
-              onOpenActivity={() => openAgentPanelTab("activity")}
+              onOpenActivity={() => {
+                openBottomDock("activity");
+                openAgentPanelTab("activity");
+              }}
             />
+
+            <SidebarSection
+              id="workflows"
+              label={tSections("workflows")}
+              Icon={Sparkles}
+            >
+              <div className="grid grid-cols-2 gap-1">
+                {workflowCapabilities.slice(0, 8).map((item) => (
+                  <SidebarCapabilityButton
+                    key={item.id}
+                    item={item}
+                    label={tTools(`items.${item.i18nKey}.title`)}
+                    onClick={() => executeSidebarCapability(item)}
+                  />
+                ))}
+              </div>
+            </SidebarSection>
+
+            <SidebarSection
+              id="review_inbox"
+              label={tSections("review_inbox")}
+              Icon={CircleDot}
+            >
+              <div className="grid gap-1">
+                {reviewCapabilities.map((item) => (
+                  <SidebarCapabilityButton
+                    key={item.id}
+                    item={item}
+                    label={tTools(`items.${item.i18nKey}.title`)}
+                    onClick={() => executeSidebarCapability(item)}
+                  />
+                ))}
+              </div>
+            </SidebarSection>
 
             <SidebarSection
               id="files"
@@ -214,6 +318,18 @@ export function ShellSidebar({
                   tone="utility"
                 />
                 <SidebarNavLink
+                  href={`${base}/atlas`}
+                  label={tNav("atlas")}
+                  Icon={Network}
+                  tone="utility"
+                />
+                <SidebarNavLink
+                  href={`${base}/trash`}
+                  label={tNav("trash")}
+                  Icon={Trash2}
+                  tone="utility"
+                />
+                <SidebarNavLink
                   href={urls.workspace.projectLearn(locale, wsSlug, projectId)}
                   label={tNav("learn")}
                   Icon={GraduationCap}
@@ -234,6 +350,20 @@ export function ShellSidebar({
                   />
                 ) : null}
                 <LiteratureSearchButton wsSlug={wsSlug} />
+                <SidebarNavLink
+                  href="/feedback"
+                  label={tNav("feedback")}
+                  Icon={Newspaper}
+                  tone="utility"
+                  external
+                />
+                <SidebarNavLink
+                  href="/changelog"
+                  label={tNav("changelog")}
+                  Icon={Newspaper}
+                  tone="utility"
+                  external
+                />
               </div>
             </SidebarSection>
           </>
@@ -263,17 +393,34 @@ function SidebarActiveWorkSection({
     queryKey: ["sidebar-active-work", projectId],
     queryFn: () => workflowConsoleApi.list(projectId, 5),
     refetchInterval: (query) => {
-      const runs = query.state.data?.runs ?? [];
+      const runs = Array.isArray(query.state.data?.runs)
+        ? query.state.data.runs
+        : [];
       return runs.some((run) => !TERMINAL_RUN_STATUSES.has(run.status))
         ? 5000
         : false;
     },
   });
-  const activeRuns = (query.data?.runs ?? []).filter(
+  const runs = Array.isArray(query.data?.runs) ? query.data.runs : [];
+  const activeRuns = runs.filter(
     (run) => !TERMINAL_RUN_STATUSES.has(run.status),
   );
+  const failedCount = runs.filter(
+    (run) => run.status === "failed" || run.status === "blocked",
+  ).length;
+  const approvalCount = runs.filter(
+    (run) => {
+      const approvals = Array.isArray(run.approvals) ? run.approvals : [];
+      return (
+        run.status === "approval_required" ||
+        approvals.some((approval) => approval.status === "requested")
+      );
+    },
+  ).length;
 
-  if (activeRuns.length === 0) return null;
+  if (activeRuns.length === 0 && failedCount === 0 && approvalCount === 0) {
+    return null;
+  }
 
   return (
     <SidebarSection
@@ -282,6 +429,14 @@ function SidebarActiveWorkSection({
       Icon={CircleDot}
     >
       <div className="grid gap-1">
+        <div className="grid grid-cols-3 gap-1">
+          <ActiveWorkCountPill label={tSections("running")} value={activeRuns.length} />
+          <ActiveWorkCountPill label={tSections("failed")} value={failedCount} />
+          <ActiveWorkCountPill
+            label={tSections("approval_required")}
+            value={approvalCount}
+          />
+        </div>
         {activeRuns.slice(0, 3).map((run) => (
           <SidebarActiveRunRow
             key={run.runId}
@@ -291,6 +446,21 @@ function SidebarActiveWorkSection({
         ))}
       </div>
     </SidebarSection>
+  );
+}
+
+function ActiveWorkCountPill({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-background px-2 py-1 text-center">
+      <div className="text-[11px] font-semibold text-foreground">{value}</div>
+      <div className="truncate text-[10px] text-muted-foreground">{label}</div>
+    </div>
   );
 }
 
@@ -402,15 +572,19 @@ function SidebarNavLink({
   label,
   Icon,
   tone = "primary",
+  external = false,
 }: {
   href: string;
   label: string;
   Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   tone?: "primary" | "utility" | "agent";
+  external?: boolean;
 }) {
   return (
     <Link
       href={href}
+      target={external ? "_blank" : undefined}
+      rel={external ? "noreferrer" : undefined}
       className={`flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         tone === "agent"
           ? "border border-border/80 bg-background text-foreground shadow-sm hover:border-foreground hover:bg-muted"
@@ -426,6 +600,43 @@ function SidebarNavLink({
       <span className="min-w-0 flex-1 truncate leading-none">{label}</span>
     </Link>
   );
+}
+
+function SidebarCapabilityButton({
+  item,
+  label,
+  onClick,
+}: {
+  item: ToolDiscoveryItem;
+  label: string;
+  onClick: () => void;
+}) {
+  const Icon = sidebarCapabilityIcon(item);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-8 min-w-0 items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <Icon
+        aria-hidden
+        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+      />
+      <span className="min-w-0 flex-1 truncate leading-none">{label}</span>
+    </button>
+  );
+}
+
+function sidebarCapabilityIcon(item: ToolDiscoveryItem): LucideIcon {
+  if (item.icon === "presentation") return Presentation;
+  if (item.icon === "table") return Table2;
+  if (item.icon === "graduation") return GraduationCap;
+  if (item.icon === "network") return Network;
+  if (item.icon === "book") return Newspaper;
+  if (item.icon === "activity" || item.icon === "check") return CircleDot;
+  if (item.icon === "search") return Search;
+  if (item.icon === "bot") return Bot;
+  return FileText;
 }
 
 function PanelIconButton({

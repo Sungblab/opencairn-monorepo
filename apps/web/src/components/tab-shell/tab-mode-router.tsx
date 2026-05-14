@@ -2,6 +2,7 @@
 import type { Tab } from "@/stores/tabs-store";
 import {
   LazyAgentFileViewer,
+  LazyAgentPanelViewer,
   LazyCanvasViewer,
   LazyCodeWorkspaceViewer,
   LazyDataViewer,
@@ -32,6 +33,8 @@ export function TabModeRouter({ tab }: { tab: Tab }) {
       return <LazyLitSearchViewer tab={tab} />;
     case "agent-file":
       return <LazyAgentFileViewer tab={tab} />;
+    case "agent-panel":
+      return <LazyAgentPanelViewer tab={tab} />;
     case "code-workspace":
       return <LazyCodeWorkspaceViewer tab={tab} />;
     case "plate":

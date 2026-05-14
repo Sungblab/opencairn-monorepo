@@ -40,8 +40,10 @@ export function NoteWithBacklinks({ noteId, children }: Props) {
   }, []);
 
   return (
-    <div className="flex h-full">
-      <div className="app-scrollbar-thin flex-1 overflow-auto">{children}</div>
+    <div className="flex h-full min-w-0 overflow-hidden">
+      <div className="app-scrollbar-thin min-w-0 flex-1 overflow-auto">
+        {children}
+      </div>
       {enrichmentOpen ? <EnrichmentPanelLoader noteId={noteId} /> : null}
       {backlinksOpen ? <BacklinksPanelLoader noteId={noteId} /> : null}
     </div>

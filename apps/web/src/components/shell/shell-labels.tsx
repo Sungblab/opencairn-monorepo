@@ -13,7 +13,8 @@ type ShellTabTitleKey =
   | "import"
   | "help"
   | "report"
-  | "ws_settings";
+  | "ws_settings"
+  | "agent_panel";
 
 export interface ShellLabels {
   placeholders: {
@@ -91,6 +92,7 @@ export function shellTabTitleKey(
     case "help":
     case "report":
     case "ws_settings":
+    case "agent_panel":
       return { key: `appShell.tabTitles.${kind}`, params: undefined };
     case "ingest":
     case "lit_search":
@@ -117,6 +119,7 @@ export function resolveShellDefaultTabTitle(
     case "help":
     case "report":
     case "ws_settings":
+    case "agent_panel":
       return labels.tabs.titles[kind];
     case "research_run":
       return interpolateLabel(labels.tabs.titles.research_run, {
@@ -169,4 +172,5 @@ const shellTabTitleKeys: Record<ShellTabTitleKey, true> = {
   help: true,
   report: true,
   ws_settings: true,
+  agent_panel: true,
 };

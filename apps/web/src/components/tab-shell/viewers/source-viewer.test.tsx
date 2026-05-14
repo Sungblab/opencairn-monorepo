@@ -171,6 +171,12 @@ const tab: Tab = {
 const messages = {
   project: {
     tools: {
+      items: {
+        summarize: { title: "요약하기" },
+        paperAnalysis: { title: "논문 분석 리포트" },
+        sourceFigure: { title: "근거 기반 그림 만들기" },
+        studyArtifactGenerator: { title: "학습 자료 만들기" },
+      },
       preflight: {
         loading: "실행 가능 여부를 확인하는 중입니다.",
         confirm: "이 작업은 약 {credits} credits가 필요합니다.",
@@ -188,6 +194,20 @@ const messages = {
         frameTitle: "{title} PDF 뷰어",
         open: "새 탭에서 열기",
         download: "다운로드",
+        generic: {
+          frameTitle: "{title} 원본 프리뷰",
+          loading: "원본 내용을 불러오는 중입니다.",
+          fallback: "브라우저에서 바로 미리 볼 수 없는 형식입니다.",
+          open: "원본 열기",
+          download: "다운로드",
+          kinds: {
+            text: "텍스트",
+            table: "표/스프레드시트",
+            deck: "덱",
+            document: "문서",
+            source: "원본",
+          },
+        },
         drawing: {
           label: "PDF 그리기 도구",
           move: "이동",
@@ -219,7 +239,22 @@ const messages = {
           sourceProcessing: "원본 처리 중입니다. 완료되면 분석 도구를 더 정확하게 사용할 수 있습니다.",
           sourceFailed: "원본 처리가 실패했습니다. 업로드 상태를 확인한 뒤 다시 시도하세요.",
           sourceUnsupported: "이 원본 형식은 현재 자동 분석을 지원하지 않습니다.",
+          sourceTypes: {
+            pdf: "이 PDF",
+            document: "이 문서",
+            deck: "이 덱",
+            table: "이 표",
+            image: "이 이미지",
+            recording: "이 녹음/영상",
+            source: "이 원본",
+          },
+          useThisSource: "{source}만 사용",
           useThisPdf: "이 PDF만 사용",
+          capabilities: {
+            paper_analysis: "논문 분석 리포트",
+            source_figure: "근거 기반 그림",
+            study_artifact_generator: "학습 자료",
+          },
           paperAnalysis: "논문 분석 리포트",
           paperAnalysisPrompt: "{title}를 논문 읽기 기준으로 분석해줘. 첫머리에 목차를 만들고, 연구 질문, 방법, 핵심 주장, 증거, 한계, 후속 질문을 섹션별로 정리해. 핵심 주장과 근거 뒤에는 가능한 한 [p. N] 형식의 페이지 단위 인용 앵커를 붙여 긴 분석 리포트로 만들어줘.",
           summarize: "요약",
@@ -426,6 +461,63 @@ describe("SourceViewer", () => {
 
     expect(screen.queryByLabelText("새 탭에서 열기")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("다운로드")).not.toBeInTheDocument();
+  });
+
+  it("renders image sources directly instead of sending them to EmbedPDF", async () => {
+    renderSourceViewer({
+      ...tab,
+      title: "figure.png",
+    });
+
+    expect(await screen.findByTestId("source-generic-area")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "figure.png" })).toHaveAttribute(
+      "src",
+      "/api/notes/n1/file",
+    );
+    expect(screen.queryByTestId("embedpdf-viewer")).toBeNull();
+  });
+
+  it("keeps extensionless PDF-labeled sources on the PDF viewer path", async () => {
+    renderSourceViewer({
+      ...tab,
+      title: "Fixture PDF",
+    });
+
+    expect(await screen.findByTestId("embedpdf-viewer")).toBeInTheDocument();
+    expect(screen.queryByTestId("source-generic-area")).toBeNull();
+  });
+
+  it("renders text sources inline when the original file is browser-readable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === "/api/notes/n1/file") {
+          return new Response("# Notes\nclaim, evidence", {
+            status: 200,
+            headers: { "content-type": "text/plain" },
+          });
+        }
+        if (url === "/api/projects/proj-1/study-sessions?sourceNoteId=n1") {
+          return new Response(JSON.stringify({ sessions: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ error: "not_found" }), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
+    renderSourceViewer({
+      ...tab,
+      title: "notes.md",
+    });
+
+    expect(await screen.findByText(/claim, evidence/)).toBeInTheDocument();
+    expect(screen.queryByTestId("embedpdf-viewer")).toBeNull();
   });
 
   it("emits a viewer-ready event for agent integrations", async () => {

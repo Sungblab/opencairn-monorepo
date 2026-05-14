@@ -42,6 +42,7 @@ export function SourceUploadButton({
         )}
       </Button>
       <ProjectUploadDialog
+        projectId={projectId}
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
@@ -51,8 +52,8 @@ export function SourceUploadButton({
         uploading={upload.isUploading}
         error={upload.hasUploadError}
         onFilesChange={setFiles}
-        onStart={() => {
-          void upload.startUpload(files).then((result) => {
+        onStart={(intent) => {
+          void upload.startUpload(files, intent).then((result) => {
             if (result?.ok) {
               setFiles([]);
               setOpen(false);
