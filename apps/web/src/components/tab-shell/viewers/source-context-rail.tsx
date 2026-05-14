@@ -12,6 +12,7 @@ import {
   AlertCircle,
   BookOpen,
   CheckSquare,
+  FilePlus2,
   FileSearch,
   ListChecks,
   Loader2,
@@ -33,6 +34,7 @@ import {
   WorkbenchActivityButton,
   WorkbenchCommandButton,
   WorkbenchContextButton,
+  WorkbenchWorkflowButton,
 } from "@/components/agent-panel/workbench-trigger-button";
 import type { GroundedGraphResponse } from "@/components/graph/grounded-types";
 import { studySessionsApi, type SessionRecording } from "@/lib/api-client";
@@ -145,6 +147,7 @@ export function SourceContextRail({
                 noteId={noteId}
                 selectedText={selectedText}
                 projectId={projectId}
+                sourceTitle={sourceTitle}
               />
             ) : null}
             {active === "wiki" ? (
@@ -329,10 +332,12 @@ function SourceRailAnalysis({
   noteId,
   selectedText,
   projectId,
+  sourceTitle,
 }: {
   noteId: string;
   selectedText: string;
   projectId: string | null;
+  sourceTitle: string;
 }) {
   const t = useTranslations("appShell.viewers.source.rail");
   const selectedCount = selectedText.length;
@@ -387,6 +392,32 @@ function SourceRailAnalysis({
           <FileSearch aria-hidden className="h-4 w-4" />
           {t("useThisPdf")}
         </WorkbenchContextButton>
+        <WorkbenchWorkflowButton
+          workflow={{
+            kind: "document_generation",
+            toolId: "paper_analysis",
+            i18nKey: "paperAnalysis",
+            prompt: t("paperAnalysisPrompt", { title: sourceTitle }),
+            presetId: "pdf_report_fast",
+            payload: {
+              action: "source_paper_analysis",
+              sourceIds: [`note:${noteId}`],
+              sourceTitle,
+              initialPrompt: t("paperAnalysisPrompt", { title: sourceTitle }),
+              initialFilename: paperAnalysisFilename(sourceTitle),
+            },
+          }}
+          preflight={{
+            projectId,
+            profile: "document",
+            sourceTokenEstimate: 24_000,
+          }}
+          data-testid="source-rail-paper-analysis-button"
+          className="app-hover inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] border border-border px-2.5 text-sm"
+        >
+          <FilePlus2 aria-hidden className="h-4 w-4" />
+          {t("paperAnalysis")}
+        </WorkbenchWorkflowButton>
         <WorkbenchCommandButton
           commandId="summarize"
           preflight={{
@@ -450,6 +481,18 @@ function hasUnsupportedSourceReason(skipReasons: string[]) {
       normalized.includes("parser_unsupported")
     );
   });
+}
+
+function paperAnalysisFilename(sourceTitle: string) {
+  const base = sourceTitle
+    .trim()
+    .replace(/\.[^.]+$/, "")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+  return `${base || "source"}-paper-analysis.pdf`;
 }
 
 function SourceReadinessNotice({

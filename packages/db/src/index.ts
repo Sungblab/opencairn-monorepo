@@ -30,6 +30,7 @@ export * from "./schema/chat-threads";
 export * from "./schema/chat-messages";
 export * from "./schema/chat-runs";
 export * from "./schema/message-feedback";
+export * from "./schema/task-feedback";
 export * from "./schema/comments";
 export * from "./schema/yjs-documents";
 export * from "./schema/user-integrations";

@@ -130,6 +130,10 @@
         "title": "요약하기",
         "description": "현재 자료의 핵심을 짧게 정리합니다."
       },
+      "paperAnalysis": {
+        "title": "논문 분석 리포트",
+        "description": "선택한 PDF를 읽고 주장, 근거, 한계, 인용 앵커가 있는 분석 산출물을 만듭니다."
+      },
       "pdfReport": {
         "title": "PDF 보고서 만들기",
         "description": "빠르게 공유할 수 있는 PDF 보고서를 만듭니다."

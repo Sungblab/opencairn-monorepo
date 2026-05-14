@@ -36,6 +36,7 @@ import { chatRunRoutes } from "./routes/chat-runs";
 import { chatRoutes } from "./routes/chat";
 import { searchRoutes } from "./routes/search";
 import { messageFeedbackRoutes } from "./routes/message-feedback";
+import { taskFeedbackRoutes } from "./routes/task-feedback";
 import { userRoutes } from "./routes/users";
 import { streamRoutes } from "./routes/stream";
 import { evidenceRoutes } from "./routes/evidence";
@@ -125,6 +126,7 @@ export function createApp() {
   // Mounted alongside /api/threads (specific path) so the wildcard /api routers
   // below don't intercept this with their own requireAuth chains.
   app.route("/api/message-feedback", messageFeedbackRoutes);
+  app.route("/api/task-feedback", taskFeedbackRoutes);
   app.route("/api/canvas", canvasRoutes);
   app.route("/api/mcp/servers", mcpRoutes);
   app.route("/api/mcp", mcpServerRoutes);

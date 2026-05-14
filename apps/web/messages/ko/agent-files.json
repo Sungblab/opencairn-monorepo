@@ -32,6 +32,7 @@
     "officeConvertingDescription": "변환이 끝나면 이 화면이 자동으로 PDF 뷰어로 바뀝니다.",
     "officePreviewUnavailable": "PDF 변환 결과를 사용할 수 없습니다. 원본 파일을 다운로드해 확인하세요.",
     "download": "원본 다운로드",
+    "askAgent": "이 산출물로 질문하기",
     "ingest": "인제스트 실행",
     "compile": "LaTeX 컴파일",
     "canvas": "캔버스로 실행",
@@ -119,6 +120,26 @@
     },
     "open": "열기",
     "download": "다운로드",
+    "feedback": {
+      "title": "이 결과가 작업에 도움이 되었나요?",
+      "useful": "도움됨",
+      "notUseful": "수정 필요",
+      "skip": "건너뛰기",
+      "submit": "보내기",
+      "submitted": "피드백이 기록되었습니다.",
+      "commentPlaceholder": "필요하면 이유를 짧게 남겨 주세요.",
+      "reason": {
+        "inaccurate": "부정확함",
+        "too_shallow": "얕음",
+        "wrong_format": "형식 다름",
+        "missing_sources": "출처 부족"
+      },
+      "followUp": {
+        "refine": "다듬기",
+        "regenerate": "다시 생성",
+        "open": "열어보기"
+      }
+    },
     "pendingAction": {
       "queued": "대기 중",
       "running": "생성 중",

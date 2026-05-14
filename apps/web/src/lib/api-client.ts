@@ -363,6 +363,33 @@ export const chatApi = {
     }),
 };
 
+export type TaskFeedbackTargetType =
+  | "chat_run"
+  | "workflow_run"
+  | "agent_action"
+  | "agent_file"
+  | "document_generation";
+
+export type TaskFeedbackRating = "useful" | "not_useful" | "skipped";
+
+export const taskFeedbackApi = {
+  submit: (input: {
+    projectId: string;
+    targetType: TaskFeedbackTargetType;
+    targetId: string;
+    artifactId?: string;
+    rating: TaskFeedbackRating;
+    reason?: string;
+    comment?: string;
+    followUpIntent?: string;
+    metadata?: Record<string, unknown>;
+  }) =>
+    apiClient<{ ok: true }>(`/task-feedback`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+};
+
 // ---------- Agent actions ----------
 
 export interface AgentActionListOptions {

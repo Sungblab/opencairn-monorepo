@@ -24,6 +24,18 @@ export type AgentWorkflowKind =
   | "teach_to_learn"
   | "agent_prompt";
 
+export type SourcePaperAnalysisWorkflowPayload = {
+  action: "source_paper_analysis";
+  sourceIds: string[];
+  sourceTitle: string;
+  initialPrompt: string;
+  initialFilename: string;
+};
+
+export type AgentWorkflowPayload =
+  | Record<string, unknown>
+  | SourcePaperAnalysisWorkflowPayload;
+
 export type AgentWorkflowIntent = {
   id: string;
   kind: AgentWorkflowKind;
@@ -33,13 +45,14 @@ export type AgentWorkflowIntent = {
   artifactType?: StudyArtifactType;
   presetId?: DocumentGenerationPresetId;
   route?: Extract<ToolDiscoveryItem["action"], { type: "route" }>["route"];
+  payload?: AgentWorkflowPayload;
 };
 
 export type AgentWorkflowSubmission = {
   kind: AgentWorkflowKind;
   toolId: string;
   prompt: string;
-  payload?: Record<string, unknown>;
+  payload?: AgentWorkflowPayload;
 };
 
 interface AgentWorkbenchState {
