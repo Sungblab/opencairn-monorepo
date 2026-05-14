@@ -590,7 +590,10 @@ function DocumentWorkflow({
     if (!projectId || selectedSources.length === 0 || !prompt.trim()) return;
     setError(null);
     const generationPrompt = sourcePayload
-      ? withSourceAnalysisStructure(prompt.trim(), locale)
+      ? withSourceAnalysisStructure(
+          prompt.trim(),
+          docT("sourceAnalysisStructureInstruction"),
+        )
       : prompt.trim();
     onSubmitWorkflow({
       kind: workflow.kind,
@@ -773,11 +776,7 @@ function DocumentWorkflow({
   );
 }
 
-function withSourceAnalysisStructure(prompt: string, locale: string) {
-  const instruction =
-    locale === "ko"
-      ? "산출물 첫머리에 목차를 만들고, 주요 주장과 근거 뒤에는 가능한 한 [p. N] 형식의 페이지 단위 인용 앵커를 붙여줘. Markdown/문서 본문에는 섹션 제목을 명확히 남겨 산출물 뷰어 목차에서 이동할 수 있게 해줘."
-      : "Start the artifact with a table of contents, add page-level citation anchors in [p. N] format after major claims and evidence whenever possible, and keep clear section headings so the artifact viewer can build navigation.";
+function withSourceAnalysisStructure(prompt: string, instruction: string) {
   return prompt.includes("[p. N]") ? prompt : `${prompt}\n\n${instruction}`;
 }
 

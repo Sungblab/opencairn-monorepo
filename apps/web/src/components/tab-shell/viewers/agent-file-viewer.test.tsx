@@ -391,7 +391,7 @@ describe("AgentFileViewer", () => {
 
     renderViewer(
       file,
-      "# 분석 리포트\n\n## 방법\n\n핵심 근거는 표본 선택이다 [p. 3].\n\n## 한계\n\n추가 검증이 필요하다 (page 12).",
+      "# 분석 리포트\n\n## 방법\n\n핵심 근거는 표본 선택이다 [p. 3].\n\n## 한계\n\n추가 검증이 필요하다 (page 12). 독일어 원문은 (S. 9)에 있다. 한국어 교재는 15쪽을 참고한다.",
     );
 
     expect(await screen.findByTestId("artifact-focus-viewer")).toBeInTheDocument();
@@ -402,6 +402,8 @@ describe("AgentFileViewer", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "p. 3" })).toBeEnabled(),
     );
+    expect(screen.getByRole("button", { name: "p. 9" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "p. 15" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "p. 3" }));
 
     expect(
@@ -423,6 +425,18 @@ describe("AgentFileViewer", () => {
         }),
       ]),
     );
+  });
+
+  it("keeps parsed page citations disabled when no source note is available", async () => {
+    const file = fileSummary({ sourceNoteId: null });
+    renderViewer(
+      file,
+      "# Review\n\nEvidence appears on [página 4] and [str. 8], but this generated file has no original source note.",
+    );
+
+    expect(await screen.findByTestId("artifact-focus-viewer")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "p. 4" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "p. 8" })).toBeDisabled();
   });
 
   it("renders structured study artifact JSON as an interactive study view", async () => {

@@ -1093,10 +1093,15 @@ function parseMarkdownHeadings(markdown: string): ArtifactHeading[] {
 
 function parsePageCitations(markdown: string): ArtifactCitation[] {
   const citations = new Map<number, ArtifactCitation>();
+  const pageLabel =
+    String.raw`(?:p(?:p|age|ages)?\.?|페이지|쪽|s\.?|seite|seiten|p(?:á|a)g(?:ina|inas)?\.?|str(?:ana)?\.?)`;
   const pattern =
-    /(?:\[(?:p\.?|page|페이지)\s*\.?\s*(\d{1,4})\]|\((?:p\.?|page|페이지)\s*\.?\s*(\d{1,4})\)|(?:p\.|page|페이지)\s+(\d{1,4}))/gi;
+    new RegExp(
+      String.raw`(?:\[(?:${pageLabel})\s*(\d{1,4})\]|\((?:${pageLabel})\s*(\d{1,4})\)|(?:${pageLabel})\s*(\d{1,4})|(\d{1,4})\s*(?:쪽|페이지|pages?|seiten?|p(?:á|a)ginas?))`,
+      "giu",
+    );
   for (const match of markdown.matchAll(pattern)) {
-    const page = Number(match[1] ?? match[2] ?? match[3]);
+    const page = Number(match[1] ?? match[2] ?? match[3] ?? match[4]);
     if (!Number.isInteger(page) || page <= 0 || citations.has(page)) continue;
     const index = match.index ?? 0;
     const start = Math.max(0, index - 80);
