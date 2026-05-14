@@ -46,6 +46,7 @@ export const taskFeedback = pgTable(
     index("task_feedback_project_created_idx").on(t.projectId, t.createdAt),
     index("task_feedback_artifact_idx").on(t.artifactId),
     unique("task_feedback_target_user_unique").on(
+      t.projectId,
       t.targetType,
       t.targetId,
       t.userId,
