@@ -194,6 +194,25 @@
       "skipped": "Skipped"
     }
   },
+  "runTimeline": {
+    "title": "Run timeline",
+    "count": "{count} steps",
+    "step": {
+      "readSource": "Read source",
+      "searchProject": "Search project",
+      "askClarification": "Ask clarification",
+      "buildPlan": "Build plan",
+      "preflight": "Preflight",
+      "createFile": "Create file",
+      "updateNote": "Update note",
+      "editFile": "Edit file",
+      "linkEvidence": "Link evidence",
+      "needsReview": "Needs review",
+      "openArtifact": "Open artifact",
+      "completed": "Completed",
+      "failed": "Failed"
+    }
+  },
   "workflowConsole": {
     "title": "Run status",
     "loading": "Loading runs…",

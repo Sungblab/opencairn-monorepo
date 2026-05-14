@@ -194,6 +194,25 @@
       "skipped": "건너뜀"
     }
   },
+  "runTimeline": {
+    "title": "실행 타임라인",
+    "count": "{count}단계",
+    "step": {
+      "readSource": "자료 읽기",
+      "searchProject": "프로젝트 검색",
+      "askClarification": "확인 질문",
+      "buildPlan": "계획 구성",
+      "preflight": "사전 확인",
+      "createFile": "파일 생성",
+      "updateNote": "노트 수정",
+      "editFile": "파일 편집",
+      "linkEvidence": "근거 연결",
+      "needsReview": "검토 필요",
+      "openArtifact": "산출물 열기",
+      "completed": "완료",
+      "failed": "실패"
+    }
+  },
   "workflowConsole": {
     "title": "작업 상태",
     "loading": "작업을 불러오는 중…",

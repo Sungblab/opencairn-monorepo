@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   agentActionRiskSchema,
+  agentActionKindSchema,
   agentActionEventSchema,
   agentActionSchema,
   type AgentAction,
@@ -144,6 +145,7 @@ export const workflowConsoleRunSchema = z
     workGroupId: z.string().min(1),
     sourceId: z.string().min(1),
     sourceStatus: z.string().min(1).optional(),
+    actionKind: agentActionKindSchema.optional(),
     workspaceId: z.string().min(1),
     projectId: z.string().min(1).nullable().optional(),
     threadId: z.string().min(1).nullable().optional(),
@@ -393,6 +395,7 @@ export function workflowConsoleRunFromAgentAction(action: AgentAction): Workflow
     workGroupId: workGroupIdFromAgentAction(parsed),
     sourceId: parsed.id,
     sourceStatus: parsed.status,
+    actionKind: parsed.kind,
     workspaceId: parsed.workspaceId,
     projectId: parsed.projectId,
     actorUserId: parsed.actorUserId,

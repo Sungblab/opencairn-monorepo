@@ -5,7 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
-import { integrationsApi, plan8AgentsApi, projectsApi } from "@/lib/api-client";
+import {
+  integrationsApi,
+  plan8AgentsApi,
+  projectsApi,
+  workflowConsoleApi,
+} from "@/lib/api-client";
 import { ProjectView } from "./project-view";
 
 const mockProjectNotes = vi.hoisted(() => ({
@@ -88,6 +93,9 @@ vi.mock("@/lib/api-client", () => ({
       scopes: null,
     })),
   },
+  workflowConsoleApi: {
+    list: vi.fn(async () => ({ runs: [] })),
+  },
 }));
 
 vi.mock("./project-meta-row", () => ({
@@ -132,11 +140,181 @@ describe("ProjectView", () => {
         balance: { availableCredits: 100, plan: "free" },
       },
     });
+    vi.mocked(workflowConsoleApi.list).mockResolvedValue({ runs: [] });
     useAgentWorkbenchStore.setState(
       useAgentWorkbenchStore.getInitialState(),
       true,
     );
     usePanelStore.setState(usePanelStore.getInitialState(), true);
+  });
+
+  it("turns the project home into a command center that queues an agent prompt", async () => {
+    renderProjectView();
+
+    expect(
+      await screen.findByText("project.commandCenter.title"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("project.commandCenter.guided.paperAnalysis.title"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("project.commandCenter.guided.paperDraft.title"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("project.commandCenter.guided.studyPrep.title"),
+    ).toBeInTheDocument();
+
+    await userEvent.type(
+      screen.getByLabelText("project.commandCenter.inputLabel"),
+      "Compare the uploaded paper with our notes",
+    );
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "project.commandCenter.submit",
+      }),
+    );
+
+    expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+      kind: "agent_prompt",
+      toolId: "project_command_center",
+      prompt: "Compare the uploaded paper with our notes",
+    });
+    expect(workflowConsoleApi.list).toHaveBeenCalledWith("p1", 10);
+  });
+
+  it("submits the command center prompt with Enter and preserves Shift+Enter for new lines", async () => {
+    renderProjectView();
+
+    const input = await screen.findByLabelText(
+      "project.commandCenter.inputLabel",
+    );
+    await userEvent.type(input, "Draft a review{Shift>}{Enter}{/Shift}with citations");
+    expect(input).toHaveValue("Draft a review\nwith citations");
+
+    await userEvent.keyboard("{Enter}");
+
+    expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+      kind: "agent_prompt",
+      toolId: "project_command_center",
+      prompt: "Draft a review\nwith citations",
+    });
+    expect(input).toHaveValue("");
+  });
+
+  it("opens compact guided starts through existing workflow intents", async () => {
+    renderProjectView();
+
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: /project\.commandCenter\.guided\.report\.title/,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(preflightMock).toHaveBeenCalledWith("p1", {
+        tool: "document",
+        sourceTokenEstimate: 24_000,
+      }),
+    );
+    expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+      kind: "document_generation",
+      presetId: "pdf_report_fast",
+    });
+  });
+
+  it("opens prompt guided starts through the existing Agent Panel workflow", async () => {
+    renderProjectView();
+
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: /project\.commandCenter\.guided\.studyPrep\.title/,
+      }),
+    );
+
+    expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+    expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
+      kind: "agent_prompt",
+      toolId: "project_command_center",
+      prompt: "project.commandCenter.guided.studyPrep.prompt",
+    });
+  });
+
+  it("summarizes active project runs with user-facing timeline steps", async () => {
+    vi.mocked(workflowConsoleApi.list).mockResolvedValue({
+      runs: [
+        {
+          runId: "agent_action:action-1",
+          runType: "agent_action",
+          agentRole: "review",
+          actionKind: "note.update",
+          workGroupId: "chat:run-1",
+          sourceId: "action-1",
+          sourceStatus: "approval_required",
+          workspaceId: "workspace-1",
+          projectId: "p1",
+          actorUserId: "user-1",
+          title: "Review generated note",
+          status: "approval_required",
+          risk: "write",
+          progress: null,
+          outputs: [],
+          approvals: [
+            {
+              approvalId: "approval-1",
+              status: "requested",
+              risk: "write",
+            },
+          ],
+          error: null,
+          createdAt: "2026-05-14T00:00:00.000Z",
+          updatedAt: "2026-05-14T00:00:30.000Z",
+          completedAt: null,
+        },
+        {
+          runId: "chat:run-1",
+          runType: "chat",
+          agentRole: "research",
+          workGroupId: "chat:run-1",
+          sourceId: "run-1",
+          sourceStatus: "running",
+          workspaceId: "workspace-1",
+          projectId: "p1",
+          actorUserId: "user-1",
+          title: "Analyze selected source",
+          status: "running",
+          risk: "low",
+          progress: { current: 1, total: 3, percent: 33 },
+          outputs: [
+            {
+              outputType: "agent_file",
+              id: "file-1",
+              label: "analysis.md",
+              url: "/ko/workspace/acme/file/file-1",
+            },
+          ],
+          approvals: [],
+          error: null,
+          createdAt: "2026-05-14T00:00:00.000Z",
+          updatedAt: "2026-05-14T00:01:00.000Z",
+          completedAt: null,
+        },
+      ],
+    });
+
+    renderProjectView();
+
+    expect(
+      await screen.findByText("project.commandCenter.activeRuns.title"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("agentPanel.runTimeline.step.searchProject"))
+      .toBeInTheDocument();
+    expect(screen.getByText("agentPanel.runTimeline.step.needsReview"))
+      .toBeInTheDocument();
+    expect(screen.getByText("agentPanel.runTimeline.step.openArtifact"))
+      .toBeInTheDocument();
   });
 
   it("shows starter actions when the project has no notes", async () => {

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { workflowConsoleApi, type WorkflowConsoleRun } from "@/lib/api-client";
+import { AgentRunTimeline } from "./agent-run-timeline";
 
 const TERMINAL_STATUSES = new Set([
   "completed",
@@ -116,6 +117,12 @@ export function WorkflowConsoleRuns({
 
       {activeRun ? <ActiveRoleBanner run={activeRun} /> : null}
       {activeQueue.length > 1 ? <AgentWorkQueue runs={activeQueue} /> : null}
+      {activeQueue.length > 0 ? (
+        <AgentRunTimeline
+          runs={roleSteps.map((step) => step.run)}
+          className="mb-2 rounded border border-border bg-background px-2.5 py-2"
+        />
+      ) : null}
       {roleSteps.length > 1 ? <RoleHandoffTimeline steps={roleSteps} /> : null}
 
       {runs.length > 0 ? (

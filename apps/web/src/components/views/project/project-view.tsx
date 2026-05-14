@@ -1,19 +1,30 @@
 "use client";
 
 import { urls } from "@/lib/urls";
-import { useMemo, useState, type ComponentType } from "react";
+import {
+  useMemo,
+  useState,
+  type ComponentType,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
+  ArrowUp,
+  BookOpen,
+  ClipboardCheck,
   FilePlus,
   GitBranch,
   ImagePlus,
   Layers3,
   LayoutTemplate,
+  Lightbulb,
   Network,
+  PenLine,
   UploadCloud,
 } from "lucide-react";
 import {
@@ -21,10 +32,12 @@ import {
   plan8AgentsApi,
   projectsApi,
   studioToolsApi,
+  workflowConsoleApi,
   type ProjectNoteRow,
   type ProjectWikiIndex,
   type ProjectWikiIndexHealthStatus,
   type StudioToolPreflightResponse,
+  type WorkflowConsoleRun,
 } from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { WorkbenchActivityButton } from "@/components/agent-panel/workbench-trigger-button";
@@ -45,6 +58,7 @@ import {
   getToolDiscoveryTileClassName,
   ToolDiscoveryTileContent,
 } from "@/components/agent-panel/tool-discovery-tile";
+import { AgentRunTimeline } from "@/components/agent-panel/agent-run-timeline";
 import {
   formatWikiHealthIssueSummary,
   hasLibrarianRepairIssue,
@@ -67,6 +81,38 @@ type PreflightState =
       preflight: StudioToolPreflightResponse["preflight"];
     }
   | { status: "error"; item: ToolDiscoveryItem };
+
+type ProjectGuidedStartId =
+  | "paperAnalysis"
+  | "report"
+  | "paperDraft"
+  | "review"
+  | "ideation"
+  | "studyPrep";
+
+const PROJECT_GUIDED_STARTS: Array<{
+  id: ProjectGuidedStartId;
+  Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+}> = [
+  { id: "paperAnalysis", Icon: BookOpen },
+  { id: "report", Icon: PenLine },
+  { id: "paperDraft", Icon: FilePlus },
+  { id: "review", Icon: ClipboardCheck },
+  { id: "ideation", Icon: Lightbulb },
+  { id: "studyPrep", Icon: Layers3 },
+];
+
+const WORKFLOW_TERMINAL_STATUSES = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+  "expired",
+  "reverted",
+]);
+
+function isTerminalWorkflowStatus(status: WorkflowConsoleRun["status"]) {
+  return WORKFLOW_TERMINAL_STATUSES.has(status);
+}
 
 export function ProjectView({
   wsSlug,
@@ -255,6 +301,50 @@ export function ProjectView({
   const canRunLibrarian = canRefreshWikiIndex;
   const shouldOfferLibrarian =
     Boolean(wikiIndex) && canRunLibrarian && hasLibrarianRepairIssue(wikiIndex);
+  const workflowConsoleQuery = useQuery({
+    queryKey: ["workflow-console-runs", projectId],
+    queryFn: () => workflowConsoleApi.list(projectId, 10),
+    refetchInterval: (query) => {
+      const runs = query.state.data?.runs ?? [];
+      return runs.some((run) => !isTerminalWorkflowStatus(run.status))
+        ? 5000
+        : false;
+    },
+  });
+  const activeProjectRuns = (workflowConsoleQuery.data?.runs ?? []).filter(
+    (run) => !isTerminalWorkflowStatus(run.status),
+  );
+  const projectCommandTools = useMemo(() => {
+    const byId = new Map<string, ToolDiscoveryItem>();
+    for (const group of toolGroups) {
+      for (const item of group.items) byId.set(item.id, item);
+    }
+    return byId;
+  }, [toolGroups]);
+
+  function queueProjectPrompt(prompt: string) {
+    requestWorkflow({
+      kind: "agent_prompt",
+      toolId: "project_command_center",
+      i18nKey: "commandCenter",
+      prompt,
+    });
+    openAgentPanelTab("chat");
+  }
+
+  function runGuidedStart(id: ProjectGuidedStartId) {
+    if (id === "paperAnalysis") {
+      const item = projectCommandTools.get("research");
+      if (item) void runProjectToolWithPreflight(item);
+      return;
+    }
+    if (id === "report") {
+      const item = projectCommandTools.get("pdf_report_fast");
+      if (item) void runProjectToolWithPreflight(item);
+      return;
+    }
+    queueProjectPrompt(t(`commandCenter.guided.${id}.prompt`));
+  }
 
   function renderToolItem(item: ToolDiscoveryItem) {
     const title = t(`tools.items.${item.i18nKey}.title`);
@@ -406,6 +496,28 @@ export function ProjectView({
           renamePending={renameMutation.isPending}
         />
       </header>
+      <ProjectCommandCenter
+        title={t("commandCenter.title")}
+        description={t("commandCenter.description")}
+        inputLabel={t("commandCenter.inputLabel")}
+        placeholder={t("commandCenter.placeholder")}
+        submitLabel={t("commandCenter.submit")}
+        contextLabel={t("commandCenter.contextLabel")}
+        contextValue={t("commandCenter.contextValue", { count: counts.all })}
+        guidedTitle={t("commandCenter.guidedTitle")}
+        guidedDescription={t("commandCenter.guidedDescription")}
+        guidedStarts={PROJECT_GUIDED_STARTS.map((start) => ({
+          id: start.id,
+          Icon: start.Icon,
+          title: t(`commandCenter.guided.${start.id}.title`),
+          description: t(`commandCenter.guided.${start.id}.description`),
+        }))}
+        activeRunsTitle={t("commandCenter.activeRuns.title")}
+        activeRunsDescription={t("commandCenter.activeRuns.description")}
+        activeRuns={activeProjectRuns}
+        onSubmitPrompt={queueProjectPrompt}
+        onGuidedStart={runGuidedStart}
+      />
       <GraphDiscoveryPanel
         title={t("graphDiscovery.title")}
         description={t("graphDiscovery.description", { count: counts.all })}
@@ -542,6 +654,169 @@ export function ProjectView({
         onLoaded={(rows) => setAllNotes(rows)}
       />
     </div>
+  );
+}
+
+function ProjectCommandCenter({
+  title,
+  description,
+  inputLabel,
+  placeholder,
+  submitLabel,
+  contextLabel,
+  contextValue,
+  guidedTitle,
+  guidedDescription,
+  guidedStarts,
+  activeRunsTitle,
+  activeRunsDescription,
+  activeRuns,
+  onSubmitPrompt,
+  onGuidedStart,
+}: {
+  title: string;
+  description: string;
+  inputLabel: string;
+  placeholder: string;
+  submitLabel: string;
+  contextLabel: string;
+  contextValue: string;
+  guidedTitle: string;
+  guidedDescription: string;
+  guidedStarts: Array<{
+    id: ProjectGuidedStartId;
+    Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+    title: string;
+    description: string;
+  }>;
+  activeRunsTitle: string;
+  activeRunsDescription: string;
+  activeRuns: WorkflowConsoleRun[];
+  onSubmitPrompt(prompt: string): void;
+  onGuidedStart(id: ProjectGuidedStartId): void;
+}) {
+  const [value, setValue] = useState("");
+  const trimmed = value.trim();
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!trimmed) return;
+    onSubmitPrompt(trimmed);
+    setValue("");
+  }
+
+  function submitFromKeyboard(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    if (!trimmed) return;
+    onSubmitPrompt(trimmed);
+    setValue("");
+  }
+
+  return (
+    <section
+      aria-labelledby="project-command-center-heading"
+      className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]"
+    >
+      <div className="space-y-4">
+        <div>
+          <h2
+            id="project-command-center-heading"
+            className="text-base font-semibold text-foreground"
+          >
+            {title}
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
+        </div>
+        <form
+          onSubmit={submit}
+          className="rounded-[var(--radius-card)] border border-border bg-background p-3 shadow-sm"
+        >
+          <label htmlFor="project-command-center-input" className="sr-only">
+            {inputLabel}
+          </label>
+          <textarea
+            id="project-command-center-input"
+            aria-label={inputLabel}
+            value={value}
+            onChange={(event) => setValue(event.currentTarget.value)}
+            onKeyDown={submitFromKeyboard}
+            placeholder={placeholder}
+            rows={3}
+            className="min-h-24 w-full resize-none bg-transparent text-sm leading-6 outline-none placeholder:text-muted-foreground"
+          />
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+            <div className="inline-flex min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
+              <span className="shrink-0 font-medium text-foreground">
+                {contextLabel}
+              </span>
+              <span className="truncate">{contextValue}</span>
+            </div>
+            <button
+              type="submit"
+              disabled={!trimmed}
+              className="app-btn-primary inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-3 text-xs disabled:opacity-50"
+            >
+              <ArrowUp aria-hidden className="h-3.5 w-3.5" />
+              {submitLabel}
+            </button>
+          </div>
+        </form>
+        <div className="space-y-2">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+              {guidedTitle}
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {guidedDescription}
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {guidedStarts.map((start) => {
+              const Icon = start.Icon;
+              return (
+                <button
+                  key={start.id}
+                  type="button"
+                  onClick={() => onGuidedStart(start.id)}
+                  className="flex min-h-24 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-card px-3 py-3 text-left transition hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)] bg-muted text-foreground">
+                    <Icon aria-hidden className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-foreground">
+                      {start.title}
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                      {start.description}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      {activeRuns.length > 0 ? (
+        <aside className="space-y-2 rounded-[var(--radius-card)] border border-border bg-muted/20 p-3">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">
+              {activeRunsTitle}
+            </h3>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {activeRunsDescription}
+            </p>
+          </div>
+          <AgentRunTimeline
+            runs={activeRuns}
+            className="rounded-[var(--radius-control)] border border-border bg-background px-2.5 py-2"
+          />
+        </aside>
+      ) : null}
+    </section>
   );
 }
 
