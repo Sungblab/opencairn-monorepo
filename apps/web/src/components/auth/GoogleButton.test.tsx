@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import authMessages from "../../../messages/ko/auth.json";
-import { GoogleButton } from "./GoogleButton";
+import { GoogleButton, resolveAuthCallbackOrigin } from "./GoogleButton";
 
 const { socialSignIn } = vi.hoisted(() => ({
   socialSignIn: vi.fn(),
@@ -16,6 +16,10 @@ vi.mock("@/lib/auth-client", () => ({
     },
   },
   googleOAuthEnabled: true,
+}));
+
+vi.mock("@/lib/site-config", () => ({
+  siteUrl: "https://opencairn.com",
 }));
 
 vi.mock("next-intl", async (importOriginal) => {
@@ -38,6 +42,7 @@ describe("GoogleButton", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     socialSignIn.mockReset();
+    window.history.replaceState({}, "", "http://localhost:3000/");
   });
 
   it("starts Google OAuth in regular browsers", async () => {
@@ -51,6 +56,60 @@ describe("GoogleButton", () => {
     expect(socialSignIn).toHaveBeenCalledWith({
       provider: "google",
       callbackURL: "http://localhost:3000/ko/dashboard",
+    });
+  });
+
+  it("uses the canonical site URL when the browser origin is an unspecified bind address", () => {
+    expect(
+      resolveAuthCallbackOrigin(
+        "https://0.0.0.0:3000",
+        "0.0.0.0",
+        "https://opencairn.com",
+      ),
+    ).toBe("https://opencairn.com");
+  });
+
+  it("keeps regular browser origins for local development and previews", () => {
+    expect(
+      resolveAuthCallbackOrigin(
+        "http://localhost:3000",
+        "localhost",
+        "https://opencairn.com",
+      ),
+    ).toBe("http://localhost:3000");
+    expect(
+      resolveAuthCallbackOrigin(
+        "https://preview.opencairn.example",
+        "preview.opencairn.example",
+        "https://opencairn.com",
+      ),
+    ).toBe("https://preview.opencairn.example");
+  });
+
+  it("falls back to the current origin when the canonical site URL is invalid", () => {
+    expect(
+      resolveAuthCallbackOrigin(
+        "https://0.0.0.0:3000",
+        "0.0.0.0",
+        "not a url",
+      ),
+    ).toBe("https://0.0.0.0:3000");
+  });
+
+  it("starts Google OAuth from the canonical site URL when opened through an unspecified bind address", async () => {
+    vi.spyOn(window, "location", "get").mockReturnValue(
+      new URL("https://0.0.0.0:3000/ko/auth/login") as unknown as Location,
+    );
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
+    );
+
+    renderButton();
+    await userEvent.click(screen.getByRole("button", { name: "Google로 계속하기" }));
+
+    expect(socialSignIn).toHaveBeenCalledWith({
+      provider: "google",
+      callbackURL: "https://opencairn.com/ko/dashboard",
     });
   });
 

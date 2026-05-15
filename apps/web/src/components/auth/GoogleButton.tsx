@@ -8,9 +8,33 @@ import {
   currentPageExternalBrowserUrl,
   isLikelyInAppBrowser,
 } from "@/lib/in-app-browser";
+import { siteUrl } from "@/lib/site-config";
 
 interface GoogleButtonProps {
   className?: string;
+}
+
+function isUnspecifiedHost(hostname: string): boolean {
+  return hostname === "0.0.0.0" || hostname === "::" || hostname === "[::]";
+}
+
+export function resolveAuthCallbackOrigin(
+  currentOrigin: string,
+  currentHostname: string,
+  fallbackSiteUrl = siteUrl,
+): string {
+  if (!isUnspecifiedHost(currentHostname)) return currentOrigin;
+
+  try {
+    return new URL(fallbackSiteUrl).origin;
+  } catch {
+    return currentOrigin;
+  }
+}
+
+function authCallbackOrigin(): string {
+  const current = window.location;
+  return resolveAuthCallbackOrigin(current.origin, current.hostname);
 }
 
 export function GoogleButton({ className }: GoogleButtonProps) {
@@ -33,7 +57,7 @@ export function GoogleButton({ className }: GoogleButtonProps) {
     // (the API at :4000), which would 404. Anchor to the web origin.
     await authClient.signIn.social({
       provider: "google",
-      callbackURL: `${window.location.origin}${urls.dashboard(locale)}`,
+      callbackURL: `${authCallbackOrigin()}${urls.dashboard(locale)}`,
     });
   };
 

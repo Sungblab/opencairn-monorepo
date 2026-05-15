@@ -3,8 +3,24 @@
 // Needed because Better Auth cookies require same-origin; direct browser fetches
 // to localhost:4000 from localhost:3000 would be cross-origin.
 import { type NextRequest } from "next/server";
+import { siteUrl } from "@/lib/site-config";
 
 const API_BASE = process.env.INTERNAL_API_URL ?? "http://localhost:4000";
+
+function isUnspecifiedHost(hostname: string): boolean {
+  return hostname === "0.0.0.0" || hostname === "::" || hostname === "[::]";
+}
+
+function callbackRedirectOrigin(req: NextRequest): string {
+  const requestOrigin = req.nextUrl.origin;
+  if (!isUnspecifiedHost(req.nextUrl.hostname)) return requestOrigin;
+
+  try {
+    return new URL(siteUrl).origin;
+  } catch {
+    return requestOrigin;
+  }
+}
 
 async function handler(
   req: NextRequest,
@@ -57,7 +73,10 @@ async function handler(
     response.status < 400;
   if (isAuthCallback) {
     const locale = req.cookies.get("NEXT_LOCALE")?.value === "en" ? "en" : "ko";
-    const destination = new URL(`/${locale}/dashboard`, req.nextUrl.origin);
+    const destination = new URL(
+      `/${locale}/dashboard`,
+      callbackRedirectOrigin(req),
+    );
     const redirectHeaders = new Headers({ location: destination.toString() });
     for (const cookie of setCookies) {
       redirectHeaders.append("set-cookie", cookie);
