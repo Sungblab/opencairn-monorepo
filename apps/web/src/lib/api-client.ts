@@ -303,6 +303,17 @@ export interface ChatMessageContent {
   project_object_generations?: unknown[];
 }
 
+export interface ChatMessageTokenUsage {
+  tokensIn?: number;
+  tokensOut?: number;
+  cachedTokens?: number;
+  thoughtTokens?: number;
+  toolUsePromptTokens?: number;
+  totalTokens?: number;
+  model?: string;
+  costKrw?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "agent";
@@ -316,6 +327,7 @@ export interface ChatMessage {
     | "cancelled"
     | null;
   content: ChatMessageContent;
+  token_usage?: ChatMessageTokenUsage | null;
   mode: string | null;
   provider: string | null;
   created_at: string;

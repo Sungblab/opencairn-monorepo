@@ -46,6 +46,7 @@ import {
   getCreditBalance,
   InsufficientCreditsError,
 } from "../lib/billing";
+import { recordLlmUsageEvent } from "../lib/llm-usage";
 
 // /api/chat router. Each conversation is owned by exactly one
 // user (`owner_user_id`). Workspace boundary is checked at every entry
@@ -779,6 +780,32 @@ chatRoutes.post(
           costKrw: String(assistantCostKrw),
         })
         .returning();
+
+      if (usage) {
+        try {
+          await recordLlmUsageEvent({
+            userId,
+            workspaceId: convo.workspaceId,
+            provider: "gemini",
+            model:
+              usage.model ??
+              process.env.GEMINI_CHAT_MODEL ??
+              "gemini-3-flash-preview",
+            operation: "chat.stream",
+            tokensIn,
+            tokensOut,
+            cachedTokens,
+            sourceType: "chat_message",
+            sourceId: assistant.id,
+            metadata: {
+              conversationId,
+              userMessageId: userRow.id,
+            },
+          });
+        } catch (err) {
+          console.warn("chat_message_llm_usage_event_failed", err);
+        }
+      }
 
       await db
         .update(conversations)

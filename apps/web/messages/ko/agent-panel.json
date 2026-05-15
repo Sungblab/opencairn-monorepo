@@ -54,6 +54,7 @@
     "long_thread_cta": "새 대화",
     "citation_fallback": "출처 {index}",
     "citation_view_source": "원문 보기",
+    "usage_summary": "{model} · {count} tokens · {cost}",
     "runSummary": {
       "running": "실행 중",
       "elapsed": "{seconds}초",

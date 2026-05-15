@@ -127,10 +127,10 @@ describe("root layout performance boundaries", () => {
     expect(workspaceLayout).toContain('"agentPanel"');
     expect(workspaceLayout).toContain('"projectTemplates"');
     expect(workspaceLayout).toContain('"workspaceAtlas"');
+    expect(workspaceLayout).toContain('"settings"');
     expect(workspaceLayout).not.toContain('"landing"');
     expect(workspaceLayout).not.toContain('"auth"');
     expect(workspaceLayout).not.toContain('"onboarding"');
-    expect(workspaceLayout).not.toContain('"settings"');
   });
 
   it("keeps locale fallback boundaries off client routing and intl runtimes", () => {

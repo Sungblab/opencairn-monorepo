@@ -56,6 +56,9 @@ describe("WorkspaceSettingsView", () => {
     expect(screen.getByText("language region")).toBeInTheDocument();
     expect(screen.getByText("notifications")).toBeInTheDocument();
     expect(screen.getByText("security")).toBeInTheDocument();
+    expect(
+      screen.getByText("workspaceSettings.overview.personal.description"),
+    ).toBeInTheDocument();
   });
 
   it("keeps legacy personal section paths on the personal scroll page", () => {
@@ -89,6 +92,9 @@ describe("WorkspaceSettingsView", () => {
 
     expect(screen.getByText("providers")).toBeInTheDocument();
     expect(screen.getByText("mcp")).toBeInTheDocument();
+    expect(
+      screen.getByText("workspaceSettings.overview.aiTools.card1Title"),
+    ).toBeInTheDocument();
   });
 
   it("keeps active and hover group links readable", () => {

@@ -190,6 +190,44 @@ function groupHref(locale: string, wsSlug: string, group: SettingsGroup) {
     : urls.workspace.settings(locale, wsSlug);
 }
 
+function SettingsGroupOverview({
+  group,
+  title,
+}: {
+  group: SettingsGroup;
+  title: string;
+}) {
+  const t = useTranslations("workspaceSettings");
+  return (
+    <section className="mb-8 space-y-4">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
+          {t("overview.eyebrow")}
+        </p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-normal">{title}</h1>
+        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+          {t(`overview.${group}.description`)}
+        </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        {[1, 2, 3].map((index) => (
+          <div
+            key={index}
+            className="rounded-[var(--radius-card)] border border-border bg-background px-4 py-3 shadow-sm"
+          >
+            <p className="text-sm font-medium text-foreground">
+              {t(`overview.${group}.card${index}Title`)}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {t(`overview.${group}.card${index}Body`)}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export interface WorkspaceSettingsViewProps {
   wsSlug: string;
   wsId: string;
@@ -303,7 +341,10 @@ export function WorkspaceSettingsView({
         </nav>
       </aside>
       <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-        <div className="mx-auto w-full max-w-5xl">{body}</div>
+        <div className="mx-auto w-full max-w-5xl">
+          <SettingsGroupOverview group={currentGroup} title={currentTitle} />
+          {body}
+        </div>
       </main>
     </div>
   );

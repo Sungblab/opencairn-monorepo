@@ -54,6 +54,7 @@ afterEach(() => {
 
 describe("useChatSend", () => {
   it("accumulates text deltas and resets live to null on done", async () => {
+    const invalidateSpy = vi.spyOn(QueryClient.prototype, "invalidateQueries");
     const body = mkSseBody([
       'event: status\ndata: {"phrase":"검색 중"}\n\n',
       'event: agent_placeholder\ndata: {"id":"m1"}\n\n',
@@ -73,6 +74,9 @@ describe("useChatSend", () => {
 
     // After done, live is reset to null so the persisted-row render takes over.
     await waitFor(() => expect(result.current.live).toBeNull());
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["workspaces", "me"],
+    });
 
     // Verify the request shape — POST + JSON body + SSE accept header.
     expect(fetchMock).toHaveBeenCalledTimes(1);

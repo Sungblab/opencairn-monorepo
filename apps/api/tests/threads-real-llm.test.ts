@@ -189,6 +189,36 @@ describe("POST /api/threads/:id/messages — real LLM path (Task 7)", () => {
     expect(typeof tokenUsage!.costKrw).toBe("number");
     expect(tokenUsage!.costKrw).toBeGreaterThanOrEqual(0);
 
+    // Playback includes token_usage so completed messages can keep showing
+    // accounting after the live stream hands off to persisted rows.
+    const playback = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "GET",
+      userId: ctx.userId,
+    });
+    expect(playback.status).toBe(200);
+    const playbackBody = (await playback.json()) as {
+      messages: Array<{
+        role: string;
+        token_usage?: {
+          tokensIn: number;
+          tokensOut: number;
+          model: string;
+          costKrw: number;
+        } | null;
+      }>;
+    };
+    expect(playbackBody.messages[1]).toMatchObject({
+      role: "agent",
+      token_usage: {
+        tokensIn: 22,
+        tokensOut: 6,
+        model: "gemini-2.5-flash",
+      },
+    });
+    expect(typeof playbackBody.messages[1]!.token_usage!.costKrw).toBe(
+      "number",
+    );
+
     // Persisted body matches the joined deltas. usage is stripped from
     // content (lives in token_usage column).
     expect(rows[1]!.content).toMatchObject({ body: "real answer" });

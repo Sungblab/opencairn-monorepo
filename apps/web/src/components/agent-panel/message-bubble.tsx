@@ -9,7 +9,7 @@
 
 import { useTranslations } from "next-intl";
 import { stripAgentDirectiveFences } from "@opencairn/shared";
-import type { ChatMessage } from "@/lib/api-client";
+import type { ChatMessage, ChatMessageTokenUsage } from "@/lib/api-client";
 import { ChatMessageRendererLoader } from "../chat/chat-message-renderer-loader";
 import { CitationChips, asCitations } from "./citation-chips";
 import { MessageActions } from "./message-actions";
@@ -93,6 +93,29 @@ function asAgentError(v: unknown): { message: string; code?: string } | null {
   };
 }
 
+function asTokenUsage(
+  usage: ChatMessage["token_usage"],
+): ChatMessageTokenUsage | null {
+  if (!usage || typeof usage !== "object") return null;
+  const total =
+    typeof usage.totalTokens === "number"
+      ? usage.totalTokens
+      : (usage.tokensIn ?? 0) + (usage.tokensOut ?? 0);
+  if (total <= 0) return null;
+  return {
+    ...usage,
+    totalTokens: total,
+  };
+}
+
+function formatWon(value: number): string {
+  return new Intl.NumberFormat("ko-KR", {
+    style: "currency",
+    currency: "KRW",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 export function MessageBubble({
   msg,
   onRegenerate,
@@ -148,6 +171,7 @@ export function MessageBubble({
   const interactionCard = isAgentInteractionCard(msg.content.interaction_card)
     ? msg.content.interaction_card
     : null;
+  const tokenUsage = asTokenUsage(msg.token_usage);
 
   return (
     <div className="flex flex-col gap-2">
@@ -195,6 +219,18 @@ export function MessageBubble({
           card={interactionCard}
           onSubmit={(input) => onInteractionCardSubmit?.(input)}
         />
+      ) : null}
+      {tokenUsage ? (
+        <p className="text-[11px] text-muted-foreground">
+          {t("usage_summary", {
+            model: tokenUsage.model ?? msg.provider ?? "LLM",
+            count: tokenUsage.totalTokens ?? 0,
+            cost:
+              typeof tokenUsage.costKrw === "number"
+                ? formatWon(tokenUsage.costKrw)
+                : "-",
+          })}
+        </p>
       ) : null}
       <MessageActions
         text={body}

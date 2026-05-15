@@ -214,7 +214,11 @@ export function SidebarFooter() {
             <DropdownMenuItem
               render={
                 <Link
-                  href={urls.workspace.settings(locale, currentWorkspaceSlug)}
+                  href={urls.workspace.settingsSection(
+                    locale,
+                    currentWorkspaceSlug,
+                    "workspace",
+                  )}
                 />
               }
               className="min-h-9 rounded px-2 py-2"
@@ -227,7 +231,11 @@ export function SidebarFooter() {
             <DropdownMenuItem
               render={
                 <Link
-                  href={urls.workspace.settings(locale, currentWorkspaceSlug)}
+                  href={urls.workspace.settingsSection(
+                    locale,
+                    currentWorkspaceSlug,
+                    "workspace",
+                  )}
                 />
               }
               className="min-h-9 rounded px-2 py-2"

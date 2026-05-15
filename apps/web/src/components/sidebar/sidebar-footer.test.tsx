@@ -198,7 +198,7 @@ describe("SidebarFooter", () => {
       screen.getByRole("menuitem", {
         name: "sidebar.footer.settings_aria",
       }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/settings");
+    ).toHaveAttribute("href", "/ko/workspace/acme/settings/workspace");
     expect(
       screen.queryByRole("menuitem", {
         name: "sidebar.footer.account_settings",

@@ -75,6 +75,31 @@ const baseAgentMessage = {
 };
 
 describe("message bubble status", () => {
+  it("shows persisted token usage on completed agent messages", () => {
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          token_usage: {
+            tokensIn: 12,
+            tokensOut: 34,
+            model: "gemini-test",
+            costKrw: 7,
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={vi.fn()}
+        onFeedback={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        'usage_summary:{"model":"gemini-test","count":46,"cost":"₩7"}',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("does not show a stale status line on completed messages", () => {
     render(
       <MessageBubble

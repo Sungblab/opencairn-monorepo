@@ -29,6 +29,7 @@ import {
   conversations,
   conversationMessages,
   creditBalances,
+  llmUsageEvents,
   user,
   eq,
   asc,
@@ -217,6 +218,21 @@ describe("POST /api/chat/message — real LLM path (Task 8)", () => {
     expect(convo!.totalTokensIn).toBe(40);
     expect(convo!.totalTokensOut).toBe(9);
     expect(Number(convo!.totalCostKrw)).toBeGreaterThan(0);
+
+    const [usageEvent] = await db
+      .select()
+      .from(llmUsageEvents)
+      .where(eq(llmUsageEvents.sourceId, costPayload.messageId));
+    expect(usageEvent).toMatchObject({
+      userId: ctx.userId,
+      workspaceId: ctx.workspaceId,
+      provider: "gemini",
+      model: "gemini-2.5-flash",
+      operation: "chat.stream",
+      tokensIn: 40,
+      tokensOut: 9,
+      sourceType: "chat_message",
+    });
   });
 
   it("forwards AbortSignal from request → runChat → provider.streamGenerate", async () => {

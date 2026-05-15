@@ -296,6 +296,7 @@ export const threadRoutes = new Hono<AppEnv>()
         run_id: runByMessage.get(r.id)?.id ?? null,
         run_status: runByMessage.get(r.id)?.status ?? null,
         content: r.content,
+        token_usage: r.tokenUsage,
         mode: r.mode,
         provider: r.provider,
         created_at: r.createdAt.toISOString(),

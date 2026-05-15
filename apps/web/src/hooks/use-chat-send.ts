@@ -353,6 +353,7 @@ export function useChatSend(threadId: string | null) {
             queryKey: ["chat-messages", targetThreadId],
           });
           await qc.invalidateQueries({ queryKey: ["chat-threads"] });
+          await qc.invalidateQueries({ queryKey: ["workspaces", "me"] });
           setLive(null);
           setPendingUser(null);
           controller.current = null;

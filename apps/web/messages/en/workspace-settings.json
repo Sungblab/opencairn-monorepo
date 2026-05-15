@@ -6,6 +6,45 @@
     "workspace": "Workspace",
     "billing": "Billing"
   },
+  "overview": {
+    "eyebrow": "Settings scope",
+    "personal": {
+      "description": "Review your account, display, notifications, and security settings in one place.",
+      "card1Title": "Profile",
+      "card1Body": "Manage your name and account details.",
+      "card2Title": "Environment",
+      "card2Body": "Adjust theme, language, and regional display.",
+      "card3Title": "Security",
+      "card3Body": "Check login, connected accounts, and notification rules."
+    },
+    "aiTools": {
+      "description": "Manage personal API keys, Deep Research, agent tools, and MCP server connections.",
+      "card1Title": "BYOK",
+      "card1Body": "Add a Gemini API key to use premium AI features on your own billing.",
+      "card2Title": "MCP servers",
+      "card2Body": "Manage external tool tokens for workspace and personal spaces.",
+      "card3Title": "Usage",
+      "card3Body": "Managed models are tracked through credit charges and LLM usage events."
+    },
+    "workspace": {
+      "description": "Manage members, invites, integrations, shared links, and trash for the current workspace.",
+      "card1Title": "Members",
+      "card1Body": "Review roles and access permissions.",
+      "card2Title": "Integrations",
+      "card2Body": "Manage workspace connections such as Google Drive.",
+      "card3Title": "Sharing and retention",
+      "card3Body": "Check shared links and deleted-note retention."
+    },
+    "billing": {
+      "description": "Review plan, credits, and managed AI usage paths.",
+      "card1Title": "Plan",
+      "card1Body": "Check the current plan and available features.",
+      "card2Title": "Credits",
+      "card2Body": "Track the balance used for managed AI calls.",
+      "card3Title": "BYOK switch",
+      "card3Body": "Features using personal keys are separated onto user billing."
+    }
+  },
   "tabs": {
     "members": "Members",
     "invites": "Invites",

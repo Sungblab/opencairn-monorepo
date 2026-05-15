@@ -54,6 +54,7 @@
     "long_thread_cta": "New chat",
     "citation_fallback": "Source {index}",
     "citation_view_source": "View source",
+    "usage_summary": "{model} · {count} tokens · {cost}",
     "runSummary": {
       "running": "Running",
       "elapsed": "{seconds}s",
