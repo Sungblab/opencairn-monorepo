@@ -574,7 +574,8 @@ export function ProjectView({
     }
   }
 
-  const loadedEmptyProject = allNotes !== null && counts.all === 0;
+  const loadedProject = allNotes !== null;
+  const loadedEmptyProject = loadedProject && counts.all === 0;
 
   return (
     <div
@@ -590,14 +591,20 @@ export function ProjectView({
           renamePending={renameMutation.isPending}
         />
       </header>
-      {loadedEmptyProject ? (
+      {loadedProject ? (
         <EmptyProjectWorkspace
           projectId={projectId}
           workspaceSlug={wsSlug}
           templatesHref={urls.workspace.newProject(locale, wsSlug)}
           webImportHref={`${urls.workspace.import(locale, wsSlug)}?projectId=${encodeURIComponent(projectId)}&source=web`}
-          title={t("empty.title")}
-          description={t("empty.description")}
+          title={
+            loadedEmptyProject ? t("empty.title") : t("sourceIntake.title")
+          }
+          description={
+            loadedEmptyProject
+              ? t("empty.description")
+              : t("sourceIntake.description")
+          }
           uploadTitle={t("empty.actions.upload.title")}
           uploadDescription={t("empty.actions.upload.description")}
           recordingTitle={t("empty.actions.recording.title")}
@@ -617,6 +624,7 @@ export function ProjectView({
           timetableTitle={t("starter.actions.timetable.title")}
           timetableDescription={t("starter.actions.timetable.description")}
           timetableBadge={t("starter.actions.timetable.badge")}
+          showTemplates={loadedEmptyProject}
           onLiterature={() => {
             const item = projectCommandTools.get("literature");
             if (item) executeProjectTool(item);
@@ -1077,6 +1085,7 @@ function EmptyProjectWorkspace({
   timetableTitle,
   timetableDescription,
   timetableBadge,
+  showTemplates,
   onLiterature,
 }: {
   projectId: string;
@@ -1102,6 +1111,7 @@ function EmptyProjectWorkspace({
   timetableTitle: string;
   timetableDescription: string;
   timetableBadge: string;
+  showTemplates: boolean;
   onLiterature: () => void;
 }) {
   return (
@@ -1163,6 +1173,7 @@ function EmptyProjectWorkspace({
           />
         </Link>
       </div>
+      {showTemplates ? (
       <div className="border-t border-border pt-4">
         <div className="mb-3">
           <h3 className="text-sm font-semibold text-foreground">
@@ -1207,6 +1218,7 @@ function EmptyProjectWorkspace({
           </SourceUploadButton>
         </div>
       </div>
+      ) : null}
     </section>
   );
 }

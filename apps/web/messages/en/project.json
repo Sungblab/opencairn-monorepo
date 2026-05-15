@@ -124,6 +124,10 @@
       }
     }
   },
+  "sourceIntake": {
+    "title": "Add more sources",
+    "description": "Even after a project has material, you can keep adding files, recordings, web links, and notes."
+  },
   "nextActions": {
     "title": "Recommended actions",
     "description": "Only the most useful next actions for the current project are shown here. Search all actions in the Tools tab.",

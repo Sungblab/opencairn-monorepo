@@ -365,7 +365,7 @@ describe("ProjectView", () => {
     ).toBeEnabled();
   });
 
-  it("does not show first-source actions after notes exist", () => {
+  it("keeps source intake actions visible after notes exist", async () => {
     mockProjectNotes.rows = [
       {
         id: "n1",
@@ -377,7 +377,15 @@ describe("ProjectView", () => {
 
     renderProjectView();
 
+    expect(
+      await screen.findByText("project.sourceIntake.title"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("project.empty.title")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /project\.empty\.actions\.recording\.title/,
+      }),
+    ).toBeEnabled();
   });
 
   it("surfaces project tools in the central workbench", async () => {
