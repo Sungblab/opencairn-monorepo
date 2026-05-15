@@ -252,11 +252,15 @@ export function FirstSourceIntake({
 
   return (
     <section
+      data-testid="first-source-intake"
       aria-labelledby={`${tabBaseId}-title`}
-      className="rounded-[var(--radius-card)] border border-border bg-background"
+      className="min-w-0 overflow-x-hidden rounded-[var(--radius-card)] border border-border bg-background"
     >
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.55fr)]">
-        <div className="space-y-5 p-5 sm:p-6">
+      <div
+        data-testid="first-source-intake-layout"
+        className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.55fr)]"
+      >
+        <div className="min-w-0 space-y-5 p-5 sm:p-6">
           <div>
             <h2 id={`${tabBaseId}-title`} className="text-xl font-semibold">
               {t("title")}
@@ -267,7 +271,11 @@ export function FirstSourceIntake({
           </div>
 
           {showModeTabs ? (
-            <div role="tablist" aria-label={t("tabs.label")} className="grid grid-cols-3 gap-2">
+            <div
+              role="tablist"
+              aria-label={t("tabs.label")}
+              className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,6.5rem),1fr))] gap-2"
+            >
               {MODES.map((id) => {
                 const Icon = MODE_ICONS[id];
                 const selected = mode === id;
@@ -398,7 +406,7 @@ export function FirstSourceIntake({
           </button>
         </div>
 
-        <aside className="border-t border-border bg-muted/20 p-5 lg:border-l lg:border-t-0 lg:p-6">
+        <aside className="min-w-0 border-t border-border bg-muted/20 p-5 lg:border-l lg:border-t-0 lg:p-6">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <ListChecks className="h-4 w-4" aria-hidden />
             {t("pipeline.title")}

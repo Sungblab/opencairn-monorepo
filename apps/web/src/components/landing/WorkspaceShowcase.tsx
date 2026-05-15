@@ -26,8 +26,11 @@ export function WorkspaceShowcase() {
           <p className="kr text-[15px] text-stone-600 leading-relaxed max-w-[560px]">{t("sub")}</p>
         </div>
 
-        <div className="ws-frame reveal md:overflow-x-auto">
-          <div className="md:min-w-[920px]">
+        <div
+          data-testid="landing-workspace-frame"
+          className="ws-frame reveal overflow-hidden"
+        >
+          <div data-testid="landing-workspace-mockup" className="min-w-0 w-full">
           <div className="ws-chrome">
             <div className="flex items-center gap-1">
               <span className="dot" />

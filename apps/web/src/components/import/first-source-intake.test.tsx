@@ -132,6 +132,17 @@ describe("FirstSourceIntake", () => {
     );
   });
 
+  it("uses a shell-safe layout without fixed right-column width", () => {
+    render(<FirstSourceIntake wsSlug="home-1234abcd" initialMode="file" />);
+
+    const root = screen.getByTestId("first-source-intake");
+    const layout = screen.getByTestId("first-source-intake-layout");
+    expect(root).toHaveClass("min-w-0", "overflow-x-hidden");
+    expect(layout.className).toContain("min-w-0");
+    expect(layout.className).not.toContain("300px");
+    expect(screen.getByRole("tablist").className).toContain("auto-fit");
+  });
+
   it("uploads a selected file without opening a live ingest tab", async () => {
     const user = userEvent.setup();
     render(<FirstSourceIntake wsSlug="home-1234abcd" initialMode="file" />);

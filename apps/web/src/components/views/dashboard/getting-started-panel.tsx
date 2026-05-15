@@ -148,8 +148,11 @@ export function GettingStartedPanel({
       aria-labelledby="getting-started-title"
       className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-background"
     >
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(560px,0.9fr)]">
-        <div className="flex flex-col justify-between gap-6 border-b border-border p-5 lg:border-b-0 lg:border-r lg:p-6">
+      <div
+        data-testid="dashboard-getting-started-layout"
+        className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]"
+      >
+        <div className="flex min-w-0 flex-col justify-between gap-6 border-b border-border p-5 lg:border-b-0 lg:border-r lg:p-6">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {hasSignal ? t("eyebrowActive") : t("eyebrowEmpty")}
@@ -171,7 +174,7 @@ export function GettingStartedPanel({
           </ol>
         </div>
 
-        <div className="grid gap-3 p-4 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3">
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] gap-3 p-4">
           <ActionCard
             href={urls.workspace.import(locale, wsSlug)}
             icon={UploadCloud}

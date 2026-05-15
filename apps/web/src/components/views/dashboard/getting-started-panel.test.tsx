@@ -115,4 +115,25 @@ describe("GettingStartedPanel", () => {
     expect(title).toHaveClass("break-keep");
     expect(desc).toHaveClass("break-keep");
   });
+
+  it("uses shell-safe responsive grids instead of fixed desktop columns", async () => {
+    vi.mocked(dashboardApi.stats).mockResolvedValue({
+      docs: 2,
+      docs_week_delta: 1,
+      research_in_progress: 0,
+      credits_krw: 0,
+      byok_connected: false,
+    });
+    vi.mocked(dashboardApi.recentNotes).mockResolvedValue({ notes: [] });
+    vi.mocked(dashboardApi.researchRuns).mockResolvedValue({ runs: [] });
+
+    renderPanel();
+
+    await screen.findByText("dashboard.gettingStarted.titleActive");
+    const layout = screen.getByTestId("dashboard-getting-started-layout");
+    expect(layout.className).toContain("min-w-0");
+    expect(layout.className).not.toContain("320px");
+    expect(layout.className).not.toContain("560px");
+    expect(layout.lastElementChild?.className).toContain("auto-fit");
+  });
 });

@@ -22,14 +22,15 @@ export function ProjectViewLoader(props: ProjectViewProps) {
 function ProjectViewSkeleton() {
   return (
     <div
+      data-testid="route-project-skeleton"
       aria-hidden
-      className="mx-auto flex max-w-6xl flex-col gap-6 px-8 py-8"
+      className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8 lg:py-8"
     >
       <div className="space-y-2">
         <div className="h-8 w-64 animate-pulse rounded-[var(--radius-control)] bg-muted" />
         <div className="h-4 w-40 animate-pulse rounded-[var(--radius-control)] bg-muted/70" />
       </div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] gap-2">
         {Array.from({ length: 8 }).map((_, index) => (
           <div
             key={index}

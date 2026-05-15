@@ -146,6 +146,16 @@ describe("NewProjectTemplateClient", () => {
     });
   });
 
+  it("keeps the new-project page inside narrow shell width", () => {
+    renderClient();
+
+    const root = screen.getByTestId("new-project-template-root");
+    const gallery = screen.getByLabelText("프로젝트 템플릿");
+    expect(root).toHaveClass("w-full", "min-w-0", "overflow-x-hidden");
+    expect(gallery.className).toContain("auto-fit");
+    expect(gallery.className).not.toContain("xl:grid-cols-3");
+  });
+
   it("creates a named blank project directly", async () => {
     renderClient();
 

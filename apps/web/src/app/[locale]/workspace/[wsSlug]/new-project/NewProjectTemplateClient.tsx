@@ -159,7 +159,10 @@ export function NewProjectTemplateClient({
   }
 
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-6 px-8 py-8">
+    <main
+      data-testid="new-project-template-root"
+      className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8 lg:py-8"
+    >
       <header className="max-w-3xl">
         <h1 className="text-2xl font-semibold text-foreground">{labels.title}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{labels.description}</p>
@@ -239,7 +242,7 @@ export function NewProjectTemplateClient({
       ) : null}
       <section
         aria-label={labels.galleryLabel}
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+        className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-3"
       >
         {projectTemplates.map((template) => {
           const Icon = categoryIcons[template.category];
