@@ -225,7 +225,7 @@ export function ProjectToolsPanel({
   }
 
   return (
-    <div className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-background p-2">
+    <div className="app-scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background p-2">
       <h3 className="sr-only">{panelT("title")}</h3>
       {!projectId ? (
         <p className="rounded-[var(--radius-control)] border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -244,13 +244,13 @@ export function ProjectToolsPanel({
           className="h-9 w-full rounded-[var(--radius-control)] border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground"
         />
       </div>
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-3">
         {visibleToolGroups.map((group) => (
           <section key={group.category} className="space-y-1.5">
             <h4 className="px-1 text-[0.68rem] font-semibold uppercase tracking-normal text-muted-foreground">
               {t(`categories.${group.category}.title`)}
             </h4>
-            <div className="grid gap-1">
+            <div className="grid min-w-0 gap-1">
               {group.items.map((item) => {
                 const title =
                   item.action.type === "upload" && uploading
@@ -347,12 +347,12 @@ function ToolTile({
   onClick(): void;
 }) {
   return (
-    <div data-tool-tile={itemId} className="relative">
+    <div data-tool-tile={itemId} className="relative min-w-0 max-w-full">
       <button
         type="button"
         disabled={disabled}
         onClick={onClick}
-        className={`group flex min-h-12 w-full items-center gap-2 rounded-[var(--radius-control)] border px-2.5 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${
+        className={`group flex min-h-12 w-full min-w-0 max-w-full items-start gap-2 overflow-hidden rounded-[var(--radius-control)] border px-2.5 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${
           emphasis
             ? "border-foreground/20 bg-foreground text-background hover:opacity-90"
             : "border-transparent bg-background text-foreground hover:border-border hover:bg-muted/60"
@@ -365,21 +365,21 @@ function ToolTile({
           emphasis={emphasis}
           layout="row"
         />
-        <span className="ml-auto flex shrink-0 items-center gap-1 pr-7">
+        <span className="ml-auto flex max-w-[42%] shrink items-center justify-end gap-1 overflow-hidden pl-1 pr-6">
           {unavailableLabel ? (
-            <span className="rounded-[var(--radius-control)] bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span className="truncate rounded-[var(--radius-control)] bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               {unavailableLabel}
             </span>
           ) : null}
           {statusLabel ? (
-            <span className="rounded-[var(--radius-control)] border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span className="truncate rounded-[var(--radius-control)] border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               {statusLabel}
             </span>
           ) : null}
           {favorite ? (
             <span
               className={
-                emphasis ? "text-background/70" : "text-muted-foreground"
+                emphasis ? "truncate text-background/70" : "truncate text-muted-foreground"
               }
             >
               {favoriteActiveLabel}
@@ -387,7 +387,7 @@ function ToolTile({
           ) : recent ? (
             <span
               className={
-                emphasis ? "text-background/70" : "text-muted-foreground"
+                emphasis ? "truncate text-background/70" : "truncate text-muted-foreground"
               }
             >
               {recentActiveLabel}

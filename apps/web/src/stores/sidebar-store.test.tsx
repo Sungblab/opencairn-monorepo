@@ -64,18 +64,14 @@ describe("sidebar-store", () => {
   it("moves used quick-create actions to the front and persists the order", () => {
     useSidebarStore.getState().setWorkspace("ws-a");
 
-    useSidebarStore.getState().recordQuickCreateUse("generate_document");
+    useSidebarStore.getState().recordQuickCreateUse("recording");
 
-    expect(useSidebarStore.getState().quickCreateOrder[0]).toBe(
-      "generate_document",
-    );
+    expect(useSidebarStore.getState().quickCreateOrder[0]).toBe("recording");
 
     useSidebarStore.getState().setWorkspace("ws-b");
     expect(useSidebarStore.getState().quickCreateOrder[0]).toBe("new_note");
 
     useSidebarStore.getState().setWorkspace("ws-a");
-    expect(useSidebarStore.getState().quickCreateOrder[0]).toBe(
-      "generate_document",
-    );
+    expect(useSidebarStore.getState().quickCreateOrder[0]).toBe("recording");
   });
 });

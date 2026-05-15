@@ -94,15 +94,15 @@ export function ToolDiscoveryTileContent({
     return (
       <>
         {iconEl}
-        <span className="min-w-0 flex-1">
+        <span className="min-w-0 flex-1 overflow-hidden">
           <span className="block truncate text-sm font-medium leading-5">
             {title}
           </span>
           <span
             className={
               emphasis
-                ? "block truncate text-xs leading-5 text-primary-foreground/75"
-                : "block truncate text-xs leading-5 text-muted-foreground"
+                ? "line-clamp-2 block text-xs leading-5 text-primary-foreground/75"
+                : "line-clamp-2 block text-xs leading-5 text-muted-foreground"
             }
           >
             {description}

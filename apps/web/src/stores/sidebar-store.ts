@@ -8,10 +8,10 @@ const key = (wsId: string) => `oc:sidebar:${wsId}`;
 export const DEFAULT_QUICK_CREATE_ORDER = [
   "new_note",
   "upload",
+  "recording",
   "new_folder",
   "new_canvas",
   "new_code",
-  "generate_document",
 ] as const;
 const DEFAULT_COLLAPSED_SECTIONS = [
   "favorites",

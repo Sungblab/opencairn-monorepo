@@ -1,5 +1,6 @@
 "use client";
 import { urls } from "@/lib/urls";
+import type { ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,9 +11,13 @@ import { api } from "@/lib/api-client";
 export function NewNoteButton({
   workspaceSlug,
   projectId,
+  children,
+  className = "w-full justify-start gap-2",
 }: {
   workspaceSlug: string;
   projectId: string;
+  children?: ReactNode;
+  className?: string;
 }) {
   const locale = useLocale();
   const t = useTranslations("sidebar");
@@ -38,17 +43,21 @@ export function NewNoteButton({
       size="sm"
       onClick={() => m.mutate()}
       disabled={m.isPending}
-      className="w-full justify-start gap-2"
+      className={className}
       data-testid="new-note-button"
     >
-      {m.isPending ? (
-        <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
-      ) : (
-        <Plus aria-hidden className="h-4 w-4" />
+      {children ?? (
+        <>
+          {m.isPending ? (
+            <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+          ) : (
+            <Plus aria-hidden className="h-4 w-4" />
+          )}
+          <span className="truncate">
+            {m.isPending ? t("creating_note") : t("new_note")}
+          </span>
+        </>
       )}
-      <span className="truncate">
-        {m.isPending ? t("creating_note") : t("new_note")}
-      </span>
     </Button>
   );
 }

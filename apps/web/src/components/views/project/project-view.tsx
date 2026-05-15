@@ -7,6 +7,7 @@ import {
   type ComponentType,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,13 +19,17 @@ import {
   BookOpen,
   ClipboardCheck,
   FilePlus,
+  FileText,
   GitBranch,
   ImagePlus,
   Layers3,
   LayoutTemplate,
+  Link2,
   Lightbulb,
+  Mic2,
   Network,
   PenLine,
+  Search,
   UploadCloud,
 } from "lucide-react";
 import {
@@ -41,6 +46,7 @@ import {
 } from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { WorkbenchActivityButton } from "@/components/agent-panel/workbench-trigger-button";
+import { NewNoteButton } from "@/components/sidebar/NewNoteButton";
 import { SourceUploadButton } from "@/components/sidebar/SourceUploadButton";
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
@@ -140,6 +146,18 @@ const GUIDED_DETAIL_OPTIONS: GuidedDetailLevel[] = [
   "standard",
   "deep",
 ];
+const PROJECT_HOME_ACTION_IDS = [
+  "import",
+  "summarize",
+  "pdf_report_fast",
+  "pptx_deck",
+  "xlsx_table",
+  "source_figure",
+  "study_artifact_generator",
+  "research",
+  "runs",
+  "review_inbox",
+] as const;
 
 function isTerminalWorkflowStatus(status: WorkflowConsoleRun["status"]) {
   return WORKFLOW_TERMINAL_STATUSES.has(status);
@@ -163,6 +181,7 @@ export function ProjectView({
     status: "idle",
   });
   const toolGroups = useMemo(() => getToolDiscoveryGroups("project_home"), []);
+  const agentToolGroups = useMemo(() => getToolDiscoveryGroups("agent_tools"), []);
   const googleIntegrationQuery = useQuery({
     queryKey: ["project-tools-google-integration", workspaceId],
     enabled: Boolean(workspaceId),
@@ -229,11 +248,11 @@ export function ProjectView({
       toast.error(t("graphDiscovery.health.librarianFailed"));
     },
   });
-  // Page count + last activity are derived from the unfiltered notes list to
-  // avoid a third endpoint just for two scalars. The notes table publishes
-  // its `filter=all` payload back here when it fires; counts also feed the
-  // chip labels in the table header so the two surfaces stay in sync.
-  const [allNotes, setAllNotes] = useState<ProjectNoteRow[] | null>(null);
+  const { data: projectNotes } = useQuery({
+    queryKey: ["project-notes", projectId, "all"],
+    queryFn: () => projectsApi.notes(projectId, "all").then((r) => r.notes),
+  });
+  const allNotes = projectNotes ?? null;
   const counts = useMemo(() => {
     const acc = { all: 0, imported: 0, research: 0, manual: 0 };
     for (const row of allNotes ?? []) {
@@ -347,11 +366,18 @@ export function ProjectView({
   );
   const projectCommandTools = useMemo(() => {
     const byId = new Map<string, ToolDiscoveryItem>();
-    for (const group of toolGroups) {
+    for (const group of [...toolGroups, ...agentToolGroups]) {
       for (const item of group.items) byId.set(item.id, item);
     }
     return byId;
-  }, [toolGroups]);
+  }, [agentToolGroups, toolGroups]);
+  const recommendedProjectActions = useMemo(
+    () =>
+      PROJECT_HOME_ACTION_IDS.map((id) => projectCommandTools.get(id)).filter(
+        (item): item is ToolDiscoveryItem => Boolean(item),
+      ),
+    [projectCommandTools],
+  );
 
   function queueProjectPrompt(prompt: string) {
     requestWorkflow({
@@ -541,6 +567,8 @@ export function ProjectView({
     }
   }
 
+  const loadedEmptyProject = allNotes !== null && counts.all === 0;
+
   return (
     <div
       data-testid="route-project"
@@ -555,163 +583,155 @@ export function ProjectView({
           renamePending={renameMutation.isPending}
         />
       </header>
-      <ProjectCommandCenter
-        title={t("commandCenter.title")}
-        description={t("commandCenter.description")}
-        inputLabel={t("commandCenter.inputLabel")}
-        placeholder={t("commandCenter.placeholder")}
-        submitLabel={t("commandCenter.submit")}
-        contextLabel={t("commandCenter.contextLabel")}
-        contextValue={t("commandCenter.contextValue", { count: counts.all })}
-        guidedTitle={t("commandCenter.guidedTitle")}
-        guidedDescription={t("commandCenter.guidedDescription")}
-        guidedStarts={PROJECT_GUIDED_STARTS.map((start) => ({
-          id: start.id,
-          Icon: start.Icon,
-          title: t(`commandCenter.guided.${start.id}.title`),
-          description: t(`commandCenter.guided.${start.id}.description`),
-        }))}
-        activeRunsTitle={t("commandCenter.activeRuns.title")}
-        activeRunsDescription={t("commandCenter.activeRuns.description")}
-        activeRuns={activeProjectRuns}
-        onSubmitPrompt={queueProjectPrompt}
-        onGuidedStart={runGuidedStart}
-      />
-      <GraphDiscoveryPanel
-        title={t("graphDiscovery.title")}
-        description={t("graphDiscovery.description", { count: counts.all })}
-        mapLabel={t("graphDiscovery.actions.map")}
-        cardsLabel={t("graphDiscovery.actions.cards")}
-        mindmapLabel={t("graphDiscovery.actions.mindmap")}
-        indexLabel={t("graphDiscovery.index.label")}
-        indexStats={formatWikiIndexStats(wikiIndex, {
-          pages: t("graphDiscovery.index.pages", {
-            count: wikiIndex?.totals.pages ?? 0,
-          }),
-          links: t("graphDiscovery.index.links", {
-            count: wikiIndex?.totals.wikiLinks ?? 0,
-          }),
-          orphans: t("graphDiscovery.index.orphans", {
-            count: wikiIndex?.totals.orphanPages ?? 0,
-          }),
-          latest: wikiIndex?.latestPageUpdatedAt
-            ? t("graphDiscovery.index.latest", {
-                date: new Intl.DateTimeFormat(locale, {
-                  month: "short",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }).format(new Date(wikiIndex.latestPageUpdatedAt)),
-              })
-            : undefined,
-        })}
-        healthLabel={t("graphDiscovery.health.label")}
-        healthStatus={
-          wikiIndex
-            ? t(`graphDiscovery.health.status.${wikiIndex.health.status}`)
-            : null
-        }
-        healthIssueSummary={formatWikiHealthIssueSummary(
-          wikiIndex,
-          (kind, count) => t(`graphDiscovery.health.issues.${kind}`, { count }),
-        )}
-        healthTone={wikiIndex?.health.status ?? null}
-        refreshLabel={t("graphDiscovery.health.refresh")}
-        refreshingLabel={t("graphDiscovery.health.refreshing")}
-        showRefresh={
-          Boolean(wikiIndex) &&
-          wikiIndex?.health.status !== "healthy" &&
-          canRefreshWikiIndex
-        }
-        refreshPending={refreshWikiIndexMutation.isPending}
-        onRefresh={() => refreshWikiIndexMutation.mutate()}
-        runLibrarianLabel={t("graphDiscovery.health.runLibrarian")}
-        runningLibrarianLabel={t("graphDiscovery.health.runningLibrarian")}
-        showRunLibrarian={shouldOfferLibrarian}
-        runLibrarianPending={runLibrarianMutation.isPending}
-        onRunLibrarian={() => runLibrarianMutation.mutate()}
-        mapHref={projectGraphHref()}
-        cardsHref={projectGraphHref("cards")}
-        mindmapHref={projectGraphHref("mindmap")}
-      />
-      {allNotes !== null && counts.all === 0 ? (
-        <ProjectStarterPanel
+      {loadedEmptyProject ? (
+        <EmptyProjectWorkspace
           projectId={projectId}
+          workspaceSlug={wsSlug}
           templatesHref={urls.workspace.newProject(locale, wsSlug)}
-          importHref={urls.workspace.import(locale, wsSlug)}
-          title={t("starter.title")}
-          description={t("starter.description")}
-          uploadTitle={t("starter.actions.upload.title")}
-          uploadDescription={t("starter.actions.upload.description")}
+          webImportHref={`${urls.workspace.import(locale, wsSlug)}?projectId=${encodeURIComponent(projectId)}&source=web`}
+          title={t("empty.title")}
+          description={t("empty.description")}
+          uploadTitle={t("empty.actions.upload.title")}
+          uploadDescription={t("empty.actions.upload.description")}
+          recordingTitle={t("empty.actions.recording.title")}
+          recordingDescription={t("empty.actions.recording.description")}
+          noteTitle={t("empty.actions.note.title")}
+          noteDescription={t("empty.actions.note.description")}
+          webTitle={t("empty.actions.web.title")}
+          webDescription={t("empty.actions.web.description")}
+          templatesHeading={t("empty.templates.heading")}
+          templatesIntro={t("empty.templates.description")}
           templatesTitle={t("starter.actions.templates.title")}
-          templatesDescription={t("starter.actions.templates.description")}
-          importTitle={t("starter.actions.import.title")}
-          importDescription={t("starter.actions.import.description")}
+          templatesActionDescription={t("starter.actions.templates.description")}
+          literatureTitle={t("empty.templates.literature.title")}
+          literatureDescription={t("empty.templates.literature.description")}
           timetableTitle={t("starter.actions.timetable.title")}
           timetableDescription={t("starter.actions.timetable.description")}
           timetableBadge={t("starter.actions.timetable.badge")}
+          onLiterature={() => {
+            const item = projectCommandTools.get("literature");
+            if (item) executeProjectTool(item);
+          }}
         />
-      ) : null}
-      <section aria-labelledby="project-tools-heading" className="space-y-3">
-        <div>
-          <h2
-            id="project-tools-heading"
-            className="text-sm font-medium text-foreground"
-          >
-            {t("tools.heading")}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("tools.description")}
-          </p>
-        </div>
-        <ProjectPreflightNotice
-          state={preflightState}
-          loadingLabel={t("tools.preflight.loading")}
-          blockedLabel={
-            preflightState.status === "blocked"
-              ? t("tools.preflight.blocked", {
-                  credits: preflightState.preflight.cost.billableCredits,
-                  available: preflightState.preflight.balance.availableCredits,
-                })
-              : ""
-          }
-          confirmText={
-            preflightState.status === "confirm"
-              ? t("tools.preflight.confirm", {
-                  credits: preflightState.preflight.cost.billableCredits,
-                })
-              : ""
-          }
-          errorLabel={t("tools.preflight.error")}
-          confirmLabel={t("tools.preflight.confirmStart")}
-          cancelLabel={t("tools.preflight.cancel")}
-          onConfirm={confirmProjectToolPreflight}
-          onCancel={() => setPreflightState({ status: "idle" })}
-        />
-        <div className="space-y-4">
-          {toolGroups.map((group) => (
-            <section key={group.category} className="space-y-2">
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                  {t(`tools.categories.${group.category}.title`)}
-                </h3>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {t(`tools.categories.${group.category}.description`)}
-                </p>
-              </div>
-              <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] gap-2">
-                {group.items.map((item) => renderToolItem(item))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </section>
-      <ProjectNotesTable
-        wsSlug={wsSlug}
-        projectId={projectId}
-        counts={counts}
-        onLoaded={(rows) => setAllNotes(rows)}
-      />
+      ) : (
+        <>
+          <ProjectCommandCenter
+            title={t("commandCenter.title")}
+            description={t("commandCenter.description")}
+            inputLabel={t("commandCenter.inputLabel")}
+            placeholder={t("commandCenter.placeholder")}
+            submitLabel={t("commandCenter.submit")}
+            contextLabel={t("commandCenter.contextLabel")}
+            contextValue={t("commandCenter.contextValue", { count: counts.all })}
+            guidedTitle={t("commandCenter.guidedTitle")}
+            guidedDescription={t("commandCenter.guidedDescription")}
+            guidedStarts={PROJECT_GUIDED_STARTS.map((start) => ({
+              id: start.id,
+              Icon: start.Icon,
+              title: t(`commandCenter.guided.${start.id}.title`),
+              description: t(`commandCenter.guided.${start.id}.description`),
+            }))}
+            activeRunsTitle={t("commandCenter.activeRuns.title")}
+            activeRunsDescription={t("commandCenter.activeRuns.description")}
+            activeRuns={activeProjectRuns}
+            onSubmitPrompt={queueProjectPrompt}
+            onGuidedStart={runGuidedStart}
+          />
+          <ProjectActionStrip
+            title={t("nextActions.title")}
+            description={t("nextActions.description")}
+            allToolsLabel={t("nextActions.allTools")}
+            items={recommendedProjectActions}
+            renderItem={renderToolItem}
+          />
+          <GraphDiscoveryPanel
+            title={t("graphDiscovery.title")}
+            description={t("graphDiscovery.description", { count: counts.all })}
+            mapLabel={t("graphDiscovery.actions.map")}
+            cardsLabel={t("graphDiscovery.actions.cards")}
+            mindmapLabel={t("graphDiscovery.actions.mindmap")}
+            indexLabel={t("graphDiscovery.index.label")}
+            indexStats={formatWikiIndexStats(wikiIndex, {
+              pages: t("graphDiscovery.index.pages", {
+                count: wikiIndex?.totals.pages ?? 0,
+              }),
+              links: t("graphDiscovery.index.links", {
+                count: wikiIndex?.totals.wikiLinks ?? 0,
+              }),
+              orphans: t("graphDiscovery.index.orphans", {
+                count: wikiIndex?.totals.orphanPages ?? 0,
+              }),
+              latest: wikiIndex?.latestPageUpdatedAt
+                ? t("graphDiscovery.index.latest", {
+                    date: new Intl.DateTimeFormat(locale, {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }).format(new Date(wikiIndex.latestPageUpdatedAt)),
+                  })
+                : undefined,
+            })}
+            healthLabel={t("graphDiscovery.health.label")}
+            healthStatus={
+              wikiIndex
+                ? t(`graphDiscovery.health.status.${wikiIndex.health.status}`)
+                : null
+            }
+            healthIssueSummary={formatWikiHealthIssueSummary(
+              wikiIndex,
+              (kind, count) => t(`graphDiscovery.health.issues.${kind}`, { count }),
+            )}
+            healthTone={wikiIndex?.health.status ?? null}
+            refreshLabel={t("graphDiscovery.health.refresh")}
+            refreshingLabel={t("graphDiscovery.health.refreshing")}
+            showRefresh={
+              Boolean(wikiIndex) &&
+              wikiIndex?.health.status !== "healthy" &&
+              canRefreshWikiIndex
+            }
+            refreshPending={refreshWikiIndexMutation.isPending}
+            onRefresh={() => refreshWikiIndexMutation.mutate()}
+            runLibrarianLabel={t("graphDiscovery.health.runLibrarian")}
+            runningLibrarianLabel={t("graphDiscovery.health.runningLibrarian")}
+            showRunLibrarian={shouldOfferLibrarian}
+            runLibrarianPending={runLibrarianMutation.isPending}
+            onRunLibrarian={() => runLibrarianMutation.mutate()}
+            mapHref={projectGraphHref()}
+            cardsHref={projectGraphHref("cards")}
+            mindmapHref={projectGraphHref("mindmap")}
+          />
+          <ProjectPreflightNotice
+            state={preflightState}
+            loadingLabel={t("tools.preflight.loading")}
+            blockedLabel={
+              preflightState.status === "blocked"
+                ? t("tools.preflight.blocked", {
+                    credits: preflightState.preflight.cost.billableCredits,
+                    available: preflightState.preflight.balance.availableCredits,
+                  })
+                : ""
+            }
+            confirmText={
+              preflightState.status === "confirm"
+                ? t("tools.preflight.confirm", {
+                    credits: preflightState.preflight.cost.billableCredits,
+                  })
+                : ""
+            }
+            errorLabel={t("tools.preflight.error")}
+            confirmLabel={t("tools.preflight.confirmStart")}
+            cancelLabel={t("tools.preflight.cancel")}
+            onConfirm={confirmProjectToolPreflight}
+            onCancel={() => setPreflightState({ status: "idle" })}
+          />
+          <ProjectNotesTable
+            wsSlug={wsSlug}
+            projectId={projectId}
+            counts={counts}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -1022,46 +1042,73 @@ function GuidedSelect({
   );
 }
 
-function ProjectStarterPanel({
+function EmptyProjectWorkspace({
   projectId,
+  workspaceSlug,
   templatesHref,
-  importHref,
+  webImportHref,
   title,
   description,
   uploadTitle,
   uploadDescription,
+  recordingTitle,
+  recordingDescription,
+  noteTitle,
+  noteDescription,
+  webTitle,
+  webDescription,
+  templatesHeading,
+  templatesIntro,
   templatesTitle,
-  templatesDescription,
-  importTitle,
-  importDescription,
+  templatesActionDescription,
+  literatureTitle,
+  literatureDescription,
   timetableTitle,
   timetableDescription,
   timetableBadge,
+  onLiterature,
 }: {
   projectId: string;
+  workspaceSlug: string;
   templatesHref: string;
-  importHref: string;
+  webImportHref: string;
   title: string;
   description: string;
   uploadTitle: string;
   uploadDescription: string;
+  recordingTitle: string;
+  recordingDescription: string;
+  noteTitle: string;
+  noteDescription: string;
+  webTitle: string;
+  webDescription: string;
+  templatesHeading: string;
+  templatesIntro: string;
   templatesTitle: string;
-  templatesDescription: string;
-  importTitle: string;
-  importDescription: string;
+  templatesActionDescription: string;
+  literatureTitle: string;
+  literatureDescription: string;
   timetableTitle: string;
   timetableDescription: string;
   timetableBadge: string;
+  onLiterature: () => void;
 }) {
   return (
-    <section className="rounded-[var(--radius-card)] border border-border bg-card p-4">
-      <div className="mb-4">
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+    <section
+      data-testid="project-empty-workspace"
+      className="grid gap-5 rounded-[var(--radius-card)] border border-border bg-card p-5"
+    >
+      <div className="max-w-2xl">
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">
+          {title}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          {description}
+        </p>
       </div>
       <div
-        data-testid="project-starter-actions"
-        className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-2"
+        data-testid="project-empty-primary-actions"
+        className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-2"
       >
         <SourceUploadButton
           projectId={projectId}
@@ -1073,37 +1120,123 @@ function ProjectStarterPanel({
             description={uploadDescription}
           />
         </SourceUploadButton>
-        <Link
-          href={templatesHref}
-          className="flex min-h-28 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <StarterActionContent
-            Icon={LayoutTemplate}
-            title={templatesTitle}
-            description={templatesDescription}
-          />
-        </Link>
-        <Link
-          href={importHref}
-          className="flex min-h-28 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <StarterActionContent
-            Icon={FilePlus}
-            title={importTitle}
-            description={importDescription}
-          />
-        </Link>
         <SourceUploadButton
           projectId={projectId}
           className="flex min-h-28 w-full items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40"
         >
           <StarterActionContent
-            Icon={ImagePlus}
-            title={timetableTitle}
-            description={timetableDescription}
-            badge={timetableBadge}
+            Icon={Mic2}
+            title={recordingTitle}
+            description={recordingDescription}
           />
         </SourceUploadButton>
+        <NewNoteButton
+          workspaceSlug={workspaceSlug}
+          projectId={projectId}
+          className="flex min-h-28 w-full items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40"
+        >
+          <StarterActionContent
+            Icon={FileText}
+            title={noteTitle}
+            description={noteDescription}
+          />
+        </NewNoteButton>
+        <Link
+          href={webImportHref}
+          className="flex min-h-28 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <StarterActionContent
+            Icon={Link2}
+            title={webTitle}
+            description={webDescription}
+          />
+        </Link>
+      </div>
+      <div className="border-t border-border pt-4">
+        <div className="mb-3">
+          <h3 className="text-sm font-semibold text-foreground">
+            {templatesHeading}
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            {templatesIntro}
+          </p>
+        </div>
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-2">
+          <Link
+            href={templatesHref}
+            className="flex min-h-24 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <StarterActionContent
+              Icon={LayoutTemplate}
+              title={templatesTitle}
+              description={templatesActionDescription}
+            />
+          </Link>
+          <button
+            type="button"
+            onClick={onLiterature}
+            className="flex min-h-24 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <StarterActionContent
+              Icon={Search}
+              title={literatureTitle}
+              description={literatureDescription}
+            />
+          </button>
+          <SourceUploadButton
+            projectId={projectId}
+            className="flex min-h-24 w-full items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40"
+          >
+            <StarterActionContent
+              Icon={ImagePlus}
+              title={timetableTitle}
+              description={timetableDescription}
+              badge={timetableBadge}
+            />
+          </SourceUploadButton>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProjectActionStrip({
+  title,
+  description,
+  allToolsLabel,
+  items,
+  renderItem,
+}: {
+  title: string;
+  description: string;
+  allToolsLabel: string;
+  items: ToolDiscoveryItem[];
+  renderItem: (item: ToolDiscoveryItem) => ReactNode;
+}) {
+  return (
+    <section aria-labelledby="project-next-actions" className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2
+            id="project-next-actions"
+            className="text-sm font-semibold text-foreground"
+          >
+            {title}
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => usePanelStore.getState().openAgentPanelTab("tools")}
+          className="app-btn-secondary h-9 rounded-[var(--radius-control)] px-3 text-sm"
+        >
+          {allToolsLabel}
+        </button>
+      </div>
+      <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-2">
+        {items.map((item) => renderItem(item))}
       </div>
     </section>
   );

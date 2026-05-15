@@ -14,6 +14,7 @@ import {
   FileText,
   GraduationCap,
   Home,
+  Mic2,
   MoreHorizontal,
   Network,
   Newspaper,
@@ -35,7 +36,6 @@ import { NewFolderButton } from "./NewFolderButton";
 import { NewCanvasButton } from "./NewCanvasButton";
 import { SourceUploadButton } from "./SourceUploadButton";
 import { NewCodeWorkspaceButton } from "./NewCodeWorkspaceButton";
-import { GenerateDocumentButton } from "./GenerateDocumentButton";
 import { ProjectHero } from "./project-hero";
 import { MoreMenu } from "./more-menu";
 import { SidebarEmptyState } from "./sidebar-empty-state";
@@ -151,14 +151,17 @@ export function ShellSidebar({
             <NewNoteButton workspaceSlug={wsSlug} projectId={projectId} />
           ),
           upload: <SourceUploadButton projectId={projectId} />,
+          recording: (
+            <SourceUploadButton projectId={projectId}>
+              <Mic2 aria-hidden className="h-4 w-4" />
+              <span className="truncate">{tNav("new_recording")}</span>
+            </SourceUploadButton>
+          ),
           new_folder: <NewFolderButton projectId={projectId} />,
           new_canvas: (
             <NewCanvasButton workspaceSlug={wsSlug} projectId={projectId} />
           ),
           new_code: <NewCodeWorkspaceButton projectId={projectId} />,
-          generate_document: (
-            <GenerateDocumentButton wsSlug={wsSlug} projectId={projectId} />
-          ),
         }
       : ({} as Record<SidebarQuickCreateActionId, ReactNode>);
 
@@ -260,15 +263,29 @@ export function ShellSidebar({
               label={tSections("workflows")}
               Icon={Sparkles}
             >
-              <div className="grid grid-cols-2 gap-1">
-                {workflowCapabilities.slice(0, 8).map((item) => (
+              <div className="grid gap-1">
+                {workflowCapabilities.slice(0, 5).map((item) => (
                   <SidebarCapabilityButton
                     key={item.id}
                     item={item}
                     label={tTools(`items.${item.i18nKey}.title`)}
+                    description={tTools(`items.${item.i18nKey}.description`)}
                     onClick={() => executeSidebarCapability(item)}
                   />
                 ))}
+                <button
+                  type="button"
+                  onClick={() => openAgentPanelTab("tools")}
+                  className="mt-1 flex min-h-8 min-w-0 items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5 text-left text-xs font-medium text-foreground transition-colors hover:border-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Search
+                    aria-hidden
+                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                  />
+                  <span className="min-w-0 flex-1 truncate">
+                    {tNav("all_tools")}
+                  </span>
+                </button>
               </div>
             </SidebarSection>
 
@@ -283,6 +300,7 @@ export function ShellSidebar({
                     key={item.id}
                     item={item}
                     label={tTools(`items.${item.i18nKey}.title`)}
+                    description={tTools(`items.${item.i18nKey}.description`)}
                     onClick={() => executeSidebarCapability(item)}
                   />
                 ))}
@@ -605,10 +623,12 @@ function SidebarNavLink({
 function SidebarCapabilityButton({
   item,
   label,
+  description,
   onClick,
 }: {
   item: ToolDiscoveryItem;
   label: string;
+  description?: string;
   onClick: () => void;
 }) {
   const Icon = sidebarCapabilityIcon(item);
@@ -616,13 +636,22 @@ function SidebarCapabilityButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-8 min-w-0 items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-12 min-w-0 items-start gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Icon
         aria-hidden
-        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground"
       />
-      <span className="min-w-0 flex-1 truncate leading-none">{label}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium leading-5 text-foreground">
+          {label}
+        </span>
+        {description ? (
+          <span className="line-clamp-2 block leading-5 text-muted-foreground">
+            {description}
+          </span>
+        ) : null}
+      </span>
     </button>
   );
 }

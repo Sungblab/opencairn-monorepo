@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShellSidebar } from "./shell-sidebar";
@@ -83,7 +84,9 @@ vi.mock("./NewCanvasButton", () => ({
   NewCanvasButton: () => <button type="button">new canvas</button>,
 }));
 vi.mock("./SourceUploadButton", () => ({
-  SourceUploadButton: () => <button type="button">upload source</button>,
+  SourceUploadButton: ({ children }: { children?: ReactNode }) => (
+    <button type="button">{children ?? "upload source"}</button>
+  ),
 }));
 vi.mock("./NewCodeWorkspaceButton", () => ({
   NewCodeWorkspaceButton: () => <button type="button">new code</button>,
@@ -170,10 +173,11 @@ describe("ShellSidebar", () => {
     );
     expect(screen.getByText("new note")).toBeInTheDocument();
     expect(screen.getByText("upload source")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.new_recording")).toBeInTheDocument();
     expect(screen.getByText("new folder")).toBeInTheDocument();
     expect(screen.getByText("new canvas")).toBeInTheDocument();
     expect(screen.getByText("new code")).toBeInTheDocument();
-    expect(screen.getByText("generate document")).toBeInTheDocument();
+    expect(screen.queryByText("generate document")).not.toBeInTheDocument();
     expect(screen.getByText("sidebar.sections.favorites")).toBeInTheDocument();
     expect(
       screen.queryByText("sidebar.favorites.empty"),
@@ -359,7 +363,7 @@ describe("ShellSidebar", () => {
     const user = userEvent.setup();
     const first = renderSidebar();
 
-    await user.click(screen.getByText("generate document"));
+    await user.click(screen.getByText("sidebar.nav.new_recording"));
 
     first.unmount();
     renderSidebar();
@@ -367,6 +371,6 @@ describe("ShellSidebar", () => {
     const actions = screen
       .getByTestId("sidebar-create-actions")
       .querySelectorAll("button");
-    expect(actions[0]).toHaveTextContent("generate document");
+    expect(actions[0]).toHaveTextContent("sidebar.nav.new_recording");
   });
 });

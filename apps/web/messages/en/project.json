@@ -94,6 +94,41 @@
       }
     }
   },
+  "empty": {
+    "title": "Add the first source",
+    "description": "Add a PDF, recording, web link, or note first. Then OpenCairn can turn it into summaries, transcripts, reports, and study material.",
+    "actions": {
+      "upload": {
+        "title": "Upload files",
+        "description": "Add PDFs, documents, images, audio, or video as project sources."
+      },
+      "recording": {
+        "title": "Add recording",
+        "description": "Upload lecture, meeting, or interview audio/video for transcript and summary workflows."
+      },
+      "note": {
+        "title": "New note",
+        "description": "Create a page for direct writing and add it to the project file tree."
+      },
+      "web": {
+        "title": "Import web link",
+        "description": "Process a web page or YouTube URL as project source material."
+      }
+    },
+    "templates": {
+      "heading": "Or start from a template",
+      "description": "Use these only when you want structure before adding material.",
+      "literature": {
+        "title": "Find papers",
+        "description": "Search papers and save selected sources into this project."
+      }
+    }
+  },
+  "nextActions": {
+    "title": "Recommended actions",
+    "description": "Only the most useful next actions for the current project are shown here. Search all actions in the Tools tab.",
+    "allTools": "View all actions"
+  },
   "tools": {
     "heading": "Project tools",
     "description": "Start research, import, agent work, learning, and document generation from this project home.",

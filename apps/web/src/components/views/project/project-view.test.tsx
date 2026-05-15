@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
 import {
-  integrationsApi,
   plan8AgentsApi,
   projectsApi,
   workflowConsoleApi,
@@ -75,7 +74,7 @@ vi.mock("@/lib/api-client", () => ({
       queuedNoteAnalysisJobs: 3,
       noteIds: ["n1", "n2", "n3"],
     })),
-    notes: vi.fn(async () => ({ notes: [] })),
+    notes: vi.fn(async () => ({ notes: mockProjectNotes.rows })),
   },
   plan8AgentsApi: {
     runLibrarian: vi.fn(async () => ({ workflowId: "librarian-workflow" })),
@@ -106,9 +105,9 @@ vi.mock("./project-notes-table", () => ({
   ProjectNotesTable: ({
     onLoaded,
   }: {
-    onLoaded: (rows: typeof mockProjectNotes.rows) => void;
+    onLoaded?: (rows: typeof mockProjectNotes.rows) => void;
   }) => {
-    queueMicrotask(() => onLoaded(mockProjectNotes.rows));
+    queueMicrotask(() => onLoaded?.(mockProjectNotes.rows));
     return <div>notes table</div>;
   },
 }));
@@ -129,7 +128,14 @@ function renderProjectView() {
 describe("ProjectView", () => {
   beforeEach(() => {
     localStorage.clear();
-    mockProjectNotes.rows = [];
+    mockProjectNotes.rows = [
+      {
+        id: "n1",
+        title: "Existing note",
+        kind: "manual",
+        updated_at: new Date().toISOString(),
+      },
+    ];
     preflightMock.mockReset();
     pushMock.mockReset();
     preflightMock.mockResolvedValue({
@@ -340,11 +346,12 @@ describe("ProjectView", () => {
       .toBeInTheDocument();
   });
 
-  it("shows starter actions when the project has no notes", async () => {
+  it("shows first-source actions when the project has no notes", async () => {
+    mockProjectNotes.rows = [];
     renderProjectView();
 
     expect(
-      await screen.findByText("project.starter.title"),
+      await screen.findByText("project.empty.title"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", {
@@ -353,12 +360,12 @@ describe("ProjectView", () => {
     ).toHaveAttribute("href", "/ko/workspace/acme/new-project");
     expect(
       screen.getByRole("button", {
-        name: /project\.starter\.actions\.timetable\.title/,
+        name: /project\.empty\.actions\.recording\.title/,
       }),
     ).toBeEnabled();
   });
 
-  it("does not show starter actions after notes exist", () => {
+  it("does not show first-source actions after notes exist", () => {
     mockProjectNotes.rows = [
       {
         id: "n1",
@@ -370,84 +377,23 @@ describe("ProjectView", () => {
 
     renderProjectView();
 
-    expect(screen.queryByText("project.starter.title")).not.toBeInTheDocument();
+    expect(screen.queryByText("project.empty.title")).not.toBeInTheDocument();
   });
 
   it("surfaces project tools in the central workbench", async () => {
     renderProjectView();
 
-    expect(screen.getByText("project.tools.heading")).toBeInTheDocument();
-    expect(
-      screen.getByText("project.tools.categories.add_sources.title"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("project.tools.categories.content.title"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("project.nextActions.title")).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: /project\.tools\.items\.research\.title/,
       }),
     ).toHaveClass("hover:bg-muted/40");
     expect(
-      screen.getByRole("link", {
-        name: /project\.tools\.items\.graph\.title/,
-      }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/project/p1/graph");
-    expect(
-      screen.getByRole("link", {
-        name: /project\.tools\.items\.mindMap\.title/,
-      }),
-    ).toHaveAttribute(
-      "href",
-      "/ko/workspace/acme/project/p1/graph?view=mindmap",
-    );
-    expect(
-      screen.getByRole("button", {
-        name: /project\.tools\.items\.youtubeImport\.title/,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: /project\.tools\.items\.webImport\.title/,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", {
-        name: /project\.tools\.items\.connectedSources\.title/,
-      }),
-    ).toHaveAttribute(
-      "href",
-      "/ko/workspace/acme/settings/workspace/integrations",
-    );
-    expect(
-      await screen.findByText("project.tools.integrationStatus.disconnected"),
-    ).toBeInTheDocument();
-    expect(integrationsApi.google).toHaveBeenCalledWith("workspace-1");
-    expect(
-      screen.getByRole("button", {
-        name: /project\.tools\.items\.flashcards\.title/,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: /project\.tools\.items\.teachToLearn\.title/,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", {
-        name: /project\.tools\.items\.agents\.title/,
-      }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/project/p1/agents");
-    expect(
       screen.getByRole("button", {
         name: /project\.tools\.items\.pdfReport\.title/,
       }),
     ).toHaveClass("bg-primary");
-    expect(
-      screen.getByRole("button", {
-        name: /project\.tools\.items\.latexPdf\.title/,
-      }),
-    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: /project\.tools\.items\.slides\.title/,
@@ -460,13 +406,13 @@ describe("ProjectView", () => {
     ).toBeInTheDocument();
     await userEvent.click(
       screen.getByRole("button", {
-        name: /project\.tools\.items\.literature\.title/,
+        name: /project\.tools\.items\.research\.title/,
       }),
     );
     expect(usePanelStore.getState().agentPanelTab).toBe("chat");
     expect(useAgentWorkbenchStore.getState().pendingWorkflow).toMatchObject({
-      kind: "literature_search",
-      toolId: "literature",
+      kind: "agent_prompt",
+      toolId: "research",
     });
     expect(screen.getByText("notes table")).toBeInTheDocument();
   });
@@ -623,14 +569,15 @@ describe("ProjectView", () => {
     expect(usePanelStore.getState().agentPanelTab).toBe("activity");
   });
 
-  it("constrains the project home surface and starter actions inside narrow shells", async () => {
+  it("constrains the project home surface and empty actions inside narrow shells", async () => {
+    mockProjectNotes.rows = [];
     renderProjectView();
 
     const route = await screen.findByTestId("route-project");
     expect(route).toHaveClass("min-w-0", "w-full", "overflow-x-hidden");
 
     const starterActions = await screen.findByTestId(
-      "project-starter-actions",
+      "project-empty-primary-actions",
     );
     expect(starterActions.className).toContain("grid-cols-[repeat(auto-fit");
     expect(starterActions.className).not.toContain("md:grid-cols-4");

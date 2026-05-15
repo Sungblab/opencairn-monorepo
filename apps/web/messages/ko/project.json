@@ -94,6 +94,41 @@
       }
     }
   },
+  "empty": {
+    "title": "첫 자료를 추가하세요",
+    "description": "PDF, 녹음, 웹 링크, 노트를 넣으면 요약, 전사, 보고서, 학습 자료로 이어집니다. 빈 프로젝트에서는 기능 목록보다 첫 자료 추가가 먼저입니다.",
+    "actions": {
+      "upload": {
+        "title": "파일 업로드",
+        "description": "PDF, 문서, 이미지, 오디오, 영상을 현재 프로젝트 자료로 넣습니다."
+      },
+      "recording": {
+        "title": "녹음 추가",
+        "description": "강의, 회의, 인터뷰 오디오나 영상을 올려 전사와 요약으로 이어갑니다."
+      },
+      "note": {
+        "title": "새 노트",
+        "description": "직접 작성할 페이지를 만들고 프로젝트 파일 트리에 추가합니다."
+      },
+      "web": {
+        "title": "웹 링크 가져오기",
+        "description": "웹 페이지나 YouTube URL을 프로젝트 자료로 처리합니다."
+      }
+    },
+    "templates": {
+      "heading": "또는 시작 템플릿",
+      "description": "처음부터 구조를 잡고 싶을 때만 사용하세요.",
+      "literature": {
+        "title": "논문 검색",
+        "description": "논문을 검색하고 선택한 자료를 프로젝트에 저장합니다."
+      }
+    }
+  },
+  "nextActions": {
+    "title": "추천 작업",
+    "description": "현재 프로젝트 자료에서 바로 이어질 작업만 보여줍니다. 전체 기능은 도구 탭에서 검색하세요.",
+    "allTools": "모든 작업 보기"
+  },
   "tools": {
     "heading": "프로젝트 도구",
     "description": "리서치, 가져오기, 에이전트 작업, 학습, 문서 생성을 이 프로젝트 홈에서 시작하세요.",
