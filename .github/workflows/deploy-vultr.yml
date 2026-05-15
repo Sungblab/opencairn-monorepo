@@ -1,0 +1,112 @@
+name: Deploy Vultr
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to deploy"
+        required: true
+        default: "main"
+      target:
+        description: "Service group to deploy"
+        required: true
+        default: "web"
+        type: choice
+        options:
+          - web
+          - api
+          - worker
+          - hocuspocus
+          - app
+          - all
+      run_migrations:
+        description: "Run pnpm db:migrate on the server before restarting services"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-vultr
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.target }} to Vultr
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Configure SSH key
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.VULTR_SSH_KEY }}" > ~/.ssh/opencairn_vultr
+          chmod 600 ~/.ssh/opencairn_vultr
+          ssh-keyscan -p "${{ secrets.VULTR_SSH_PORT || '22' }}" "${{ secrets.VULTR_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy selected services
+        env:
+          SSH_HOST: ${{ secrets.VULTR_SSH_HOST }}
+          SSH_PORT: ${{ secrets.VULTR_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.VULTR_SSH_USER }}
+          DEPLOY_REF: ${{ inputs.ref }}
+          DEPLOY_TARGET: ${{ inputs.target }}
+          RUN_MIGRATIONS: ${{ inputs.run_migrations }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/opencairn_vultr -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "DEPLOY_REF='$DEPLOY_REF' DEPLOY_TARGET='$DEPLOY_TARGET' RUN_MIGRATIONS='$RUN_MIGRATIONS' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          cd /opt/opencairn
+
+          git fetch --prune origin
+          git checkout "$DEPLOY_REF"
+          git pull --ff-only origin "$DEPLOY_REF"
+
+          compose() {
+            docker compose --env-file .env --profile app --profile worker --profile hocuspocus "$@"
+          }
+
+          if [ "$RUN_MIGRATIONS" = "true" ]; then
+            corepack enable
+            corepack prepare pnpm@9.15.0 --activate
+            pnpm install --frozen-lockfile
+            pnpm db:migrate
+          fi
+
+          case "$DEPLOY_TARGET" in
+            web)
+              compose build web
+              compose up -d --no-deps web
+              ;;
+            api)
+              compose build api
+              compose up -d --no-deps api
+              ;;
+            worker)
+              compose build worker
+              compose up -d --no-deps worker
+              ;;
+            hocuspocus)
+              compose build hocuspocus
+              compose up -d --no-deps hocuspocus
+              ;;
+            app)
+              compose build api web
+              compose up -d --no-deps api web
+              ;;
+            all)
+              compose up -d --build
+              ;;
+            *)
+              echo "Unknown DEPLOY_TARGET: $DEPLOY_TARGET" >&2
+              exit 64
+              ;;
+          esac
+
+          compose ps
+          REMOTE
+
