@@ -7,7 +7,13 @@ import { StaticTabListLoader } from "./static-tab-list-loader";
 import { SortableTabListLoader } from "./sortable-tab-list-loader";
 import { TabOverflowMenuLoader } from "./tab-overflow-menu-loader";
 
-export function TabBar() {
+export function TabBar({
+  leadingControls,
+  trailingControls,
+}: {
+  leadingControls?: React.ReactNode;
+  trailingControls?: React.ReactNode;
+}) {
   const tabs = useTabsStore((s) => s.tabs);
   const activeId = useTabsStore((s) => s.activeId);
   const params = useParams<{ wsSlug?: string }>();
@@ -37,6 +43,7 @@ export function TabBar() {
       data-testid="tab-bar"
       className="flex h-10 shrink-0 items-stretch border-b border-border bg-surface"
     >
+      {leadingControls}
       <div
         className="app-scrollbar-thin flex min-w-0 flex-1 overflow-x-auto"
         onPointerEnter={requestSorting}
@@ -57,6 +64,7 @@ export function TabBar() {
           />
         )}
       </div>
+      {trailingControls}
       <TabOverflowMenuLoader />
     </div>
   );

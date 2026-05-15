@@ -14,6 +14,44 @@ test.describe("Landing smoke", () => {
     await expect(page).toHaveURL(/\/en$/);
   });
 
+  test("ko landing does not create horizontal page scroll across responsive widths", async ({ page }) => {
+    for (const width of [320, 360, 375, 430, 768, 1024, 1280]) {
+      await page.setViewportSize({ width, height: width < 768 ? 844 : 900 });
+      await page.goto("/ko");
+      await expect(page.locator("h1").first()).toBeVisible();
+
+      const dimensions = await page.evaluate(() => ({
+        viewportWidth: document.documentElement.clientWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        bodyWidth: document.body.scrollWidth,
+      }));
+
+      expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+      expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+    }
+  });
+
+  test("ko landing hash targets clear the sticky header on mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 844 });
+
+    for (const hash of ["#docs", "#pricing", "#workspace"]) {
+      await page.goto(`/ko${hash}`);
+      await expect(page.locator(hash)).toBeVisible();
+
+      const metrics = await page.evaluate((selector) => {
+        const nav = document.querySelector("nav");
+        const section = document.querySelector(selector);
+        if (!nav || !section) return null;
+        const navBottom = nav.getBoundingClientRect().bottom;
+        const sectionTop = section.getBoundingClientRect().top;
+        return { navBottom, sectionTop };
+      }, hash);
+
+      expect(metrics).not.toBeNull();
+      expect(metrics!.sectionTop).toBeGreaterThanOrEqual(metrics!.navBottom - 1);
+    }
+  });
+
   test("dashboard theme toggle cycles 4 themes and persists", async ({ page }) => {
     test.skip(!process.env.E2E_TEST_USER, "E2E_TEST_USER not set");
 

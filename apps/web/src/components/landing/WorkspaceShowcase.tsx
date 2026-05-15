@@ -15,7 +15,7 @@ export function WorkspaceShowcase() {
   const tags = t.raw("tags") as string[];
 
   return (
-    <section id="workspace" className="bg-stone-100 py-24 md:py-32 border-b border-stone-900">
+    <section id="workspace" className="scroll-mt-24 bg-stone-100 py-24 md:py-32 border-b border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div className="mb-14 reveal">
           <h2 className="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">
@@ -32,13 +32,13 @@ export function WorkspaceShowcase() {
         >
           <div data-testid="landing-workspace-mockup" className="min-w-0 w-full">
           <div className="ws-chrome">
-            <div className="flex items-center gap-1">
+            <div className="flex min-w-0 items-center gap-1">
               <span className="dot" />
               <span className="dot" />
               <span className="dot" />
-              <span className="ml-3 text-stone-600 truncate">{t("mock.chromePath")}</span>
+              <span className="ml-3 min-w-0 truncate text-stone-600">{t("mock.chromePath")}</span>
             </div>
-            <span className="text-stone-500 shrink-0">⌘ K</span>
+            <span className="hidden shrink-0 text-stone-500 sm:inline">⌘ K</span>
           </div>
           <div className="grid grid-cols-12 md:min-h-[440px]">
             <div className="hidden md:block md:col-span-3 ws-side">

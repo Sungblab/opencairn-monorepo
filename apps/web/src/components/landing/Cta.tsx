@@ -6,10 +6,10 @@ export function Cta({ locale }: { locale: Locale }) {
   const t = useTranslations("landing.cta");
 
   return (
-    <section id="cta" className="bg-stone-50 py-24 md:py-32 border-b border-stone-900">
+    <section id="cta" className="scroll-mt-24 bg-stone-50 py-24 md:py-32 border-b border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div>
-          <h2 className="kr font-sans text-4xl md:text-6xl text-stone-900 leading-[1.02] mb-6">
+          <h2 className="kr font-sans text-3xl leading-[1.12] text-stone-900 mb-6 sm:text-4xl md:text-6xl md:leading-[1.02]">
             {t("titleA")}
             <br />
             <span className="font-extrabold tracking-tight">{t("titleB")}</span>

@@ -18,7 +18,7 @@ export function Pricing({ locale }: { locale: Locale }) {
   return (
     <section
       id="pricing"
-      className="bg-stone-900 text-stone-50 py-24 md:py-32"
+      className="scroll-mt-24 bg-stone-900 text-stone-50 py-24 md:py-32"
       style={{ backgroundColor: "#171717" }}
     >
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
@@ -197,8 +197,8 @@ export function Pricing({ locale }: { locale: Locale }) {
 
         {/* Secondary row */}
         <div className="mt-20 pt-12 reveal" style={{ borderTop: "1px solid #262626" }}>
-          <div className="grid grid-cols-12 gap-6 mb-8">
-            <div className="col-span-12">
+          <div className="grid gap-6 mb-8 md:grid-cols-12">
+            <div className="md:col-span-12">
               <h3 className="kr font-sans text-2xl md:text-3xl leading-[1.15] mb-2">{t("secondary.title")}</h3>
               <p className="kr text-[13px] text-stone-400 leading-relaxed max-w-[520px]">{t("secondary.sub")}</p>
             </div>

@@ -51,7 +51,7 @@ export function Hero() {
     <section className="relative overflow-hidden">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10 pt-10 pb-20 md:pt-6 md:pb-28 lg:pt-8 xl:pt-10 2xl:pb-36 relative">
         <div className="grid md:grid-cols-12 gap-12 2xl:gap-16 items-center">
-          <div className="md:col-span-7">
+          <div className="min-w-0 md:col-span-7">
             <h1
               className="kr font-sans text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[1.05] text-stone-900 mb-4 lg:mb-6 2xl:mb-8 reveal-intro"
               style={introStyle(HERO_INTRO_DELAYS.title)}

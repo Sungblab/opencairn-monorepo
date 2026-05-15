@@ -15,7 +15,15 @@ import { isRoutedByTabModeRouter } from "./tab-mode-routing";
 // that already handles auth + NoteEditor fan-out). `plate` stays on the
 // children path deliberately: migrating the editor into a client-only
 // router would lose server-side auth + meta fetching.
-export function TabShell({ children }: { children: React.ReactNode }) {
+export function TabShell({
+  children,
+  leadingControls,
+  trailingControls,
+}: {
+  children: React.ReactNode;
+  leadingControls?: React.ReactNode;
+  trailingControls?: React.ReactNode;
+}) {
   // Single selector so TabShell only re-renders when the active tab's object
   // reference changes. Two separate selectors + external `.find()` would
   // subscribe to the whole `tabs` array and re-render on ANY tab update
@@ -38,7 +46,10 @@ export function TabShell({ children }: { children: React.ReactNode }) {
       data-testid="app-shell-main"
       className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background"
     >
-      <TabBar />
+      <TabBar
+        leadingControls={leadingControls}
+        trailingControls={trailingControls}
+      />
       <div className="app-scrollbar-thin flex min-h-0 flex-1 overflow-hidden">
         {split && primary && secondary ? (
           <SplitWorkspace

@@ -73,19 +73,70 @@ test.describe("App Shell Phase 1", () => {
     await expect(page.getByTestId("route-ws-settings")).toBeVisible();
   });
 
-  test("compact viewport renders panels via Sheet overlays", async ({
+  test("compact viewport exposes panel triggers and renders Sheet overlays", async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 800, height: 700 });
+    await page.setViewportSize({ width: 320, height: 700 });
     await page.goto(`/ko/workspace/${session.wsSlug}/settings`);
     await expect(page.getByTestId("app-shell-main")).toBeVisible();
-    // Sheet content uses Radix dialog semantics — the sidebar/agent regions
-    // exist inside the Sheet portal once the dialog opens. Toggle once via
-    // shortcut to flip both into a deterministic state, then verify the
-    // sidebar can be opened from closed.
-    await page.keyboard.press("Control+\\");
-    await page.keyboard.press("Control+\\");
+    await expect(page.getByTestId("compact-sidebar-trigger")).toBeVisible();
+    await expect(page.getByTestId("compact-agent-panel-trigger")).toBeVisible();
+
+    await page.getByTestId("compact-sidebar-trigger").click();
     await expect(page.getByTestId("app-shell-sidebar")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("app-shell-sidebar")).not.toBeVisible();
+
+    await page.getByTestId("compact-agent-panel-trigger").click();
+    await expect(page.getByTestId("app-shell-agent-panel")).toBeVisible();
+    const agentSheetWidth = await page
+      .getByTestId("app-shell-agent-panel")
+      .locator("xpath=ancestor::*[@data-slot='sheet-content'][1]")
+      .evaluate((el) => el.getBoundingClientRect().width);
+    expect(agentSheetWidth).toBeLessThanOrEqual(320);
+  });
+
+  test("workspace shell routes do not create horizontal page scroll", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+
+    const routes = [
+      `/ko/workspace/${session.wsSlug}/`,
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}`,
+      `/ko/workspace/${session.wsSlug}/settings`,
+      `/ko/workspace/${session.wsSlug}/settings/members`,
+    ];
+
+    for (const width of [320, 360, 768, 1024, 1280]) {
+      await page.setViewportSize({ width, height: width < 768 ? 844 : 900 });
+
+      for (const route of routes) {
+        await page.goto(route, { waitUntil: "domcontentloaded" });
+        await expect(page.getByTestId("app-shell-main")).toBeVisible();
+
+        const dimensions = await page.evaluate(() => {
+          const main = document.querySelector("[data-testid='app-shell-main']");
+          return {
+            viewportWidth: document.documentElement.clientWidth,
+            documentWidth: document.documentElement.scrollWidth,
+            bodyWidth: document.body.scrollWidth,
+            mainClientWidth: main?.clientWidth ?? 0,
+            mainScrollWidth: main?.scrollWidth ?? 0,
+          };
+        });
+
+        expect(dimensions.documentWidth).toBeLessThanOrEqual(
+          dimensions.viewportWidth,
+        );
+        expect(dimensions.bodyWidth).toBeLessThanOrEqual(
+          dimensions.viewportWidth,
+        );
+        expect(dimensions.mainScrollWidth).toBeLessThanOrEqual(
+          dimensions.mainClientWidth,
+        );
+      }
+    }
   });
 
   test("locale root redirects authed user to dashboard", async ({

@@ -26,7 +26,7 @@ export function HeroActivityCard({
 
   return (
     <aside
-      className="md:col-span-5 reveal-intro"
+      className="min-w-0 md:col-span-5 reveal-intro"
       style={introStyle(introDelayMs)}
     >
       <div className="activity-card" aria-live="polite">
