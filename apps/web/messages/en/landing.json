@@ -43,49 +43,49 @@
       "licenseVal": "agplv3 + commercial"
     },
     "activity": {
-      "title": "PREVIEW · WORKSPACE",
-      "meta": "Workflow demo log",
-      "footer": "Workflow activity demo",
+      "title": "WORKFLOW · CURRENT PROJECT",
+      "meta": "action ledger",
+      "footer": "Reviewable workflow",
       "timeLabels": ["just now", "1m ago", "3m ago", "6m ago"],
       "items": [
-        { "agent": "INGEST", "text": "<b>attention_is_all_you_need.pdf</b> parsed · source note created" },
-        { "agent": "RETRIEVE", "text": "Related notes found with source chips" },
-        { "agent": "ACTION", "text": "Suggested note update queued for review" },
-        { "agent": "GRAPH", "text": "Backlinks and evidence panel refreshed" },
-        { "agent": "EXPORT", "text": "Document-generation surface prepared" },
-        { "agent": "RECOVER", "text": "Workflow event saved to the action ledger" }
+        { "agent": "INGEST", "text": "<b>project-brief.pdf</b> processed · source note created" },
+        { "agent": "RETRIEVE", "text": "Evidence candidates found inside the current project" },
+        { "agent": "ACTION", "text": "note.update preview created · awaiting approval" },
+        { "agent": "CONSOLE", "text": "Run status and outputs recorded in Workflow Console" },
+        { "agent": "FILE", "text": "Generated file linked as a project object" },
+        { "agent": "RECOVER", "text": "Retry · cancel · manual-review state stored" }
       ]
     },
     "livePanel": {
-      "title": "opencairn — live compile",
-      "compiling": "● compiling",
+      "title": "opencairn — project workflow",
+      "compiling": "● running",
       "input": "INPUT",
       "inputItems": ["Paper PDF", "DOCX · PPTX", "Markdown ZIP", "Google Drive file", "Supported media"],
       "agentsHeader": "WORKFLOW SURFACES",
       "orchestration": "orchestration",
       "status": "● running · staged",
       "output": "OUTPUT",
-      "outWikiTitle": "Wiki pages",
-      "outWikiDesc": "Concept graph · backlinks",
-      "outWikiMeta": "pages",
+      "outWikiTitle": "Grounded notes",
+      "outWikiDesc": "Yjs document · versions",
+      "outWikiMeta": "notes",
       "outWikiLinksMeta": "links",
-      "outLearnTitle": "Learning + Q&A",
-      "outLearnDesc": "Flashcards · quizzes",
-      "outLearnMeta": "review cards suggested",
-      "outGenTitle": "Generated artifacts",
-      "outGenDesc": "Docs · slides · sheets",
-      "outGenMeta": "every source traceable",
+      "outLearnTitle": "Agent actions",
+      "outLearnDesc": "preview · apply · cancel",
+      "outLearnMeta": "awaiting approval",
+      "outGenTitle": "Project outputs",
+      "outGenDesc": "Files · docs · code",
+      "outGenMeta": "linked to workflow runs",
       "idle": "idle…",
       "rotating": [
-        "Upload detected · attention_is_all_you_need.pdf",
-        "Parse: text and tables normalized",
-        "Retrieve: source-backed context indexed",
-        "Action: note update preview created",
+        "Upload detected · project-brief.pdf",
+        "Parse: text and metadata normalized",
+        "Retrieve: current-project evidence candidates found",
+        "Action: note.update preview created",
         "Review: human approval required before apply",
-        "Graph: backlinks and evidence panels refreshed",
-        "Q&A: grounded answer surface ready",
-        "Generate: document surface queued",
-        "Recover: workflow event written to the ledger"
+        "Apply: approved change written to the Yjs note",
+        "Console: run status and output visible",
+        "Generate: project file queued",
+        "Recover: cancel and retry state written to ledger"
       ]
     }
   },
@@ -108,9 +108,9 @@
       { "n": "01 · INGEST", "title": "Intake", "body": "PDFs, common documents, Markdown/CSV ZIP exports, Google Drive file-ID imports, and supported media. OCR and media handling depend on provider capability and deployment settings." },
       { "n": "02 · PARSE", "title": "Break down", "body": "Text, table structure, and OCR output are normalized to Markdown. Media transcription runs through configured provider paths." },
       { "n": "03 · EMBED", "title": "Meaning", "body": "Mapped to vector space. Similar things end up close." },
-      { "n": "04 · COMPILE", "title": "Weave", "body": "The compile workflow drafts wiki pages per topic." },
-      { "n": "05 · CONNECT", "title": "Link", "body": "Backlinks · opposing views · causal edges into a knowledge graph." },
-      { "n": "06 · SERVE", "title": "Use", "body": "Q&A · review cards · Socratic tutor · document-generation surfaces." }
+      { "n": "04 · DRAFT", "title": "Propose", "body": "The agent drafts typed actions such as note updates, file creation, and document generation." },
+      { "n": "05 · REVIEW", "title": "Review", "body": "Risky changes pass through previews and approvals before they change data." },
+      { "n": "06 · TRACK", "title": "Track", "body": "Results, errors, and recovery state remain visible in Workflow Console and the action ledger." }
     ],
     "terminal": {
       "prompt": "$",
@@ -123,8 +123,8 @@
       "title": "Answers and graph views trace back to source evidence.",
       "body": "AI answers carry source chips, while graph, card, and mindmap surfaces expose evidence panels. Sentence-level runtime verification is not yet enforced across every writer path.",
       "pillKey": "citation.sources",
-      "pillA": "\"note: attention-is-all-you-need\"",
-      "pillB": "\"note: rotary-embedding\""
+      "pillA": "\"source: project-brief.pdf\"",
+      "pillB": "\"action: note.update\""
     }
   },
   "agents": {
@@ -155,26 +155,26 @@
   },
   "try": {
     "label": "TRY IT",
-    "title1": "Pick one concept",
-    "title2": "and the connected thoughts surface.",
-    "sub": "A sample graph that shows how transformer papers can be woven into a wiki. Hover or tap a node to see how connections spread.",
+    "title1": "Pick one action",
+    "title2": "and its evidence and outputs surface.",
+    "sub": "A mock project graph showing how sources, notes, agent actions, generated files, and workflow state connect inside one project. Hover or tap a node to inspect the path.",
     "bullets": [
-      "Each node is an example wiki page.",
-      "Edges are relationships found via embeddings and shared concepts.",
-      "The numbers show how often other pages reference this one."
+      "Each node is a source, note, action, or output inside a project.",
+      "Edges represent evidence, approval, generation, and recovery links.",
+      "Counts reflect workflow references and backlinks."
     ],
-    "caption": "Knowledge graph · 8 nodes · 9 edges",
+    "caption": "Project graph · 9 nodes · 9 edges",
     "backlinks": "backlinks",
     "graph": {
-      "attention": { "t": "Attention", "d": "A mechanism that weighs different parts of the input sequence so the model can focus on what matters." },
-      "transformer": { "t": "Transformer", "d": "A sequence-to-sequence architecture built from attention alone. Encoder–decoder structure." },
-      "multihead": { "t": "Multi-Head Attention", "d": "Runs attention in parallel subspaces to capture different kinds of relationships." },
-      "positional": { "t": "Positional Encoding", "d": "Attention has no innate notion of order — position must be injected explicitly." },
-      "encoder": { "t": "Encoder", "d": "Stack that turns input tokens into representation vectors. The upper half of a Transformer." },
-      "decoder": { "t": "Decoder", "d": "Uses encoder output to generate the target sequence autoregressively." },
-      "bert": { "t": "BERT", "d": "Encoder-only bidirectional pretrained model. Strong on understanding tasks." },
-      "rope": { "t": "RoPE (Rotary Pos. Emb.)", "d": "Position info via rotation matrices. Better extrapolation than naive positional encodings." },
-      "pretraining": { "t": "Pretraining", "d": "Learn general language ability on a large corpus, then transfer to downstream tasks." }
+      "attention": { "t": "Source", "d": "Uploaded files are parsed and normalized into source notes that can be retrieved." },
+      "transformer": { "t": "Project Note", "d": "Yjs-backed notes are the working surface; agent edits are reviewed against the live document." },
+      "multihead": { "t": "Evidence", "d": "Chat and actions use scoped evidence candidates and source metadata." },
+      "positional": { "t": "note.update", "d": "The agent creates a diff preview instead of writing directly to the note." },
+      "encoder": { "t": "Action Ledger", "d": "Requests, statuses, results, and error codes are stored for audit and recovery." },
+      "decoder": { "t": "Workflow Console", "d": "Import, generation, code runs, and agent actions share one visible status surface." },
+      "bert": { "t": "Generated File", "d": "Documents and code outputs stay as project objects with workflow provenance." },
+      "rope": { "t": "Apply", "d": "Approved changes apply only after checking the Yjs state vector; stale previews are rejected." },
+      "pretraining": { "t": "Recovery", "d": "Failed runs can move to cancel, retry, or manual-review paths." }
     }
   },
   "workspace": {
@@ -183,9 +183,9 @@
     "title2": "as for a whole lab.",
     "sub": "Wiki pages aren't just text — they're the meeting point of sources, teammates, and reviewable AI work. Every page carries its citations, editors, and workflow history with it.",
     "mock": {
-      "chromePath": "opencairn.local / studio-kim / research-wiki",
+      "chromePath": "opencairn.local / workspace / project-os",
       "sideWorkspace": "WORKSPACE",
-      "sideWorkspaceName": "Studio Kim",
+      "sideWorkspaceName": "Project OS",
       "sideWorkspaceMembers": "5 members",
       "sideRows": [
         { "label": "Inbox", "count": "3", "active": true },
@@ -195,24 +195,50 @@
         { "label": "AI", "count": "actions", "active": false }
       ],
       "sideProjects": "PROJECTS",
-      "projects": ["· Research Wiki", "· Thesis Draft", "· Lab Meeting", "· Reading List"],
-      "breadcrumb": "/ research-wiki / attention-mechanism",
-      "pageTitle": "Attention Mechanism",
+      "projects": ["· Product Research", "· Agent Workflows", "· Source Library", "· Generated Files"],
+      "breadcrumb": "/ project-os / agent-workflows",
+      "pageTitle": "Agent Workflow Notes",
       "pageMeta": ["reviewed AI action", "12 sources", "updated 2h ago"],
-      "body": "Attention weights the tokens of an input sequence by relevance. Vaswani et al. (2017) — \"Attention Is All You Need\" — introduced it as the foundation of the transformer architecture; self-attention and multi-head attention followed.",
-      "calloutTitle": "CONTRADICTION",
-      "calloutBody": "Three sources disagree on quadratic complexity. The Linear Attention family challenges this assumption.",
+      "tabs": ["Agent Workflow Notes", "project-brief.pdf", "Workflow"],
+      "body": "OpenCairn reads sources, retrieves scoped evidence inside the current project, and turns note or file changes into reviewable actions. Important changes move through preview and approval before they apply.",
+      "calloutTitle": "REVIEW",
+      "calloutBody": "The agent drafted an update for this paragraph. Review the current note and proposed diff before applying it.",
       "related": "Related pages:",
-      "relatedItems": ["Transformer", "Scaled Dot-Product", "Linear Attention"],
+      "relatedItems": ["Action Ledger", "Workflow Console", "Source Evidence"],
+      "agentPanelTitle": "Agent Panel",
+      "reviewCard": {
+        "title": "Note update proposal",
+        "summary": "2 changed blocks · 46 words added · 12 removed",
+        "currentLabel": "Current",
+        "current": "Read sources and add a summary to the related note.",
+        "draftLabel": "Proposal",
+        "draft": "Read the source, find evidence candidates in the current project, draft a note update, and leave it as a preview card for human approval.",
+        "warning": "If the note changes before apply, OpenCairn treats the preview as stale and asks for a fresh one.",
+        "reject": "Reject",
+        "apply": "Apply"
+      },
       "railFeedH": "ACTION FEED",
       "feed": [
-        { "agent": "REVIEW · 14:06", "text": "contradiction flagged in source 4 vs source 9" },
-        { "agent": "GRAPH · 14:04", "text": "new edge: Attention ↔ Memory" },
-        { "agent": "ACTION · 13:58", "text": "merged 2 approved fragments into this page" },
-        { "agent": "CLEANUP · y'day", "text": "5 stale links reviewed", "faded": true }
+        { "agent": "REVIEW · 14:06", "text": "note update preview created" },
+        { "agent": "GRAPH · 14:04", "text": "candidate edge: Source Evidence ↔ Action Ledger" },
+        { "agent": "ACTION · 13:58", "text": "approved change applied to the Yjs note" },
+        { "agent": "RECOVER · y'day", "text": "workflow event and result stored", "faded": true }
       ],
+      "workflow": {
+        "title": "Work Status",
+        "active": "Write · running",
+        "activeTitle": "Creating note update preview",
+        "queueTitle": "Work Queue",
+        "queue": ["Review · approval required", "Organize · queued"],
+        "runs": [
+          { "role": "Import", "title": "Parse project-brief.pdf", "status": "Completed" },
+          { "role": "Agent action", "title": "note.update draft", "status": "Approval required" },
+          { "role": "Graph", "title": "Compute backlink candidates", "status": "Queued" }
+        ],
+        "output": "preview · source chips · action ledger"
+      },
       "backlinksH": "BACKLINKS · 8",
-      "backlinks": ["· Transformer", "· Position Encoding", "· KV Cache", "· Flash Attention", "+4 more"]
+      "backlinks": ["· Source Evidence", "· Action Ledger", "· Workflow Console", "· Generated Files", "+4 more"]
     },
     "tags": [
       "Hocuspocus · real-time co-editing",
@@ -286,11 +312,11 @@
     "label": "INSTALL",
     "title1": "Built to run",
     "title2": "on your server.",
-    "sub": "Docker Compose brings up the database, file storage, and workflow engine. After installing dependencies and running migrations, start the app processes; a profile flag enables fully-local Ollama mode.",
+    "sub": "Docker Compose brings up the database, file storage, and workflow engine. Run the app through the development wrapper or self-host profiles; fully-local LLM mode can be configured with the Ollama profile and OpenAI-compatible settings.",
     "bullets": [
       "Minimum 4 vCPU · 8GB RAM, recommended 8 vCPU · 16GB RAM",
       "x86_64 + ARM64 multi-arch (Raspberry Pi · Apple Silicon · Oracle Ampere)",
-      "Backup and restore strategy documented; automation scripts are follow-up work",
+      "pg_dump-based backup, restore, and verification scripts included",
       "Choose Cloudflare R2 / MinIO / S3"
     ],
     "terminalLabel": "TERMINAL",
@@ -302,7 +328,7 @@
       "$ pnpm install",
       "$ docker compose up -d postgres redis minio temporal",
       "$ pnpm db:migrate",
-      "$ docker compose --profile app --profile worker --profile hocuspocus up -d --build"
+      "$ pnpm dev:docker"
     ],
     "terminalResult": "→ http://localhost:3000",
     "terminalOk": [
@@ -310,7 +336,7 @@
       "health checks passed",
       "waiting for first workspace"
     ],
-    "terminalTail": "$ cp .env.example .env → pnpm db:migrate → docker compose up"
+    "terminalTail": "$ cp .env.example .env → pnpm db:migrate → pnpm dev:docker"
   },
   "pricing": {
     "label": "PRICING",
