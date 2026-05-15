@@ -991,6 +991,31 @@ describe("agent action routes", () => {
     });
   });
 
+  it("cancels a queued file.generate action", async () => {
+    const queued = makeAction({
+      id: "00000000-0000-4000-8000-000000000081",
+      kind: "file.generate",
+      status: "queued",
+      risk: "expensive",
+    });
+    const app = appWith({
+      repo: createMemoryRepo([queued]),
+    });
+
+    const response = await app.request(`/api/agent-actions/${queued.id}/cancel`, {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(202);
+    const body = await response.json() as { action: AgentAction; idempotent: boolean };
+    expect(body.idempotent).toBe(false);
+    expect(body.action).toMatchObject({
+      status: "cancelled",
+      errorCode: "cancelled",
+      result: { ok: false, errorCode: "cancelled" },
+    });
+  });
+
   it("creates a repair patch draft from a failed code_project.run action", async () => {
     const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
     const codeRepairPlanner = createMemoryCodeRepairPlanner();

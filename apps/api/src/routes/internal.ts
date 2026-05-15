@@ -735,6 +735,9 @@ internal.post(
     ) {
       return c.json({ error: "document_generation_action_mismatch" }, 409);
     }
+    if (action.status === "cancelled") {
+      return c.json({ error: "document_generation_action_cancelled" }, 409);
+    }
 
     try {
       let file = await registerExistingObjectAsAgentFile({

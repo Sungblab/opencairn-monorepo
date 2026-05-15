@@ -2,10 +2,11 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ClipboardCheck,
   Code2,
+  CircleStop,
   ExternalLink,
   FileUp,
   FolderKanban,
@@ -13,7 +14,11 @@ import {
   Search,
 } from "lucide-react";
 
-import { workflowConsoleApi, type WorkflowConsoleRun } from "@/lib/api-client";
+import {
+  agentActionsApi,
+  workflowConsoleApi,
+  type WorkflowConsoleRun,
+} from "@/lib/api-client";
 import { AgentRunTimeline } from "./agent-run-timeline";
 
 const TERMINAL_STATUSES = new Set([
@@ -23,6 +28,13 @@ const TERMINAL_STATUSES = new Set([
   "expired",
   "reverted",
 ]);
+const CANCELLABLE_STATUSES = new Set([
+  "approval_required",
+  "queued",
+  "running",
+  "blocked",
+]);
+const STALE_ACTIVE_RUN_MS = 10 * 60 * 1000;
 
 type AgentWorkRole = WorkflowConsoleRun["agentRole"];
 
@@ -37,6 +49,17 @@ const ROLE_ICON = {
 
 function isActiveRun(run: WorkflowConsoleRun) {
   return !TERMINAL_STATUSES.has(run.status);
+}
+
+function isCancellableAgentAction(run: WorkflowConsoleRun) {
+  return run.runType === "agent_action" && CANCELLABLE_STATUSES.has(run.status);
+}
+
+function isStaleActiveRun(run: WorkflowConsoleRun, now = Date.now()) {
+  if (!isActiveRun(run)) return false;
+  const updatedAt = Date.parse(run.updatedAt);
+  if (!Number.isFinite(updatedAt)) return false;
+  return now - updatedAt >= STALE_ACTIVE_RUN_MS;
 }
 
 function uniqueRoleSteps(runs: WorkflowConsoleRun[]) {
@@ -241,8 +264,20 @@ function ActiveRoleBanner({ run }: { run: WorkflowConsoleRun }) {
 
 function WorkflowConsoleRunRow({ run }: { run: WorkflowConsoleRun }) {
   const t = useTranslations("agentPanel.workflowConsole");
+  const qc = useQueryClient();
   const role = run.agentRole;
   const Icon = ROLE_ICON[role];
+  const canCancel = isCancellableAgentAction(run);
+  const isStale = isStaleActiveRun(run);
+  const cancelMutation = useMutation({
+    mutationFn: () => agentActionsApi.cancel(run.sourceId),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["workflow-console-runs", run.projectId] }),
+        qc.invalidateQueries({ queryKey: ["agent-actions", run.projectId] }),
+      ]);
+    },
+  });
   const progress = useMemo(() => {
     if (!run.progress) return null;
     if (typeof run.progress.percent === "number") return run.progress.percent;
@@ -274,7 +309,23 @@ function WorkflowConsoleRunRow({ run }: { run: WorkflowConsoleRun }) {
             {t(`type.${run.runType}`)} · {t(`status.${run.status}`)}
           </p>
         </div>
-        <StatusDot status={run.status} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          {canCancel ? (
+            <button
+              type="button"
+              onClick={() => cancelMutation.mutate()}
+              disabled={cancelMutation.isPending}
+              className="inline-flex h-7 items-center gap-1 rounded-[var(--radius-control)] border border-border px-2 text-[11px] font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
+              aria-label={t("cancel")}
+            >
+              <CircleStop aria-hidden className="h-3.5 w-3.5" />
+              <span className="sr-only sm:not-sr-only">
+                {cancelMutation.isPending ? t("cancelling") : t("cancel")}
+              </span>
+            </button>
+          ) : null}
+          <StatusDot status={run.status} />
+        </div>
       </div>
 
       {progress != null ? (
@@ -295,6 +346,14 @@ function WorkflowConsoleRunRow({ run }: { run: WorkflowConsoleRun }) {
         <p className="mt-2 line-clamp-2 text-xs text-destructive">
           {run.error.message}
         </p>
+      ) : null}
+      {isStale && !run.error?.message ? (
+        <p className="mt-2 text-xs leading-5 text-amber-700 dark:text-amber-300">
+          {t("staleHint")}
+        </p>
+      ) : null}
+      {cancelMutation.isError ? (
+        <p className="mt-2 text-xs text-destructive">{t("cancelFailed")}</p>
       ) : null}
 
       {run.outputs.length > 0 ? (

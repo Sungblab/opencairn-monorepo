@@ -88,6 +88,7 @@ import { createTemporalCodeInstallRunner } from "./code-workspace-install-runner
 import { createTemporalCodeRepairPlanner } from "./code-workspace-repair-planner";
 import { canWrite } from "./permissions";
 import { streamObject } from "./s3-get";
+import { getTemporalClient } from "./temporal-client";
 import { diffPlateValues } from "./note-version-diff";
 import { plateValueToText } from "./plate-text";
 import { emitTreeEvent } from "./tree-events";
@@ -1081,7 +1082,7 @@ export async function cancelCodeProjectRunAction(
     ...options,
     repo,
   });
-  if (action.kind !== "code_project.run") {
+  if (action.kind !== "code_project.run" && action.kind !== "file.generate") {
     throw new AgentActionError("action_kind_not_applicable", 409);
   }
   if (action.status === "cancelled") {
@@ -1091,13 +1092,16 @@ export async function cancelCodeProjectRunAction(
     throw new AgentActionError("action_not_cancellable", 409);
   }
 
-  const canceller = options?.codeCommandCanceller ?? createDefaultCodeCommandCanceller();
-  if (action.status === "running") {
+  if (action.kind === "code_project.run" && action.status === "running") {
+    const canceller = options?.codeCommandCanceller ?? createDefaultCodeCommandCanceller();
     try {
       await canceller.cancel({ action });
     } catch (err) {
       console.warn("[agent-actions] code command cancel failed", err);
     }
+  }
+  if (action.kind === "file.generate") {
+    await cancelDocumentGenerationWorkflow(action);
   }
   const cancelled = await repo.updateStatus(action.id, {
     status: "cancelled",
@@ -1106,6 +1110,17 @@ export async function cancelCodeProjectRunAction(
   });
   if (!cancelled) throw new AgentActionError("action_not_found", 404);
   return { action: cancelled, idempotent: false };
+}
+
+async function cancelDocumentGenerationWorkflow(action: AgentAction): Promise<void> {
+  const workflowId = action.result?.workflowId;
+  if (typeof workflowId !== "string" || workflowId.length === 0) return;
+  try {
+    const client = await getTemporalClient();
+    await client.workflow.getHandle(workflowId).cancel();
+  } catch (err) {
+    console.warn("[agent-actions] document generation cancel failed", err);
+  }
 }
 
 export function canTransition(from: AgentActionStatus, to: AgentActionStatus): boolean {

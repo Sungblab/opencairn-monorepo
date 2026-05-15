@@ -464,6 +464,13 @@ export const agentActionsApi = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  cancel: (id: string) =>
+    apiClient<{ action: AgentAction; idempotent: boolean }>(
+      `/agent-actions/${id}/cancel`,
+      {
+        method: "POST",
+      },
+    ),
 };
 
 export interface AgenticPlanListOptions {

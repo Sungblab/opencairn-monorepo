@@ -1,8 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { workflowConsoleApi, type WorkflowConsoleRun } from "@/lib/api-client";
+import {
+  agentActionsApi,
+  workflowConsoleApi,
+  type WorkflowConsoleRun,
+} from "@/lib/api-client";
 
 import { WorkflowConsoleRuns } from "./workflow-console-runs";
 
@@ -23,6 +28,18 @@ vi.mock("@/lib/api-client", async () => {
     workflowConsoleApi: {
       list: vi.fn(),
       get: vi.fn(),
+    },
+    agentActionsApi: {
+      list: vi.fn(),
+      get: vi.fn(),
+      respondToInteractionChoice: vi.fn(),
+      applyNoteUpdate: vi.fn(),
+      applyCodeProjectPatch: vi.fn(),
+      applyCodeProjectPreview: vi.fn(),
+      applyCodeProjectInstall: vi.fn(),
+      apply: vi.fn(),
+      transitionStatus: vi.fn(),
+      cancel: vi.fn(),
     },
   };
 });
@@ -80,6 +97,10 @@ describe("WorkflowConsoleRuns", () => {
     vi.clearAllMocks();
     vi.mocked(workflowConsoleApi.list).mockResolvedValue({
       runs: [run({})],
+    });
+    vi.mocked(agentActionsApi.cancel).mockResolvedValue({
+      action: {} as Awaited<ReturnType<typeof agentActionsApi.cancel>>["action"],
+      idempotent: false,
     });
   });
 
@@ -251,6 +272,34 @@ describe("WorkflowConsoleRuns", () => {
     const link = await screen.findByRole("link", { name: /pdf export/ });
     expect(link.getAttribute("href")).toBe(
       "/api/synthesis-export/runs/00000000-0000-4000-8000-000000000060/document",
+    );
+  });
+
+  it("lets users cancel a queued agent action from the workflow console", async () => {
+    vi.mocked(workflowConsoleApi.list).mockResolvedValue({
+      runs: [
+        run({
+          runId: "agent_action:00000000-0000-4000-8000-000000000120",
+          runType: "agent_action",
+          sourceId: "00000000-0000-4000-8000-000000000120",
+          actionKind: "file.generate",
+          agentRole: "export",
+          title: "file.generate",
+          status: "queued",
+          sourceStatus: "queued",
+          progress: null,
+          error: null,
+          outputs: [],
+        }),
+      ],
+    });
+
+    renderWithClient();
+
+    await userEvent.click(await screen.findByRole("button", { name: "cancel" }));
+
+    expect(agentActionsApi.cancel).toHaveBeenCalledWith(
+      "00000000-0000-4000-8000-000000000120",
     );
   });
 
