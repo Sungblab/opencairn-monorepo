@@ -20,4 +20,21 @@ describe("buildCspHeader", () => {
     expect(header).toContain("wss://collab.opencairn.example");
     expect(header).not.toContain("wss://collab.opencairn.example/ws");
   });
+
+  it("allows Cloudflare Web Analytics beacon loading and reporting", () => {
+    const header = buildCspHeader();
+
+    expect(header).toContain("script-src");
+    expect(header).toContain("https://static.cloudflareinsights.com");
+    expect(header).toContain("connect-src");
+    expect(header).toContain("https://cloudflareinsights.com");
+  });
+
+  it("allows Google Identity Services One Tap surfaces", () => {
+    const header = buildCspHeader();
+
+    expect(header).toMatch(/script-src[^;]*https:\/\/accounts\.google\.com/);
+    expect(header).toMatch(/frame-src[^;]*https:\/\/accounts\.google\.com/);
+    expect(header).toMatch(/connect-src[^;]*https:\/\/accounts\.google\.com/);
+  });
 });

@@ -163,25 +163,25 @@ Workspace (owner / admin / member / guest)
 
 ### 5.3 Content Security Policy (CSP)
 
-Hono에서 `Content-Security-Policy` 헤더 전역 주입 (marketing 페이지는 별도):
+Next.js web app은 `apps/web/src/lib/security/csp.ts`에서 생성한
+`Content-Security-Policy` 헤더를 전역 주입한다:
 
 ```
 default-src 'self';
-script-src 'self' 'unsafe-inline' https://esm.sh https://cdn.jsdelivr.net/pyodide/ ;
-script-src-elem 'self' 'unsafe-inline' https://esm.sh https://cdn.jsdelivr.net/pyodide/ ;
-style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net ;
+script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net/pyodide/ https://esm.sh https://static.cloudflareinsights.com https://accounts.google.com;
+style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob: https:;
 font-src 'self' data: https://cdn.jsdelivr.net ;
-connect-src 'self' wss://<hocuspocus-host> https://generativelanguage.googleapis.com https://esm.sh https://cdn.jsdelivr.net ;
-frame-src 'self' blob:;
+connect-src 'self' wss://<hocuspocus-host> https://esm.sh https://cdn.jsdelivr.net https://cloudflareinsights.com https://accounts.google.com ;
+frame-src 'self' blob: https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com https://accounts.google.com;
 worker-src 'self' blob:;
-object-src 'none';
-base-uri 'self';
-form-action 'self';
 ```
 
-- Marketing/blog 페이지는 더 엄격한 CSP(외부 CDN 최소화).
-- CSP 위반은 `/csp-report` 엔드포인트로 수집하여 Sentry에 전송.
+- `script-src-elem`은 별도 지정하지 않아 `script-src`가 fallback으로 적용된다.
+- Cloudflare Web Analytics는 `static.cloudflareinsights.com`에서 beacon script를
+  로드하고 `cloudflareinsights.com`으로 리포트한다.
+- Google One Tap은 Google Identity Services script, iframe, status 요청 때문에
+  `accounts.google.com`을 `script-src`, `frame-src`, `connect-src`에 둔다.
 
 ### 5.4 COOP/COEP
 

@@ -72,6 +72,13 @@ describe("landing static section bundle boundary", () => {
     }
   });
 
+  it("keeps mobile hero spacing clear below the sticky landing header", () => {
+    const hero = read("src/components/landing/Hero.tsx");
+
+    expect(hero).toContain("pt-10");
+    expect(hero).not.toContain("pt-4 pb-20");
+  });
+
   it("keeps the landing header shell server-rendered without auth modal hydration", () => {
     const header = read("src/components/landing/chrome/Header.tsx");
 

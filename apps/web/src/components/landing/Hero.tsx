@@ -49,7 +49,7 @@ export function Hero() {
 
   return (
     <section className="relative overflow-hidden">
-      <div className="max-w-[1280px] mx-auto px-6 lg:px-10 pt-4 pb-20 md:pt-6 md:pb-28 lg:pt-8 xl:pt-10 2xl:pb-36 relative">
+      <div className="max-w-[1280px] mx-auto px-6 lg:px-10 pt-10 pb-20 md:pt-6 md:pb-28 lg:pt-8 xl:pt-10 2xl:pb-36 relative">
         <div className="grid md:grid-cols-12 gap-12 2xl:gap-16 items-center">
           <div className="md:col-span-7">
             <h1
