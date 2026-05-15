@@ -109,6 +109,7 @@ const SYSTEM_PROMPT = [
   "Use this structure when the source supports it: source line, learning objectives, section-by-section notes, key definitions, examples/code, comparison tables, common mistakes, and review questions.",
   "Use Markdown headings, nested bullets, tables, code fences, and > [!tip]/> [!warn] callouts where they improve readability.",
   "If the user asks for a new note, put the full study note in note.create_from_markdown bodyMarkdown and keep the visible assistant reply short with inline citations.",
+  "For study-note creation from a PDF, lecture, or course material, the note.create_from_markdown bodyMarkdown must be substantial: at least 3,500 Korean characters when source context is available, 5 or more meaningful headings, and review questions. If you cannot produce that, do not claim the note was created.",
   "When the user asks to organize, summarize, or explain lecture/PDF/materials in chat, do not give a shallow outline.",
   "Produce a study-note style answer with the source title, major sections, definitions, examples, code snippets or tables when useful, and review questions when the material contains practice prompts.",
   "For chat answers grounded in workspace context, place [^N] markers next to the sentence or bullet they support. Group citations around meaningful claims instead of repeating the same marker after every sentence.",
@@ -317,6 +318,16 @@ export async function* runChat(opts: {
       yield { type: "agent_file", payload: agentFile };
     }
     const agentAction = extractAgentActionFence(full);
+    const qualityError = validateGeneratedArtifactQuality({
+      userMessage: opts.userMessage,
+      agentAction,
+      verification,
+      locale: opts.locale,
+    });
+    if (qualityError) {
+      yield { type: "error", payload: qualityError };
+      return;
+    }
     if (agentAction) {
       yield {
         type: "agent_action",
@@ -451,7 +462,8 @@ function selectedTextFromRawScope(rawScope: unknown): string | null {
   if (!rawScope || typeof rawScope !== "object" || Array.isArray(rawScope)) {
     return null;
   }
-  const invocationContext = (rawScope as Record<string, unknown>).invocationContext;
+  const invocationContext = (rawScope as Record<string, unknown>)
+    .invocationContext;
   if (
     !invocationContext ||
     typeof invocationContext !== "object" ||
@@ -473,7 +485,9 @@ async function resolveActiveContextNoteId(
     return scope.type === "page" ? scope.noteId : null;
   }
   const rawScopeRecord = rawScope as Record<string, unknown>;
-  const noteIdFromAgentFile = async (fileId: string): Promise<string | null> => {
+  const noteIdFromAgentFile = async (
+    fileId: string,
+  ): Promise<string | null> => {
     const [file] = await db
       .select({ sourceNoteId: agentFiles.sourceNoteId })
       .from(agentFiles)
@@ -743,6 +757,53 @@ function artifactActionRequiredMessage(locale?: string): string {
     return "The requested creation task was not turned into an executable action. Please try again.";
   }
   return "요청한 생성 작업을 실행 가능한 액션으로 만들지 못했습니다. 다시 시도해 주세요.";
+}
+
+function generatedArtifactQualityMessage(locale?: string): string {
+  if (locale === "en") {
+    return "The generated study note was too shallow, so it was not saved. Please retry with a detailed note request.";
+  }
+  return "생성된 학습 노트가 너무 얕아서 저장하지 않았습니다. 상세 정리 노트로 다시 시도해 주세요.";
+}
+
+function validateGeneratedArtifactQuality(input: {
+  userMessage: string;
+  agentAction: AgentActionFence | null;
+  verification: AnswerVerificationResult | null;
+  locale?: string;
+}): { message: string; code: string; messageKey: string } | null {
+  const text = input.userMessage.toLowerCase();
+  const requiresStudyNote =
+    requiresExecutableArtifactAction(input.userMessage) &&
+    /(?:pdf|강의|강의자료|수업|학습\s*노트|정리\s*노트|자료|lecture|slides?|study note|course material)/i.test(
+      text,
+    );
+  if (!requiresStudyNote || !input.agentAction) return null;
+
+  const generatedNotes = input.agentAction.actions.filter(
+    (action) => action.kind === "note.create_from_markdown",
+  );
+  if (generatedNotes.length === 0) return null;
+
+  const minChars = envInt("CHAT_STUDY_NOTE_MIN_BODY_CHARS", 3500);
+  const shallow = generatedNotes.some((action) => {
+    const bodyMarkdown = (
+      action.input as { bodyMarkdown?: unknown } | undefined
+    )?.bodyMarkdown;
+    if (typeof bodyMarkdown !== "string") return true;
+    const normalized = bodyMarkdown.trim();
+    const headingCount = (normalized.match(/^#{1,4}\s+\S/gm) ?? []).length;
+    return normalized.length < minChars || headingCount < 5;
+  });
+  const failedVerification = input.verification?.verdict === "fail";
+  if (!shallow && !failedVerification) return null;
+  return {
+    code: shallow
+      ? "generated_artifact_too_shallow"
+      : "generated_artifact_verification_failed",
+    messageKey: "chat.errors.generatedArtifactTooShallow",
+    message: generatedArtifactQualityMessage(input.locale),
+  };
 }
 
 function requiresExecutableArtifactAction(userMessage: string): boolean {

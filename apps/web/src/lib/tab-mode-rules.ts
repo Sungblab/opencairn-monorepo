@@ -19,6 +19,7 @@ export function isValidTabMode(tab: Tab): boolean {
     case "code_workspace":
       return tab.mode === "code-workspace";
     case "dashboard":
+    case "atlas":
     case "research_hub":
     case "research_run":
     case "import":

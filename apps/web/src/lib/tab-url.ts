@@ -20,14 +20,12 @@ const NOTE_URL_MODES = new Set<TabMode>([
   "canvas",
 ]);
 
-export function tabToUrl(
-  slug: string,
-  route: TabRoute,
-  locale = "ko",
-): string {
+export function tabToUrl(slug: string, route: TabRoute, locale = "ko"): string {
   switch (route.kind) {
     case "dashboard":
       return `${urls.workspace.root(locale, slug)}/`;
+    case "atlas":
+      return urls.workspace.atlas(locale, slug);
     case "note":
       if (route.mode && NOTE_URL_MODES.has(route.mode)) {
         return urls.workspace.noteMode(
@@ -82,6 +80,9 @@ export function urlToTabTarget(
 
   if (parts.length === 0) {
     return { slug, route: { kind: "dashboard", targetId: null } };
+  }
+  if (parts[0] === "atlas" && parts.length === 1) {
+    return { slug, route: { kind: "atlas", targetId: null } };
   }
   if (parts[0] === "note" && parts[1]) {
     const mode = NOTE_URL_MODES.has(parts[2] as TabMode)

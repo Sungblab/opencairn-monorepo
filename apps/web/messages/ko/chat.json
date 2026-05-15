@@ -10,6 +10,7 @@
   "errors": {
     "streamFailed": "응답 생성 중 오류가 발생했습니다.",
     "executionTimeout": "응답 생성 시간이 초과되었습니다.",
-    "artifactActionRequired": "요청한 생성 작업을 실행 가능한 액션으로 만들지 못했습니다. 다시 시도해 주세요."
+    "artifactActionRequired": "요청한 생성 작업을 실행 가능한 액션으로 만들지 못했습니다. 다시 시도해 주세요.",
+    "generatedArtifactTooShallow": "생성된 학습 노트가 너무 얕아서 저장하지 않았습니다. 상세 정리 노트로 다시 시도해 주세요."
   }
 }

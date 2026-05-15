@@ -10,6 +10,7 @@
   "errors": {
     "streamFailed": "Something went wrong while generating the response.",
     "executionTimeout": "The response timed out.",
-    "artifactActionRequired": "The requested creation task was not turned into an executable action. Please try again."
+    "artifactActionRequired": "The requested creation task was not turned into an executable action. Please try again.",
+    "generatedArtifactTooShallow": "The generated study note was too shallow, so it was not saved. Please retry with a detailed note request."
   }
 }

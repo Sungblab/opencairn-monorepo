@@ -29,6 +29,7 @@ export async function getShellLabels(): Promise<ShellLabels> {
       },
       titles: {
         dashboard: tabTitles("dashboard"),
+        atlas: tabTitles("atlas"),
         graph: tabTitles("graph"),
         note: tabTitles("note"),
         project: tabTitles("project"),

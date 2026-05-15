@@ -5,6 +5,7 @@ import type { Tab, TabKind, TabMode } from "@/stores/tabs-store";
 
 type ShellTabTitleKey =
   | "dashboard"
+  | "atlas"
   | "graph"
   | "note"
   | "project"
@@ -87,6 +88,7 @@ export function shellTabTitleKey(
         params: { id: targetId ?? "" },
       };
     case "dashboard":
+    case "atlas":
     case "research_hub":
     case "import":
     case "help":
@@ -113,6 +115,7 @@ export function resolveShellDefaultTabTitle(
 ): string {
   switch (kind) {
     case "dashboard":
+    case "atlas":
     case "note":
     case "research_hub":
     case "import":
@@ -156,13 +159,15 @@ function interpolateLabel(
   params: Record<string, string> | undefined,
 ) {
   if (!params) return template;
-  return template.replace(/\{(\w+)\}/g, (_match, key: string) =>
-    params[key] ?? "",
+  return template.replace(
+    /\{(\w+)\}/g,
+    (_match, key: string) => params[key] ?? "",
   );
 }
 
 const shellTabTitleKeys: Record<ShellTabTitleKey, true> = {
   dashboard: true,
+  atlas: true,
   graph: true,
   note: true,
   project: true,

@@ -22,6 +22,7 @@ export const testShellLabels: ShellLabels = {
     },
     titles: {
       dashboard: "대시보드",
+      atlas: "온톨로지 아틀라스",
       graph: "그래프",
       note: "노트",
       project: "프로젝트",

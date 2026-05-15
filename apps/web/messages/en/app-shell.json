@@ -27,6 +27,7 @@
   },
   "tabTitles": {
     "dashboard": "Dashboard",
+    "atlas": "Ontology Atlas",
     "graph": "Graph",
     "note": "Note",
     "project": "Project",
@@ -153,24 +154,24 @@
         "selectionActive": "Selected {count, number} characters. Continue with summary, decomposition, or citation extraction.",
         "sourceProcessing": "This source is still processing. Analysis tools will be more accurate once it finishes.",
         "sourceFailed": "Source processing failed. Check the upload status, then try again.",
-          "sourceUnsupported": "Automatic analysis does not currently support this source format.",
-          "sourceTypes": {
-            "pdf": "this PDF",
-            "document": "this document",
-            "deck": "this deck",
-            "table": "this table",
-            "image": "this image",
-            "recording": "this recording",
-            "source": "this source"
-          },
-          "useThisSource": "Use {source} only",
-          "useThisPdf": "Use this source only",
-          "capabilities": {
-            "paper_analysis": "Paper analysis report",
-            "source_figure": "Source-backed figure",
-            "study_artifact_generator": "Study material"
-          },
-          "paperAnalysis": "Paper analysis report",
+        "sourceUnsupported": "Automatic analysis does not currently support this source format.",
+        "sourceTypes": {
+          "pdf": "this PDF",
+          "document": "this document",
+          "deck": "this deck",
+          "table": "this table",
+          "image": "this image",
+          "recording": "this recording",
+          "source": "this source"
+        },
+        "useThisSource": "Use {source} only",
+        "useThisPdf": "Use this source only",
+        "capabilities": {
+          "paper_analysis": "Paper analysis report",
+          "source_figure": "Source-backed figure",
+          "study_artifact_generator": "Study material"
+        },
+        "paperAnalysis": "Paper analysis report",
         "paperAnalysisPrompt": "Analyze {title} as a paper. Start with a table of contents, then organize the research question, method, core claims, evidence, limitations, and follow-up questions by section. Add page-level citation anchors in [p. N] format after key claims and evidence whenever possible.",
         "summarize": "Summarize",
         "decompose": "Decompose",

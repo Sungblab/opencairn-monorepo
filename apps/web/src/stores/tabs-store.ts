@@ -5,6 +5,7 @@ import { create } from "zustand";
 // New tab kinds added in later phases must extend the union here.
 export type TabKind =
   | "dashboard"
+  | "atlas"
   | "project"
   | "note"
   | "research_hub"

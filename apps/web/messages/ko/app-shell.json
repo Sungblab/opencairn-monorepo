@@ -27,6 +27,7 @@
   },
   "tabTitles": {
     "dashboard": "대시보드",
+    "atlas": "온톨로지 아틀라스",
     "graph": "그래프",
     "note": "노트",
     "project": "프로젝트",
@@ -153,24 +154,24 @@
         "selectionActive": "{count, number}자 선택됨. 요약, 분해, 인용 추출로 이어갈 수 있어요.",
         "sourceProcessing": "원본 처리 중입니다. 완료되면 분석 도구를 더 정확하게 사용할 수 있습니다.",
         "sourceFailed": "원본 처리가 실패했습니다. 업로드 상태를 확인한 뒤 다시 시도하세요.",
-          "sourceUnsupported": "이 원본 형식은 현재 자동 분석을 지원하지 않습니다.",
-          "sourceTypes": {
-            "pdf": "이 PDF",
-            "document": "이 문서",
-            "deck": "이 덱",
-            "table": "이 표",
-            "image": "이 이미지",
-            "recording": "이 녹음/영상",
-            "source": "이 원본"
-          },
-          "useThisSource": "{source}만 사용",
-          "useThisPdf": "이 원본만 사용",
-          "capabilities": {
-            "paper_analysis": "논문 분석 리포트",
-            "source_figure": "근거 기반 그림",
-            "study_artifact_generator": "학습 자료"
-          },
-          "paperAnalysis": "논문 분석 리포트",
+        "sourceUnsupported": "이 원본 형식은 현재 자동 분석을 지원하지 않습니다.",
+        "sourceTypes": {
+          "pdf": "이 PDF",
+          "document": "이 문서",
+          "deck": "이 덱",
+          "table": "이 표",
+          "image": "이 이미지",
+          "recording": "이 녹음/영상",
+          "source": "이 원본"
+        },
+        "useThisSource": "{source}만 사용",
+        "useThisPdf": "이 원본만 사용",
+        "capabilities": {
+          "paper_analysis": "논문 분석 리포트",
+          "source_figure": "근거 기반 그림",
+          "study_artifact_generator": "학습 자료"
+        },
+        "paperAnalysis": "논문 분석 리포트",
         "paperAnalysisPrompt": "{title}를 논문 읽기 기준으로 분석해줘. 첫머리에 목차를 만들고, 연구 질문, 방법, 핵심 주장, 증거, 한계, 후속 질문을 섹션별로 정리해. 핵심 주장과 근거 뒤에는 가능한 한 [p. N] 형식의 페이지 단위 인용 앵커를 붙여 긴 분석 리포트로 만들어줘.",
         "summarize": "요약",
         "decompose": "분해",

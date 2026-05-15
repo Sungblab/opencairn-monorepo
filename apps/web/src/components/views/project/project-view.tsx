@@ -148,6 +148,7 @@ const GUIDED_DETAIL_OPTIONS: GuidedDetailLevel[] = [
 ];
 const PROJECT_HOME_ACTION_IDS = [
   "import",
+  "recording",
   "summarize",
   "pdf_report_fast",
   "pptx_deck",
@@ -181,7 +182,10 @@ export function ProjectView({
     status: "idle",
   });
   const toolGroups = useMemo(() => getToolDiscoveryGroups("project_home"), []);
-  const agentToolGroups = useMemo(() => getToolDiscoveryGroups("agent_tools"), []);
+  const agentToolGroups = useMemo(
+    () => getToolDiscoveryGroups("agent_tools"),
+    [],
+  );
   const googleIntegrationQuery = useQuery({
     queryKey: ["project-tools-google-integration", workspaceId],
     enabled: Boolean(workspaceId),
@@ -393,9 +397,12 @@ export function ProjectView({
     return [
       t(`commandCenter.guided.${id}.prompt`),
       t("commandCenter.guidedWizard.promptBlock", {
-        topic: draft.topic.trim() || t("commandCenter.guidedWizard.topicFallback"),
+        topic:
+          draft.topic.trim() || t("commandCenter.guidedWizard.topicFallback"),
         output: t(`commandCenter.guidedWizard.output.${draft.output}`),
-        evidence: t(`commandCenter.guidedWizard.evidence.${draft.evidenceMode}`),
+        evidence: t(
+          `commandCenter.guidedWizard.evidence.${draft.evidenceMode}`,
+        ),
         detail: t(`commandCenter.guidedWizard.detail.${draft.detailLevel}`),
       }),
     ].join("\n\n");
@@ -602,7 +609,9 @@ export function ProjectView({
           templatesHeading={t("empty.templates.heading")}
           templatesIntro={t("empty.templates.description")}
           templatesTitle={t("starter.actions.templates.title")}
-          templatesActionDescription={t("starter.actions.templates.description")}
+          templatesActionDescription={t(
+            "starter.actions.templates.description",
+          )}
           literatureTitle={t("empty.templates.literature.title")}
           literatureDescription={t("empty.templates.literature.description")}
           timetableTitle={t("starter.actions.timetable.title")}
@@ -613,125 +622,127 @@ export function ProjectView({
             if (item) executeProjectTool(item);
           }}
         />
-      ) : (
-        <>
-          <ProjectCommandCenter
-            title={t("commandCenter.title")}
-            description={t("commandCenter.description")}
-            inputLabel={t("commandCenter.inputLabel")}
-            placeholder={t("commandCenter.placeholder")}
-            submitLabel={t("commandCenter.submit")}
-            contextLabel={t("commandCenter.contextLabel")}
-            contextValue={t("commandCenter.contextValue", { count: counts.all })}
-            guidedTitle={t("commandCenter.guidedTitle")}
-            guidedDescription={t("commandCenter.guidedDescription")}
-            guidedStarts={PROJECT_GUIDED_STARTS.map((start) => ({
-              id: start.id,
-              Icon: start.Icon,
-              title: t(`commandCenter.guided.${start.id}.title`),
-              description: t(`commandCenter.guided.${start.id}.description`),
-            }))}
-            activeRunsTitle={t("commandCenter.activeRuns.title")}
-            activeRunsDescription={t("commandCenter.activeRuns.description")}
-            activeRuns={activeProjectRuns}
-            onSubmitPrompt={queueProjectPrompt}
-            onGuidedStart={runGuidedStart}
-          />
-          <ProjectActionStrip
-            title={t("nextActions.title")}
-            description={t("nextActions.description")}
-            allToolsLabel={t("nextActions.allTools")}
-            items={recommendedProjectActions}
-            renderItem={renderToolItem}
-          />
-          <GraphDiscoveryPanel
-            title={t("graphDiscovery.title")}
-            description={t("graphDiscovery.description", { count: counts.all })}
-            mapLabel={t("graphDiscovery.actions.map")}
-            cardsLabel={t("graphDiscovery.actions.cards")}
-            mindmapLabel={t("graphDiscovery.actions.mindmap")}
-            indexLabel={t("graphDiscovery.index.label")}
-            indexStats={formatWikiIndexStats(wikiIndex, {
-              pages: t("graphDiscovery.index.pages", {
-                count: wikiIndex?.totals.pages ?? 0,
-              }),
-              links: t("graphDiscovery.index.links", {
-                count: wikiIndex?.totals.wikiLinks ?? 0,
-              }),
-              orphans: t("graphDiscovery.index.orphans", {
-                count: wikiIndex?.totals.orphanPages ?? 0,
-              }),
-              latest: wikiIndex?.latestPageUpdatedAt
-                ? t("graphDiscovery.index.latest", {
-                    date: new Intl.DateTimeFormat(locale, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    }).format(new Date(wikiIndex.latestPageUpdatedAt)),
-                  })
-                : undefined,
-            })}
-            healthLabel={t("graphDiscovery.health.label")}
-            healthStatus={
-              wikiIndex
-                ? t(`graphDiscovery.health.status.${wikiIndex.health.status}`)
-                : null
-            }
-            healthIssueSummary={formatWikiHealthIssueSummary(
-              wikiIndex,
-              (kind, count) => t(`graphDiscovery.health.issues.${kind}`, { count }),
-            )}
-            healthTone={wikiIndex?.health.status ?? null}
-            refreshLabel={t("graphDiscovery.health.refresh")}
-            refreshingLabel={t("graphDiscovery.health.refreshing")}
-            showRefresh={
-              Boolean(wikiIndex) &&
-              wikiIndex?.health.status !== "healthy" &&
-              canRefreshWikiIndex
-            }
-            refreshPending={refreshWikiIndexMutation.isPending}
-            onRefresh={() => refreshWikiIndexMutation.mutate()}
-            runLibrarianLabel={t("graphDiscovery.health.runLibrarian")}
-            runningLibrarianLabel={t("graphDiscovery.health.runningLibrarian")}
-            showRunLibrarian={shouldOfferLibrarian}
-            runLibrarianPending={runLibrarianMutation.isPending}
-            onRunLibrarian={() => runLibrarianMutation.mutate()}
-            mapHref={projectGraphHref()}
-            cardsHref={projectGraphHref("cards")}
-            mindmapHref={projectGraphHref("mindmap")}
-          />
-          <ProjectPreflightNotice
-            state={preflightState}
-            loadingLabel={t("tools.preflight.loading")}
-            blockedLabel={
-              preflightState.status === "blocked"
-                ? t("tools.preflight.blocked", {
-                    credits: preflightState.preflight.cost.billableCredits,
-                    available: preflightState.preflight.balance.availableCredits,
-                  })
-                : ""
-            }
-            confirmText={
-              preflightState.status === "confirm"
-                ? t("tools.preflight.confirm", {
-                    credits: preflightState.preflight.cost.billableCredits,
-                  })
-                : ""
-            }
-            errorLabel={t("tools.preflight.error")}
-            confirmLabel={t("tools.preflight.confirmStart")}
-            cancelLabel={t("tools.preflight.cancel")}
-            onConfirm={confirmProjectToolPreflight}
-            onCancel={() => setPreflightState({ status: "idle" })}
-          />
+      ) : null}
+      <>
+        <ProjectCommandCenter
+          title={t("commandCenter.title")}
+          description={t("commandCenter.description")}
+          inputLabel={t("commandCenter.inputLabel")}
+          placeholder={t("commandCenter.placeholder")}
+          submitLabel={t("commandCenter.submit")}
+          contextLabel={t("commandCenter.contextLabel")}
+          contextValue={t("commandCenter.contextValue", { count: counts.all })}
+          guidedTitle={t("commandCenter.guidedTitle")}
+          guidedDescription={t("commandCenter.guidedDescription")}
+          guidedStarts={PROJECT_GUIDED_STARTS.map((start) => ({
+            id: start.id,
+            Icon: start.Icon,
+            title: t(`commandCenter.guided.${start.id}.title`),
+            description: t(`commandCenter.guided.${start.id}.description`),
+          }))}
+          activeRunsTitle={t("commandCenter.activeRuns.title")}
+          activeRunsDescription={t("commandCenter.activeRuns.description")}
+          activeRuns={activeProjectRuns}
+          onSubmitPrompt={queueProjectPrompt}
+          onGuidedStart={runGuidedStart}
+        />
+        <ProjectActionStrip
+          title={t("nextActions.title")}
+          description={t("nextActions.description")}
+          allToolsLabel={t("nextActions.allTools")}
+          items={recommendedProjectActions}
+          renderItem={renderToolItem}
+        />
+        <GraphDiscoveryPanel
+          title={t("graphDiscovery.title")}
+          description={t("graphDiscovery.description", { count: counts.all })}
+          mapLabel={t("graphDiscovery.actions.map")}
+          cardsLabel={t("graphDiscovery.actions.cards")}
+          mindmapLabel={t("graphDiscovery.actions.mindmap")}
+          indexLabel={t("graphDiscovery.index.label")}
+          indexStats={formatWikiIndexStats(wikiIndex, {
+            pages: t("graphDiscovery.index.pages", {
+              count: wikiIndex?.totals.pages ?? 0,
+            }),
+            links: t("graphDiscovery.index.links", {
+              count: wikiIndex?.totals.wikiLinks ?? 0,
+            }),
+            orphans: t("graphDiscovery.index.orphans", {
+              count: wikiIndex?.totals.orphanPages ?? 0,
+            }),
+            latest: wikiIndex?.latestPageUpdatedAt
+              ? t("graphDiscovery.index.latest", {
+                  date: new Intl.DateTimeFormat(locale, {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }).format(new Date(wikiIndex.latestPageUpdatedAt)),
+                })
+              : undefined,
+          })}
+          healthLabel={t("graphDiscovery.health.label")}
+          healthStatus={
+            wikiIndex
+              ? t(`graphDiscovery.health.status.${wikiIndex.health.status}`)
+              : null
+          }
+          healthIssueSummary={formatWikiHealthIssueSummary(
+            wikiIndex,
+            (kind, count) =>
+              t(`graphDiscovery.health.issues.${kind}`, { count }),
+          )}
+          healthTone={wikiIndex?.health.status ?? null}
+          refreshLabel={t("graphDiscovery.health.refresh")}
+          refreshingLabel={t("graphDiscovery.health.refreshing")}
+          showRefresh={
+            Boolean(wikiIndex) &&
+            wikiIndex?.health.status !== "healthy" &&
+            canRefreshWikiIndex
+          }
+          refreshPending={refreshWikiIndexMutation.isPending}
+          onRefresh={() => refreshWikiIndexMutation.mutate()}
+          runLibrarianLabel={t("graphDiscovery.health.runLibrarian")}
+          runningLibrarianLabel={t("graphDiscovery.health.runningLibrarian")}
+          showRunLibrarian={shouldOfferLibrarian}
+          runLibrarianPending={runLibrarianMutation.isPending}
+          onRunLibrarian={() => runLibrarianMutation.mutate()}
+          mapHref={projectGraphHref()}
+          cardsHref={projectGraphHref("cards")}
+          mindmapHref={projectGraphHref("mindmap")}
+        />
+        <ProjectPreflightNotice
+          state={preflightState}
+          loadingLabel={t("tools.preflight.loading")}
+          blockedLabel={
+            preflightState.status === "blocked"
+              ? t("tools.preflight.blocked", {
+                  credits: preflightState.preflight.cost.billableCredits,
+                  available: preflightState.preflight.balance.availableCredits,
+                })
+              : ""
+          }
+          confirmText={
+            preflightState.status === "confirm"
+              ? t("tools.preflight.confirm", {
+                  credits: preflightState.preflight.cost.billableCredits,
+                })
+              : ""
+          }
+          errorLabel={t("tools.preflight.error")}
+          confirmLabel={t("tools.preflight.confirmStart")}
+          cancelLabel={t("tools.preflight.cancel")}
+          onConfirm={confirmProjectToolPreflight}
+          onCancel={() => setPreflightState({ status: "idle" })}
+        />
+        {!loadedEmptyProject ? (
           <ProjectNotesTable
             wsSlug={wsSlug}
             projectId={projectId}
             counts={counts}
           />
-        </>
-      )}
+        ) : null}
+      </>
     </div>
   );
 }
@@ -823,7 +834,7 @@ function ProjectCommandCenter({
   return (
     <section
       aria-labelledby="project-command-center-heading"
-      className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.75fr)]"
+      className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.75fr)]"
     >
       <div className="min-w-0 space-y-4">
         <div>
@@ -896,11 +907,11 @@ function ProjectCommandCenter({
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)] bg-muted text-foreground">
                     <Icon aria-hidden className="h-4 w-4" />
                   </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-foreground">
+                  <span className="min-w-0 flex-1 overflow-hidden">
+                    <span className="block break-words text-sm font-medium text-foreground">
                       {start.title}
                     </span>
-                    <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                    <span className="mt-1 block break-words text-xs leading-5 text-muted-foreground">
                       {start.description}
                     </span>
                   </span>
@@ -1259,11 +1270,11 @@ function StarterActionContent({
         aria-hidden
         className="mt-0.5 size-4 shrink-0 text-muted-foreground"
       />
-      <span className="min-w-0">
-        <span className="block text-sm font-medium text-foreground">
+      <span className="min-w-0 flex-1 overflow-hidden">
+        <span className="block break-words text-sm font-medium text-foreground">
           {title}
         </span>
-        <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+        <span className="mt-1 block break-words text-xs leading-5 text-muted-foreground">
           {description}
         </span>
         {badge ? (

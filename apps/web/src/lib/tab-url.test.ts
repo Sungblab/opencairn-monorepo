@@ -4,6 +4,7 @@ import { tabToUrl, urlToTabTarget, type TabRoute } from "./tab-url";
 describe("tabToUrl", () => {
   const cases: Array<[TabRoute, string]> = [
     [{ kind: "dashboard", targetId: null }, "/ko/workspace/acme/"],
+    [{ kind: "atlas", targetId: null }, "/ko/workspace/acme/atlas"],
     [{ kind: "note", targetId: "n-123" }, "/ko/workspace/acme/note/n-123"],
     [
       { kind: "note", targetId: "n-123", mode: "source" },
@@ -35,7 +36,10 @@ describe("tabToUrl", () => {
       "/ko/workspace/acme/project/p-1/graph",
     ],
     [{ kind: "research_hub", targetId: null }, "/ko/workspace/acme/research"],
-    [{ kind: "research_run", targetId: "r-1" }, "/ko/workspace/acme/research/r-1"],
+    [
+      { kind: "research_run", targetId: "r-1" },
+      "/ko/workspace/acme/research/r-1",
+    ],
     [{ kind: "import", targetId: null }, "/ko/workspace/acme"],
     [{ kind: "help", targetId: null }, "/ko/workspace/acme/help"],
     [{ kind: "report", targetId: null }, "/ko/workspace/acme/report"],
@@ -55,6 +59,7 @@ describe("tabToUrl", () => {
 describe("urlToTabTarget", () => {
   const cases: Array<[string, TabRoute | null]> = [
     ["/ko/workspace/acme/", { kind: "dashboard", targetId: null }],
+    ["/ko/workspace/acme/atlas", { kind: "atlas", targetId: null }],
     ["/ko/workspace/acme/note/n-9", { kind: "note", targetId: "n-9" }],
     [
       "/ko/workspace/acme/note/n-9/source",
@@ -90,12 +95,12 @@ describe("urlToTabTarget", () => {
       "/ko/workspace/acme/project/p-3/note/n-9",
       { kind: "note", targetId: "n-9" },
     ],
-    [
-      "/workspace/acme/project/p-3/note/n-9",
-      { kind: "note", targetId: "n-9" },
-    ],
+    ["/workspace/acme/project/p-3/note/n-9", { kind: "note", targetId: "n-9" }],
     ["/ko/workspace/acme/research", { kind: "research_hub", targetId: null }],
-    ["/ko/workspace/acme/research/r-77", { kind: "research_run", targetId: "r-77" }],
+    [
+      "/ko/workspace/acme/research/r-77",
+      { kind: "research_run", targetId: "r-77" },
+    ],
     ["/ko/workspace/acme/import", { kind: "dashboard", targetId: null }],
     ["/ko/workspace/acme/help", { kind: "help", targetId: null }],
     ["/ko/workspace/acme/report", { kind: "report", targetId: null }],

@@ -8,6 +8,7 @@ import {
   Folder,
   HelpCircle,
   LayoutDashboard,
+  Network,
   Pin,
   Search,
   Settings,
@@ -28,6 +29,7 @@ export interface TabItemProps {
 
 const tabIcons: Record<Tab["kind"], LucideIcon> = {
   dashboard: LayoutDashboard,
+  atlas: Network,
   project: Folder,
   note: FileText,
   research_hub: Search,
@@ -77,9 +79,7 @@ export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
           : "app-hover bg-transparent"
       }`}
       style={
-        active
-          ? { borderBottom: "1.5px solid var(--theme-fg)" }
-          : undefined
+        active ? { borderBottom: "1.5px solid var(--theme-fg)" } : undefined
       }
     >
       <Icon

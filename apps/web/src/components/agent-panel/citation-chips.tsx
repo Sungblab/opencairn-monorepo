@@ -23,11 +23,7 @@ export function asCitations(v: unknown): Citation[] {
   if (!Array.isArray(v)) return [];
   return v.flatMap((c): Citation[] => {
     const rawIndex = (c as { index?: unknown })?.index;
-    if (
-      typeof c !== "object" ||
-      c === null ||
-      typeof rawIndex !== "number"
-    ) {
+    if (typeof c !== "object" || c === null || typeof rawIndex !== "number") {
       return [];
     }
     const record = c as Record<string, unknown>;
@@ -46,7 +42,8 @@ export function asCitations(v: unknown): Citation[] {
         ...(typeof record.url === "string" ? { url: record.url } : {}),
         ...(typeof record.noteId === "string"
           ? { noteId: record.noteId }
-          : typeof record.source_id === "string" && record.source_type === "note"
+          : typeof record.source_id === "string" &&
+              record.source_type === "note"
             ? { noteId: record.source_id }
             : {}),
         ...(typeof record.snippet === "string" && record.snippet.trim()
@@ -114,10 +111,12 @@ export function InlineCitationMarker({ citation }: { citation: Citation }) {
       >
         {citation.index}
       </a>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-72 -translate-x-1/2 rounded-[var(--radius-card)] border border-border bg-popover p-3 text-left text-xs leading-5 text-popover-foreground shadow-xl group-hover:block group-focus-within:block">
-        <span className="block font-semibold text-foreground">{title}</span>
+      <span className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden max-w-[min(18rem,calc(100vw-2rem))] rounded-[var(--radius-card)] border border-border bg-popover p-3 text-left text-xs leading-5 text-popover-foreground shadow-xl group-hover:block group-focus-within:block">
+        <span className="block break-words font-semibold text-foreground">
+          {title}
+        </span>
         {citation.snippet ? (
-          <span className="mt-1 block line-clamp-4 text-muted-foreground">
+          <span className="mt-1 block line-clamp-4 break-words text-muted-foreground">
             {citation.snippet}
           </span>
         ) : null}

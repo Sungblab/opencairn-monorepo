@@ -27,7 +27,7 @@ export function MessageActions({
   const [reasonOpen, setReasonOpen] = useState(false);
 
   return (
-    <div className="mt-1.5 flex items-center gap-1 text-muted-foreground">
+    <div className="mt-1.5 flex flex-wrap items-center gap-1 text-muted-foreground">
       <button
         type="button"
         aria-label={t("actions.copy_aria")}
@@ -61,7 +61,7 @@ export function MessageActions({
         <ThumbsDown className="h-3.5 w-3.5" />
       </button>
       {reasonOpen ? (
-        <div className="flex gap-1">
+        <div className="flex min-w-0 flex-wrap gap-1">
           {REASONS.map((r) => (
             <button
               key={r}

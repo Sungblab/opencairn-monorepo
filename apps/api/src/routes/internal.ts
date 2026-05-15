@@ -2375,10 +2375,12 @@ internal.get("/projects/:id/wiki-index", async (c) => {
   return c.json(index);
 });
 
-const internalAgentActionCreateSchema = z.object({
-  userId: z.string().uuid(),
-  action: createAgentActionRequestSchema,
-}).strict();
+const internalAgentActionCreateSchema = z
+  .object({
+    userId: z.string().min(1),
+    action: createAgentActionRequestSchema,
+  })
+  .strict();
 
 internal.post(
   "/projects/:id/agent-actions",
@@ -2720,7 +2722,7 @@ internal.get("/projects/:id/ontology-issues", async (c) => {
   }
 
   const rowsOf = <T>(raw: unknown): T[] =>
-    ((raw as { rows?: T[] }).rows ?? (raw as T[] | undefined) ?? []);
+    (raw as { rows?: T[] }).rows ?? (raw as T[] | undefined) ?? [];
 
   const [broadRaw, cycleRaw, promotionRaw] = await Promise.all([
     db.execute(sql`

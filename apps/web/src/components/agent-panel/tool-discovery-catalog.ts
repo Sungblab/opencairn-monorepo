@@ -84,6 +84,7 @@ export type ToolDiscoveryIcon =
   | "file_json"
   | "graduation"
   | "link"
+  | "mic"
   | "network"
   | "plug"
   | "presentation"
@@ -243,6 +244,24 @@ export const TOOL_DISCOVERY_ITEMS: ToolDiscoveryItem[] = [
     action: { type: "route", route: "workspace_import_web" },
   },
   {
+    id: "recording",
+    category: "add_sources",
+    surfaces: [
+      "project_home",
+      "agent_tools",
+      "sidebar_command_rail",
+      "upload_intent",
+    ],
+    supportedContexts: ["project", "upload_batch"],
+    outputType: "workflow",
+    risk: "low",
+    aliases: ["recording", "audio", "video", "lecture", "meeting"],
+    recommendedContentTypes: ["audio/*", "video/*"],
+    i18nKey: "recording",
+    icon: "mic",
+    action: { type: "upload" },
+  },
+  {
     id: "youtube_import",
     category: "add_sources",
     surfaces: ["project_home", "agent_tools", "sidebar_command_rail"],
@@ -269,7 +288,12 @@ export const TOOL_DISCOVERY_ITEMS: ToolDiscoveryItem[] = [
   {
     id: "research",
     category: "analysis",
-    surfaces: ["project_home", "agent_tools", "sidebar_command_rail", "source_rail"],
+    surfaces: [
+      "project_home",
+      "agent_tools",
+      "sidebar_command_rail",
+      "source_rail",
+    ],
     supportedContexts: ["project", "source"],
     outputType: "workflow",
     risk: "medium",
@@ -296,7 +320,12 @@ export const TOOL_DISCOVERY_ITEMS: ToolDiscoveryItem[] = [
   {
     id: "paper_analysis",
     category: "content",
-    surfaces: ["file_explorer", "source_rail", "upload_intent", "slash_command"],
+    surfaces: [
+      "file_explorer",
+      "source_rail",
+      "upload_intent",
+      "slash_command",
+    ],
     supportedContexts: ["source", "upload_batch"],
     requiredInputs: ["source"],
     outputType: "agent_file",
@@ -598,7 +627,7 @@ export function getToolDiscoveryGroups(surface: ToolDiscoverySurface): Array<{
     items: TOOL_DISCOVERY_ITEMS.filter(
       (item) => item.category === category && item.surfaces.includes(surface),
     ),
-})).filter((group) => group.items.length > 0);
+  })).filter((group) => group.items.length > 0);
 }
 
 export function getToolDiscoveryItemsForSurface(
@@ -626,5 +655,7 @@ export function getToolDiscoveryItemsForSurface(
         : contentType === candidate,
     );
   });
-  return typeof options.limit === "number" ? items.slice(0, options.limit) : items;
+  return typeof options.limit === "number"
+    ? items.slice(0, options.limit)
+    : items;
 }

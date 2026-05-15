@@ -147,7 +147,8 @@ export function ProjectUploadDialog({
       .preflight(projectId, {
         tool: selectedIntent.preflight.profile,
         sourceTokenEstimate:
-          selectedIntent.preflight.sourceTokenEstimate * Math.max(1, files.length),
+          selectedIntent.preflight.sourceTokenEstimate *
+          Math.max(1, files.length),
       })
       .then(({ preflight }) => {
         if (cancelled) return;
@@ -272,15 +273,17 @@ export function ProjectUploadDialog({
                       className="mt-1"
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2 font-medium">
-                        <span>{tUpload(`intent.items.${item.i18nKey}.title`)}</span>
+                      <span className="flex min-w-0 flex-wrap items-center gap-2 font-medium">
+                        <span className="min-w-0 break-words">
+                          {tUpload(`intent.items.${item.i18nKey}.title`)}
+                        </span>
                         {recommended && item.id !== "none" ? (
-                          <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
+                          <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
                             {tUpload("intent.recommended")}
                           </span>
                         ) : null}
                       </span>
-                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                      <span className="mt-1 block break-words text-xs leading-5 text-muted-foreground">
                         {tUpload(`intent.items.${item.i18nKey}.description`)}
                       </span>
                     </span>
