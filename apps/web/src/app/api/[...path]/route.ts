@@ -38,6 +38,16 @@ async function handler(
     resHeaders.delete("content-encoding");
     resHeaders.delete("content-length");
   }
+  const setCookies =
+    typeof response.headers.getSetCookie === "function"
+      ? response.headers.getSetCookie()
+      : [];
+  if (setCookies.length > 0) {
+    resHeaders.delete("set-cookie");
+    for (const cookie of setCookies) {
+      resHeaders.append("set-cookie", cookie);
+    }
+  }
 
   return new Response(response.body, {
     status: response.status,
