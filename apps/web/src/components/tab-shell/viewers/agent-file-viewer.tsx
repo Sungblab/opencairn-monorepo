@@ -12,6 +12,8 @@ import type {
   PluginRegistry,
 } from "@embedpdf/react-pdf-viewer";
 import {
+  ChevronDown,
+  ChevronUp,
   Download,
   Eye,
   ExternalLink,
@@ -605,11 +607,18 @@ function SourceMaterialPanel({
   fileUrl,
   onIngest,
   ingestPending,
+  chromeToggle,
 }: {
   file: AgentFileSummary;
   fileUrl: string;
   onIngest: () => void;
   ingestPending: boolean;
+  chromeToggle?: {
+    isCollapsed: boolean;
+    onToggle: () => void;
+    collapseLabel: string;
+    expandLabel: string;
+  };
 }) {
   const t = useTranslations("agentFiles.viewer.material");
   const locale = useLocale();
@@ -767,6 +776,30 @@ function SourceMaterialPanel({
               </a>
             </div>
           </details>
+          {chromeToggle ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              title={
+                chromeToggle.isCollapsed
+                  ? chromeToggle.expandLabel
+                  : chromeToggle.collapseLabel
+              }
+              aria-label={
+                chromeToggle.isCollapsed
+                  ? chromeToggle.expandLabel
+                  : chromeToggle.collapseLabel
+              }
+              onClick={chromeToggle.onToggle}
+            >
+              {chromeToggle.isCollapsed ? (
+                <ChevronDown className="h-4 w-4" aria-hidden />
+              ) : (
+                <ChevronUp className="h-4 w-4" aria-hidden />
+              )}
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -847,9 +880,13 @@ function AgentFilePdfViewer({
   ingestPending: boolean;
 }) {
   const locale = useLocale();
+  const viewerT = useTranslations("agentFiles.viewer");
   const t = useTranslations("agentFiles.viewer.artifactFocus");
   const [registry, setRegistry] = useState<PluginRegistry | null>(null);
+  const [isChromeCollapsed, setIsChromeCollapsed] = useState(false);
   const openSource = useOpenArtifactSource(file);
+  const collapseLabel = viewerT("collapsePdfChrome");
+  const expandLabel = viewerT("expandPdfChrome");
   const config = useMemo<PDFViewerConfig>(
     () => ({
       src: fileUrl,
@@ -876,13 +913,21 @@ function AgentFilePdfViewer({
       data-testid="agent-file-pdf-viewer"
       className="oc-pdf-viewer flex h-full min-h-0 w-full flex-col bg-neutral-100 dark:bg-neutral-950"
     >
-      <SourceMaterialPanel
-        file={file}
-        fileUrl={downloadUrl ?? fileUrl}
-        onIngest={onIngest}
-        ingestPending={ingestPending}
-      />
-      {file.sourceNoteId ? (
+      {isChromeCollapsed ? null : (
+        <SourceMaterialPanel
+          file={file}
+          fileUrl={downloadUrl ?? fileUrl}
+          onIngest={onIngest}
+          ingestPending={ingestPending}
+          chromeToggle={{
+            isCollapsed: isChromeCollapsed,
+            onToggle: () => setIsChromeCollapsed(true),
+            collapseLabel,
+            expandLabel,
+          }}
+        />
+      )}
+      {file.sourceNoteId && !isChromeCollapsed ? (
         <div
           data-testid="artifact-focus-strip"
           className="flex flex-wrap items-center gap-2 border-b bg-background px-3 py-1.5 text-xs"
@@ -893,9 +938,32 @@ function AgentFilePdfViewer({
             <Eye className="mr-1.5 h-3.5 w-3.5" />
             {t("openSource")}
           </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            title={collapseLabel}
+            aria-label={collapseLabel}
+            onClick={() => setIsChromeCollapsed(true)}
+          >
+            <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+          </Button>
         </div>
       ) : null}
       <div className="relative min-h-0 flex-1">
+        {isChromeCollapsed ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            title={expandLabel}
+            aria-label={expandLabel}
+            onClick={() => setIsChromeCollapsed(false)}
+            className="absolute right-3 top-3 z-20 h-8 w-8 rounded-full p-0 shadow-md"
+          >
+            <ChevronDown className="h-4 w-4" aria-hidden />
+          </Button>
+        ) : null}
         <PdfDrawingToolbar registry={registry} floating />
         <EmbedPDFViewer
           config={config}

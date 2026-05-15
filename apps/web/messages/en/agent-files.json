@@ -33,6 +33,8 @@
     "officePreviewUnavailable": "The converted PDF is not available. Download the original file to inspect it.",
     "download": "Download original",
     "askAgent": "Ask about this artifact",
+    "collapsePdfChrome": "Collapse PDF header",
+    "expandPdfChrome": "Expand PDF header",
     "ingest": "Run ingest",
     "compile": "Compile LaTeX",
     "canvas": "Run in canvas",

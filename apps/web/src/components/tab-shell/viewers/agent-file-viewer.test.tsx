@@ -162,6 +162,8 @@ const messages = {
       googleExport: "Google Workspace로 내보내기",
       googleExportConnectRequired: "Google Drive 연결 필요",
       googleSettingsTitle: "Google Drive 설정",
+      collapsePdfChrome: "PDF 상단 정보 접기",
+      expandPdfChrome: "PDF 상단 정보 펼치기",
       officeConvertingTitle: "PDF로 변환 중...",
       officeConvertingDescription:
         "변환이 끝나면 이 화면이 자동으로 PDF 뷰어로 바뀝니다.",
@@ -586,6 +588,39 @@ describe("AgentFileViewer", () => {
         { name: "너비에 맞춤", value: "fit-width" },
       ]),
     });
+  });
+
+  it("collapses and restores PDF header chrome", async () => {
+    const file = fileSummary({
+      filename: "analysis.pdf",
+      extension: "pdf",
+      kind: "pdf",
+      mimeType: "application/pdf",
+      ingestStatus: "completed",
+      sourceNoteId: "55555555-5555-4555-8555-555555555555",
+    });
+    renderViewer(file, "pdf");
+
+    expect(await screen.findByText("analysis.pdf")).toBeInTheDocument();
+    expect(screen.getByTestId("artifact-focus-strip")).toBeInTheDocument();
+
+    const collapseButtons = screen.getAllByRole("button", {
+      name: "PDF 상단 정보 접기",
+    });
+    expect(collapseButtons.length).toBeGreaterThan(0);
+    fireEvent.click(collapseButtons[0]!);
+
+    expect(screen.queryByText("analysis.pdf")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("artifact-focus-strip")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "PDF 상단 정보 펼치기" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("embedpdf-viewer")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "PDF 상단 정보 펼치기" }));
+
+    expect(await screen.findByText("analysis.pdf")).toBeInTheDocument();
+    expect(screen.getByTestId("artifact-focus-strip")).toBeInTheDocument();
   });
 
   it("restores and persists the EmbedPDF page for agent PDFs", async () => {

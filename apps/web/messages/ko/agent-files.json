@@ -33,6 +33,8 @@
     "officePreviewUnavailable": "PDF 변환 결과를 사용할 수 없습니다. 원본 파일을 다운로드해 확인하세요.",
     "download": "원본 다운로드",
     "askAgent": "이 산출물로 질문하기",
+    "collapsePdfChrome": "PDF 상단 정보 접기",
+    "expandPdfChrome": "PDF 상단 정보 펼치기",
     "ingest": "인제스트 실행",
     "compile": "LaTeX 컴파일",
     "canvas": "캔버스로 실행",
