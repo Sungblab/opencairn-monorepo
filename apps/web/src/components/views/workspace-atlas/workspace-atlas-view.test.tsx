@@ -232,6 +232,22 @@ describe("WorkspaceAtlasView", () => {
     expect(screen.getByText(koAtlas.legend.stale)).toBeInTheDocument();
   });
 
+  it("keeps atlas side panels from stealing graph width in the shell", async () => {
+    wrap(<WorkspaceAtlasView wsSlug="acme" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("atlas-graph")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("workspace-atlas-body")).toHaveClass(
+      "overflow-hidden",
+    );
+    expect(screen.getByTestId("workspace-atlas-detail-panel")).toHaveClass(
+      "absolute",
+      "max-w-[calc(100%-1.5rem)]",
+    );
+  });
+
   it("fits the atlas graph after render and layout completion", async () => {
     wrap(<WorkspaceAtlasView wsSlug="acme" />);
 

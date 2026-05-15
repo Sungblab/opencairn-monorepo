@@ -623,6 +623,19 @@ describe("ProjectView", () => {
     expect(usePanelStore.getState().agentPanelTab).toBe("activity");
   });
 
+  it("constrains the project home surface and starter actions inside narrow shells", async () => {
+    renderProjectView();
+
+    const route = await screen.findByTestId("route-project");
+    expect(route).toHaveClass("min-w-0", "w-full", "overflow-x-hidden");
+
+    const starterActions = await screen.findByTestId(
+      "project-starter-actions",
+    );
+    expect(starterActions.className).toContain("grid-cols-[repeat(auto-fit");
+    expect(starterActions.className).not.toContain("md:grid-cols-4");
+  });
+
   it("blocks project-home Studio tools when preflight reports insufficient credits", async () => {
     preflightMock.mockResolvedValueOnce({
       preflight: {

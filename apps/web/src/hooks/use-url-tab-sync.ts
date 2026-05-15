@@ -31,6 +31,11 @@ function findReusableRouteTab(route: TabRoute) {
   return store.findTabByTarget(route.kind, route.targetId);
 }
 
+function removeWorkspaceDashboardForProjectRoute(route: TabRoute) {
+  if (route.kind !== "project") return;
+  useTabsStore.getState().closeTabsByTarget("dashboard", null);
+}
+
 export function useUrlTabSync() {
   const pathname = usePathname() ?? "/";
   const labels = useShellLabels();
@@ -63,6 +68,7 @@ export function useUrlTabSync() {
     const { route } = parsed;
     const pathChanged = lastSyncedPath.current !== pathname;
     lastSyncedPath.current = pathname;
+    removeWorkspaceDashboardForProjectRoute(route);
     const store = useTabsStore.getState();
     const existing = findReusableRouteTab(route);
     if (existing) {

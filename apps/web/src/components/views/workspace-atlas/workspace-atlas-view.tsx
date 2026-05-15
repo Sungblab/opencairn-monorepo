@@ -483,8 +483,11 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="flex w-[260px] shrink-0 flex-col gap-4 border-r border-border p-4">
+      <div
+        data-testid="workspace-atlas-body"
+        className="flex min-h-0 flex-1 overflow-hidden"
+      >
+        <aside className="flex w-[240px] shrink-0 flex-col gap-4 overflow-y-auto border-r border-border p-4">
           <label className="grid gap-1.5 text-xs font-medium">
             {t("filters.allProjects")}
             <select
@@ -635,7 +638,7 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
           </div>
         </aside>
 
-        <main className="relative min-w-0 flex-1">
+        <main className="relative min-w-0 flex-1 overflow-hidden">
           {atlasQuery.isLoading || !workspaceId ? (
             <div className="grid h-full place-items-center text-sm text-muted-foreground">
               {t("loading")}
@@ -667,13 +670,12 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
               style={{ width: "100%", height: "100%" }}
             />
           )}
+          <AtlasDetail
+            node={selectedNode}
+            onRefresh={(noteIds) => refreshMutation.mutate(noteIds)}
+            refreshPending={refreshMutation.isPending}
+          />
         </main>
-
-        <AtlasDetail
-          node={selectedNode}
-          onRefresh={(noteIds) => refreshMutation.mutate(noteIds)}
-          refreshPending={refreshMutation.isPending}
-        />
       </div>
     </div>
   );
@@ -726,7 +728,10 @@ function AtlasDetail({
   const t = useTranslations("workspaceAtlas.detail");
   if (!node) {
     return (
-      <aside className="w-[340px] shrink-0 border-l border-border p-4">
+      <aside
+        data-testid="workspace-atlas-detail-panel"
+        className="absolute right-3 top-3 z-10 w-[320px] max-w-[calc(100%-1.5rem)] rounded-[var(--radius-control)] border border-dashed border-border bg-background/95 p-4 shadow-sm"
+      >
         <div className="rounded-[var(--radius-control)] border border-dashed border-border p-4">
           <h2 className="text-sm font-medium">{t("placeholderTitle")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -746,7 +751,10 @@ function AtlasDetail({
   const canRefresh = node.stale && node.sourceNoteIds.length > 0;
 
   return (
-    <aside className="flex w-[340px] shrink-0 flex-col overflow-y-auto border-l border-border p-4">
+    <aside
+      data-testid="workspace-atlas-detail-panel"
+      className="absolute right-3 top-3 z-10 flex max-h-[calc(100%-1.5rem)] w-[320px] max-w-[calc(100%-1.5rem)] flex-col overflow-y-auto rounded-[var(--radius-control)] border border-border bg-background/95 p-4 shadow-lg"
+    >
       <div>
         <h2 className="text-lg font-semibold">{node.label}</h2>
         <p className="mt-1 text-sm text-muted-foreground">

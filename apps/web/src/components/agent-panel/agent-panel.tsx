@@ -683,7 +683,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   return (
     <aside
       data-testid="app-shell-agent-panel"
-      className="relative flex h-full flex-col border-l border-border bg-background"
+      className="relative flex h-full min-w-0 flex-col border-l border-border bg-background"
       onDragOver={handlePanelDragOver}
       onDragLeave={handlePanelDragLeave}
       onDrop={handlePanelDrop}

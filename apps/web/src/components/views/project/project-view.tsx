@@ -544,7 +544,7 @@ export function ProjectView({
   return (
     <div
       data-testid="route-project"
-      className="mx-auto flex max-w-6xl flex-col gap-6 px-8 py-8"
+      className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8 lg:py-8"
     >
       <header>
         <ProjectMetaRow
@@ -699,7 +699,7 @@ export function ProjectView({
                   {t(`tools.categories.${group.category}.description`)}
                 </p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] gap-2">
                 {group.items.map((item) => renderToolItem(item))}
               </div>
             </section>
@@ -803,9 +803,9 @@ function ProjectCommandCenter({
   return (
     <section
       aria-labelledby="project-command-center-heading"
-      className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]"
+      className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.75fr)]"
     >
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <div>
           <h2
             id="project-command-center-heading"
@@ -860,7 +860,7 @@ function ProjectCommandCenter({
               {guidedDescription}
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-2">
             {guidedStarts.map((start) => {
               const Icon = start.Icon;
               return (
@@ -921,7 +921,7 @@ function ProjectCommandCenter({
                   className="min-h-16 w-full resize-none rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-foreground"
                 />
               </label>
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-2">
                 <GuidedSelect
                   label={t("outputLabel")}
                   value={output}
@@ -963,7 +963,7 @@ function ProjectCommandCenter({
         </div>
       </div>
       {activeRuns.length > 0 ? (
-        <aside className="space-y-2 rounded-[var(--radius-card)] border border-border bg-muted/20 p-3">
+        <aside className="min-w-0 space-y-2 rounded-[var(--radius-card)] border border-border bg-muted/20 p-3">
           <div>
             <h3 className="text-sm font-medium text-foreground">
               {activeRunsTitle}
@@ -1059,7 +1059,10 @@ function ProjectStarterPanel({
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
-      <div className="grid gap-2 md:grid-cols-4">
+      <div
+        data-testid="project-starter-actions"
+        className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-2"
+      >
         <SourceUploadButton
           projectId={projectId}
           className="flex min-h-28 w-full items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40"
@@ -1225,7 +1228,7 @@ function GraphDiscoveryPanel({
             />
           ) : null}
         </div>
-        <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="grid w-full min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,8rem),1fr))] gap-2 md:w-auto">
           <GraphDiscoveryLink href={mapHref} label={mapLabel} Icon={Network} />
           <GraphDiscoveryLink
             href={cardsHref}

@@ -234,6 +234,19 @@ export function ShellSidebar({
               </div>
             </SidebarSection>
 
+            <SidebarSection
+              id="files"
+              label={tSections("files")}
+              Icon={FileText}
+            >
+              <div
+                className="-mx-3 min-h-36 max-h-[52vh] overflow-hidden border-y border-border/80 px-1 py-1"
+                data-testid="sidebar-tree-region"
+              >
+                <ProjectTree projectId={projectId} workspaceSlug={wsSlug} />
+              </div>
+            </SidebarSection>
+
             <SidebarActiveWorkSection
               projectId={projectId}
               onOpenActivity={() => {
@@ -273,19 +286,6 @@ export function ShellSidebar({
                     onClick={() => executeSidebarCapability(item)}
                   />
                 ))}
-              </div>
-            </SidebarSection>
-
-            <SidebarSection
-              id="files"
-              label={tSections("files")}
-              Icon={FileText}
-            >
-              <div
-                className="-mx-3 min-h-36 max-h-[52vh] overflow-hidden border-y border-border/80 px-1 py-1"
-                data-testid="sidebar-tree-region"
-              >
-                <ProjectTree projectId={projectId} workspaceSlug={wsSlug} />
               </div>
             </SidebarSection>
 

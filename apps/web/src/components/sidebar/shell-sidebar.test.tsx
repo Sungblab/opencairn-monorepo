@@ -200,6 +200,30 @@ describe("ShellSidebar", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("places the file explorer immediately after quick creation", () => {
+    currentProject.value = { wsSlug: "acme", projectId: "p1" };
+
+    renderSidebar();
+
+    const create = screen.getByRole("button", {
+      name: "sidebar.sections.create",
+    });
+    const files = screen.getByRole("button", {
+      name: "sidebar.sections.files",
+    });
+    const workflows = screen.getByRole("button", {
+      name: "sidebar.sections.workflows",
+    });
+
+    expect(
+      create.compareDocumentPosition(files) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      files.compareDocumentPosition(workflows) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("collapses sidebar sections and restores the state for the workspace", async () => {
     currentProject.value = { wsSlug: "acme", projectId: "p1" };
     const user = userEvent.setup();

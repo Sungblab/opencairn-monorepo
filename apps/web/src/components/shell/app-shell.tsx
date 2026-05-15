@@ -92,7 +92,7 @@ export function AppShell({
         <>
           <div
             className="hidden lg:block"
-            style={{ width: sidebarWidth, flexShrink: 0 }}
+            style={{ width: sidebarWidth, maxWidth: "20vw", flexShrink: 0 }}
           >
             <ShellSidebarLoader
               deepResearchEnabled={deepResearchEnabled}
@@ -127,7 +127,7 @@ export function AppShell({
           />
           <div
             className="hidden lg:block"
-            style={{ width: agentPanelWidth, flexShrink: 0 }}
+            style={{ width: agentPanelWidth, maxWidth: "22vw", flexShrink: 0 }}
           >
             <LazyAgentPanel wsSlug={wsSlug} />
           </div>

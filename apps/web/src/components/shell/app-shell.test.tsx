@@ -115,4 +115,25 @@ describe("AppShell compact sheets", () => {
       "lg:block",
     );
   });
+
+  it("caps inline desktop panel widths against the viewport", () => {
+    mocks.breakpoint = "lg";
+    usePanelStore.setState({
+      sidebarOpen: true,
+      sidebarWidth: 400,
+      agentPanelOpen: true,
+      agentPanelWidth: 560,
+    });
+
+    renderCompactShell();
+
+    expect(screen.getByTestId("app-shell-sidebar").parentElement).toHaveStyle({
+      width: "400px",
+      maxWidth: "20vw",
+    });
+    expect(screen.getByTestId("app-shell-agent-panel").parentElement).toHaveStyle({
+      width: "560px",
+      maxWidth: "22vw",
+    });
+  });
 });

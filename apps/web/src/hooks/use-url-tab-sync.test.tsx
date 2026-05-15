@@ -220,6 +220,35 @@ describe("useUrlTabSync", () => {
     });
   });
 
+  it("removes the workspace dashboard tab when a project home route is active", () => {
+    const dashboard: Tab = {
+      id: "dashboard",
+      kind: "dashboard",
+      targetId: null,
+      mode: "plate",
+      title: "대시보드",
+      titleKey: "appShell.tabTitles.dashboard",
+      pinned: false,
+      preview: false,
+      dirty: false,
+      splitWith: null,
+      splitSide: null,
+      scrollY: 0,
+    };
+    localStorage.setItem(
+      "oc:tabs:ws_slug:acme",
+      JSON.stringify({ tabs: [dashboard], activeId: "dashboard" }),
+    );
+    currentPath = "/ko/workspace/acme/project/p-1";
+
+    renderHook(() => useUrlTabSync(), { wrapper });
+
+    const tabs = useTabsStore.getState().tabs;
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]).toMatchObject({ kind: "project", targetId: "p-1" });
+    expect(tabs.some((tab) => tab.kind === "dashboard")).toBe(false);
+  });
+
   it("reuses one workspace settings tab across settings sections", () => {
     currentPath = "/ko/workspace/acme/settings/members";
     const { rerender } = renderHook(() => useUrlTabSync(), { wrapper });
