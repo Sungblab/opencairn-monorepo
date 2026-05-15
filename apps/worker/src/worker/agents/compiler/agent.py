@@ -42,6 +42,7 @@ from runtime.events import (
     ToolUse,
 )
 from runtime.tools import ToolContext, hash_input
+from runtime.usage import provider_usage
 from worker.agents.compiler.prompts import (
     EXTRACTION_SYSTEM,
     build_extraction_user_prompt,
@@ -422,11 +423,8 @@ class CompilerAgent(Agent):
             response_mime_type="application/json",
         )
         latency_ms = int((time.time() - started) * 1000)
+        tokens_in, tokens_out, cached_tokens = provider_usage(self.provider)
 
-        # The provider doesn't return token usage in our base interface yet
-        # (Plan 12 follow-up). Emit ModelEnd with zeros so the event stream
-        # still carries a model_end marker — TokenCounterHook will just
-        # record a no-cost call.
         events.append(
             ModelEnd(
                 run_id=ctx.run_id,
@@ -436,9 +434,9 @@ class CompilerAgent(Agent):
                 ts=time.time(),
                 type="model_end",
                 model_id=self.provider.config.model or "unknown",
-                prompt_tokens=0,
-                completion_tokens=0,
-                cached_tokens=0,
+                prompt_tokens=tokens_in,
+                completion_tokens=tokens_out,
+                cached_tokens=cached_tokens,
                 cost_krw=0,
                 finish_reason="stop",
                 latency_ms=latency_ms,

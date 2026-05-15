@@ -78,6 +78,28 @@ def _normalise_state(raw: Any) -> str:
     return _GEMINI_STATE_MAP.get(key, BATCH_STATE_PENDING)
 
 
+def _usage_int(meta: Any, field: str) -> int:
+    raw = getattr(meta, field, 0) if meta is not None else 0
+    return int(raw) if isinstance(raw, int | float) else 0
+
+
+def _usage_counts(meta: Any) -> UsageCounts:
+    prompt = _usage_int(meta, "prompt_token_count")
+    candidates = _usage_int(meta, "candidates_token_count")
+    cached = _usage_int(meta, "cached_content_token_count")
+    thoughts = _usage_int(meta, "thoughts_token_count")
+    tool_use_prompt = _usage_int(meta, "tool_use_prompt_token_count")
+    total = getattr(meta, "total_token_count", None) if meta is not None else None
+    return UsageCounts(
+        input_tokens=prompt + tool_use_prompt,
+        output_tokens=candidates + thoughts,
+        cached_input_tokens=cached,
+        thought_tokens=thoughts,
+        tool_use_prompt_tokens=tool_use_prompt,
+        total_tokens=int(total) if isinstance(total, int | float) else None,
+    )
+
+
 _EMBED_TASK_MAP: dict[str, str] = {
     "retrieval_document": "RETRIEVAL_DOCUMENT",
     "retrieval_query": "RETRIEVAL_QUERY",
@@ -221,6 +243,13 @@ class GeminiProvider(LLMProvider):
         return {"config": config} if config is not None else {}
 
     async def generate(self, messages: list[dict], **kwargs) -> str:
+        text, usage = await self.generate_with_usage(messages, **kwargs)
+        self.last_usage = usage
+        return text
+
+    async def generate_with_usage(
+        self, messages: list[dict], **kwargs
+    ) -> tuple[str, UsageCounts]:
         """Plain-text chat completion.
 
         Returns `response.text`; callers needing tool use, grounded search,
@@ -262,7 +291,7 @@ class GeminiProvider(LLMProvider):
             contents=contents,
             **call_kwargs,
         )
-        return response.text
+        return response.text, _usage_counts(getattr(response, "usage_metadata", None))
 
     async def embed(self, inputs: list[EmbedInput]) -> list[list[float]]:
         """Text-only batch embed.
@@ -336,6 +365,7 @@ class GeminiProvider(LLMProvider):
                 thinking_config=types.ThinkingConfig(**thinking_kwargs)
             ),
         )
+        self.last_usage = _usage_counts(getattr(response, "usage_metadata", None))
         thinking_parts: list[str] = []
         answer_parts: list[str] = []
         for part in response.candidates[0].content.parts:
@@ -356,6 +386,7 @@ class GeminiProvider(LLMProvider):
                 tools=[types.Tool(google_search=types.GoogleSearch())]
             ),
         )
+        self.last_usage = _usage_counts(getattr(response, "usage_metadata", None))
         sources: list[dict[str, str]] = []
         grounding = getattr(response.candidates[0], "grounding_metadata", None)
         if grounding and getattr(grounding, "grounding_chunks", None):
@@ -383,6 +414,7 @@ class GeminiProvider(LLMProvider):
                 ),
             ),
         )
+        self.last_usage = _usage_counts(getattr(response, "usage_metadata", None))
         # Real TTS responses may lead with a text part (safety / meta) before
         # the audio blob, so iterate rather than blindly indexing parts[0].
         for part in response.candidates[0].content.parts:
@@ -402,6 +434,7 @@ class GeminiProvider(LLMProvider):
             ],
             **self._generate_config_call_kwargs(),
         )
+        self.last_usage = _usage_counts(getattr(response, "usage_metadata", None))
         return TranscriptionResult(
             text=response.text or "",
             provider="gemini",
@@ -432,6 +465,7 @@ class GeminiProvider(LLMProvider):
             ],
             **self._generate_config_call_kwargs(),
         )
+        self.last_usage = _usage_counts(getattr(response, "usage_metadata", None))
         return response.text or ""
 
     async def generate_multimodal(
@@ -464,6 +498,7 @@ class GeminiProvider(LLMProvider):
             contents=parts,
             **self._generate_config_call_kwargs(),
         )
+        self.last_usage = _usage_counts(getattr(response, "usage_metadata", None))
         return response.text
 
     async def generate_image(
@@ -482,6 +517,7 @@ class GeminiProvider(LLMProvider):
             contents=[prompt],
             config=self._generate_config(response_modalities=["TEXT", "IMAGE"]),
         )
+        self.last_usage = _usage_counts(getattr(response, "usage_metadata", None))
         text_parts: list[str] = []
         parts = getattr(response, "parts", None)
         if parts is None and getattr(response, "candidates", None):
@@ -759,17 +795,14 @@ class GeminiProvider(LLMProvider):
             except _json.JSONDecodeError:
                 pass  # caller/loop can recover on next turn
 
-        um = response.usage_metadata
+        usage = _usage_counts(response.usage_metadata)
+        self.last_usage = usage
         return AssistantTurn(
             final_text=final_text,
             tool_uses=tuple(tool_uses),
             assistant_message=assistant_content,
             structured_output=structured,
-            usage=UsageCounts(
-                input_tokens=getattr(um, "prompt_token_count", 0) or 0,
-                output_tokens=getattr(um, "candidates_token_count", 0) or 0,
-                cached_input_tokens=getattr(um, "cached_content_token_count", 0) or 0,
-            ),
+            usage=usage,
             stop_reason=str(candidate.finish_reason or "STOP"),
         )
 

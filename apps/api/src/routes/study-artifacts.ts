@@ -330,11 +330,28 @@ async function collectModelText(
 function mergeUsage(first: Usage | null, second: Usage | null): Usage | null {
   if (!first) return second;
   if (!second) return first;
-  return {
+  const merged: Usage = {
     model: second.model || first.model,
     tokensIn: first.tokensIn + second.tokensIn,
     tokensOut: first.tokensOut + second.tokensOut,
   };
+  if (first.cachedTokens !== undefined || second.cachedTokens !== undefined) {
+    merged.cachedTokens = (first.cachedTokens ?? 0) + (second.cachedTokens ?? 0);
+  }
+  if (first.thoughtTokens !== undefined || second.thoughtTokens !== undefined) {
+    merged.thoughtTokens = (first.thoughtTokens ?? 0) + (second.thoughtTokens ?? 0);
+  }
+  if (
+    first.toolUsePromptTokens !== undefined ||
+    second.toolUsePromptTokens !== undefined
+  ) {
+    merged.toolUsePromptTokens =
+      (first.toolUsePromptTokens ?? 0) + (second.toolUsePromptTokens ?? 0);
+  }
+  if (first.totalTokens !== undefined || second.totalTokens !== undefined) {
+    merged.totalTokens = (first.totalTokens ?? 0) + (second.totalTokens ?? 0);
+  }
+  return merged;
 }
 
 function modelArtifactPromptPayload(params: {
@@ -468,6 +485,10 @@ async function recordStudyArtifactUsage(input: {
       operation,
       tokensIn: usage.tokensIn,
       tokensOut: usage.tokensOut,
+      cachedTokens: usage.cachedTokens,
+      thoughtTokens: usage.thoughtTokens,
+      toolUsePromptTokens: usage.toolUsePromptTokens,
+      totalTokens: usage.totalTokens,
       sourceType: "study_artifact",
       sourceId: input.runId,
       metadata: {
@@ -515,6 +536,7 @@ async function chargeStudyArtifactManagedCredits(input: {
       operation: input.operation,
       tokensIn: input.usage.tokensIn,
       tokensOut: input.usage.tokensOut,
+      cachedTokens: input.usage.cachedTokens,
       sourceType: "study_artifact",
       sourceId: input.runId,
       requestId: input.runId,

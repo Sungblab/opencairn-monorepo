@@ -150,16 +150,18 @@ class OpenAICompatibleProvider(LLMProvider):
                 structured = None
 
         usage = data.get("usage") or {}
+        usage_counts = UsageCounts(
+            input_tokens=usage.get("prompt_tokens") or 0,
+            output_tokens=usage.get("completion_tokens") or 0,
+            cached_input_tokens=0,
+        )
+        self.last_usage = usage_counts
         return AssistantTurn(
             final_text=content,
             tool_uses=tuple(tool_uses),
             assistant_message=message,
             structured_output=structured,
-            usage=UsageCounts(
-                input_tokens=usage.get("prompt_tokens") or 0,
-                output_tokens=usage.get("completion_tokens") or 0,
-                cached_input_tokens=0,
-            ),
+            usage=usage_counts,
             stop_reason=str(choice.get("finish_reason") or "STOP"),
         )
 

@@ -808,6 +808,16 @@ function usageFromMeta(meta: Record<string, unknown>) {
   return {
     tokensIn: raw.tokensIn,
     tokensOut: raw.tokensOut,
+    cachedTokens:
+      typeof raw.cachedTokens === "number" ? raw.cachedTokens : undefined,
+    thoughtTokens:
+      typeof raw.thoughtTokens === "number" ? raw.thoughtTokens : undefined,
+    toolUsePromptTokens:
+      typeof raw.toolUsePromptTokens === "number"
+        ? raw.toolUsePromptTokens
+        : undefined,
+    totalTokens:
+      typeof raw.totalTokens === "number" ? raw.totalTokens : undefined,
     model: raw.model,
   };
 }
@@ -828,6 +838,10 @@ async function recordChatRunLlmUsage(input: {
       operation: "chat.stream",
       tokensIn: usage.tokensIn,
       tokensOut: usage.tokensOut,
+      cachedTokens: usage.cachedTokens,
+      thoughtTokens: usage.thoughtTokens,
+      toolUsePromptTokens: usage.toolUsePromptTokens,
+      totalTokens: usage.totalTokens,
       sourceType: "chat_run",
       sourceId: input.run.id,
       metadata: {
@@ -847,7 +861,15 @@ async function recordChatRunLlmUsage(input: {
 
 async function chargeChatRunManagedCredits(input: {
   run: typeof chatRuns.$inferSelect;
-  usage: { tokensIn: number; tokensOut: number; model: string };
+  usage: {
+    tokensIn: number;
+    tokensOut: number;
+    cachedTokens?: number;
+    thoughtTokens?: number;
+    toolUsePromptTokens?: number;
+    totalTokens?: number;
+    model: string;
+  };
   status: "complete" | "failed";
 }) {
   const [row] = await db
@@ -867,6 +889,7 @@ async function chargeChatRunManagedCredits(input: {
       operation: "chat.stream",
       tokensIn: input.usage.tokensIn,
       tokensOut: input.usage.tokensOut,
+      cachedTokens: input.usage.cachedTokens,
       sourceType: "chat_run",
       sourceId: input.run.id,
       requestId: input.run.id,

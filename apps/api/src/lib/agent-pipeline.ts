@@ -28,7 +28,7 @@ import type { ChatMode } from "./chat-runtime-policy";
 import type { RagMode, RetrievalChip, RetrievalScope } from "./chat-retrieval";
 import type { ChatMsg, LLMProvider } from "./llm/provider";
 import { envInt } from "./env";
-import { tokensToKrw } from "./cost";
+import { estimateTokenCost } from "./cost";
 
 export type AgentChunkType =
   | "status"
@@ -443,14 +443,34 @@ export async function finalizeAgentMessage(
   status: "complete" | "failed",
 ) {
   const c = content as Record<string, unknown> & {
-    usage?: { tokensIn: number; tokensOut: number; model: string };
+    usage?: {
+      tokensIn: number;
+      tokensOut: number;
+      cachedTokens?: number;
+      thoughtTokens?: number;
+      toolUsePromptTokens?: number;
+      totalTokens?: number;
+      model: string;
+    };
   };
   const tokenUsage = c.usage
     ? {
         tokensIn: c.usage.tokensIn,
         tokensOut: c.usage.tokensOut,
+        cachedTokens: c.usage.cachedTokens,
+        thoughtTokens: c.usage.thoughtTokens,
+        toolUsePromptTokens: c.usage.toolUsePromptTokens,
+        totalTokens: c.usage.totalTokens,
         model: c.usage.model,
-        costKrw: Number(tokensToKrw(c.usage.tokensIn, c.usage.tokensOut)),
+        costKrw: Number(
+          estimateTokenCost({
+            provider: "gemini",
+            model: c.usage.model,
+            tokensIn: c.usage.tokensIn,
+            tokensOut: c.usage.tokensOut,
+            cachedTokens: c.usage.cachedTokens,
+          }).costKrw,
+        ),
       }
     : null;
   // Strip `usage` from persisted content — it lives in the dedicated column.

@@ -52,6 +52,33 @@ async def test_pure_text_response_no_tool_uses():
     assert turn.usage.output_tokens == 5
 
 
+async def test_generate_with_tools_maps_full_usage_metadata():
+    p = _make_provider()
+    fake = _fake_response(
+        [_fake_part_text("hello")],
+        usage=SimpleNamespace(
+            prompt_token_count=100,
+            cached_content_token_count=25,
+            candidates_token_count=20,
+            thoughts_token_count=8,
+            tool_use_prompt_token_count=12,
+            total_token_count=140,
+        ),
+    )
+    mock_models = MagicMock()
+    mock_models.generate_content = AsyncMock(return_value=fake)
+    p._client = SimpleNamespace(aio=SimpleNamespace(models=mock_models))
+
+    turn = await p.generate_with_tools(messages=[], tools=[])
+
+    assert turn.usage.input_tokens == 112
+    assert turn.usage.output_tokens == 28
+    assert turn.usage.cached_input_tokens == 25
+    assert turn.usage.thought_tokens == 8
+    assert turn.usage.tool_use_prompt_tokens == 12
+    assert turn.usage.total_tokens == 140
+
+
 async def test_single_function_call_parsed():
     p = _make_provider()
     fake = _fake_response([

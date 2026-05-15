@@ -28,6 +28,7 @@ from runtime.events import (
 )
 from runtime.loop_runner import run_with_tools
 from runtime.tool_loop import LoopConfig
+from runtime.usage import provider_usage
 from worker.agents.doc_editor.commands import get_command_spec
 from worker.tools_builtin import emit_structured_output, search_notes
 from worker.tools_builtin.schema_registry import register_schema
@@ -196,11 +197,10 @@ class DocEditorAgent(Agent):
                     fallback_start=validated.selection_start,
                     fallback_end=validated.selection_end,
                 )
-                # Token counts: provider.generate doesn't return Usage yet
-                # (Plan 12 follow-up). Keep zeros instead of heuristics.
-                tokens_in = 0
-                tokens_out = 0
+                tokens_in, tokens_out, cached_tokens = provider_usage(self.provider)
                 tools_used = 0
+            if spec.tools:
+                cached_tokens = 0
             latency_ms = int((time.time() - started) * 1000)
 
             yield ModelEnd(
@@ -212,7 +212,7 @@ class DocEditorAgent(Agent):
                 model_id=self.provider.config.model or "unknown",
                 prompt_tokens=tokens_in,
                 completion_tokens=tokens_out,
-                cached_tokens=0,
+                cached_tokens=cached_tokens,
                 cost_krw=0,
                 finish_reason="stop",
                 latency_ms=latency_ms,

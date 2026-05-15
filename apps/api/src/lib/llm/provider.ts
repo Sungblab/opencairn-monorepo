@@ -6,6 +6,10 @@ export type ChatMsg = {
 export type Usage = {
   tokensIn: number;
   tokensOut: number;
+  cachedTokens?: number;
+  thoughtTokens?: number;
+  toolUsePromptTokens?: number;
+  totalTokens?: number;
   model: string;
 };
 

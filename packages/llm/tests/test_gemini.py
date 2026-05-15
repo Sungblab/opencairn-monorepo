@@ -27,6 +27,33 @@ async def test_generate_returns_text(provider):
 
 
 @pytest.mark.asyncio
+async def test_generate_records_full_usage(provider):
+    mock_response = MagicMock()
+    mock_response.text = "Hello, world!"
+    mock_response.usage_metadata = MagicMock(
+        prompt_token_count=100,
+        cached_content_token_count=25,
+        candidates_token_count=20,
+        thoughts_token_count=8,
+        tool_use_prompt_token_count=12,
+        total_token_count=140,
+    )
+    with patch.object(
+        provider._client.aio.models,
+        "generate_content",
+        new=AsyncMock(return_value=mock_response),
+    ):
+        result = await provider.generate([{"role": "user", "content": "hi"}])
+    assert result == "Hello, world!"
+    assert provider.last_usage.input_tokens == 112
+    assert provider.last_usage.output_tokens == 28
+    assert provider.last_usage.cached_input_tokens == 25
+    assert provider.last_usage.thought_tokens == 8
+    assert provider.last_usage.tool_use_prompt_tokens == 12
+    assert provider.last_usage.total_tokens == 140
+
+
+@pytest.mark.asyncio
 async def test_generate_maps_system_messages_to_system_instruction(provider):
     from google.genai import types
 

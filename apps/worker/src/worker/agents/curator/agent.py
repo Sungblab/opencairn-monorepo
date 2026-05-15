@@ -33,6 +33,7 @@ from runtime.events import (
     ToolUse,
 )
 from runtime.tools import ToolContext, hash_input
+from runtime.usage import provider_usage
 from worker.agents.curator.prompts import (
     CONTRADICTION_SYSTEM,
     build_contradiction_prompt,
@@ -367,6 +368,7 @@ class CuratorAgent(Agent):
                 llm_started = time.time()
                 raw_response: str = await self.provider.generate(messages)
                 latency_ms = int((time.time() - llm_started) * 1000)
+                tokens_in, tokens_out, cached_tokens = provider_usage(self.provider)
 
                 yield ModelEnd(
                     run_id=ctx.run_id,
@@ -376,9 +378,9 @@ class CuratorAgent(Agent):
                     ts=time.time(),
                     type="model_end",
                     model_id=self.provider.config.model or "unknown",
-                    prompt_tokens=0,
-                    completion_tokens=0,
-                    cached_tokens=0,
+                    prompt_tokens=tokens_in,
+                    completion_tokens=tokens_out,
+                    cached_tokens=cached_tokens,
                     cost_krw=0,
                     finish_reason="stop",
                     latency_ms=latency_ms,

@@ -10,6 +10,9 @@ export type RecordLlmUsageEventInput = {
   tokensIn: number;
   tokensOut: number;
   cachedTokens?: number;
+  thoughtTokens?: number;
+  toolUsePromptTokens?: number;
+  totalTokens?: number;
   sourceType?: string | null;
   sourceId?: string | null;
   metadata?: Record<string, unknown>;
@@ -35,7 +38,19 @@ export async function recordLlmUsageEvent(input: RecordLlmUsageEventInput) {
       outputUsdPer1M: cost.outputUsdPer1M.toFixed(6),
       sourceType: input.sourceType ?? null,
       sourceId: input.sourceId ?? null,
-      metadata: input.metadata ?? {},
+      metadata: {
+        ...(input.metadata ?? {}),
+        tokenBreakdown: {
+          tokensIn: cost.tokensIn,
+          tokensOut: cost.tokensOut,
+          cachedTokens: cost.cachedTokens,
+          thoughtTokens: input.thoughtTokens ?? 0,
+          toolUsePromptTokens: input.toolUsePromptTokens ?? 0,
+          totalTokens:
+            input.totalTokens ??
+            cost.tokensIn + cost.tokensOut,
+        },
+      },
     })
     .returning();
   return event;

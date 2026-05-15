@@ -40,6 +40,7 @@ from runtime.events import (
     ToolUse,
 )
 from runtime.tools import ToolContext, hash_input
+from runtime.usage import generate_text_with_usage, usage_int
 from worker.agents.temporal_agent.prompts import (
     STALENESS_SYSTEM,
     build_staleness_prompt,
@@ -205,11 +206,12 @@ class StalenessAgent(Agent):
 
             async def _score_note(
                 note_id: str, title: str, content_text: str, days_old: int
-            ) -> tuple[str, int, Exception | None]:
+            ) -> tuple[str, int, object | None, Exception | None]:
                 t0 = time.time()
                 async with _llm_sem:
                     try:
-                        raw = await self.provider.generate(
+                        raw, usage = await generate_text_with_usage(
+                            self.provider,
                             [
                                 {"role": "system", "content": STALENESS_SYSTEM},
                                 {
@@ -221,9 +223,9 @@ class StalenessAgent(Agent):
                             ],
                             response_mime_type="application/json",
                         )
-                        return raw, int((time.time() - t0) * 1000), None
+                        return raw, int((time.time() - t0) * 1000), usage, None
                     except Exception as exc:  # noqa: BLE001
-                        return "", int((time.time() - t0) * 1000), exc
+                        return "", int((time.time() - t0) * 1000), None, exc
 
             llm_responses = await asyncio.gather(
                 *[
@@ -243,6 +245,7 @@ class StalenessAgent(Agent):
             ), score_call_id, (
                 raw_response,
                 latency_ms,
+                usage,
                 exc,
             ) in zip(note_meta, score_call_ids, llm_responses, strict=False):
                 if exc is not None:
@@ -275,6 +278,9 @@ class StalenessAgent(Agent):
                     )
                     continue
 
+                tokens_in = usage_int(usage, "input_tokens")
+                tokens_out = usage_int(usage, "output_tokens")
+                cached_tokens = usage_int(usage, "cached_input_tokens")
                 yield ModelEnd(
                     run_id=ctx.run_id,
                     workspace_id=ctx.workspace_id,
@@ -283,9 +289,9 @@ class StalenessAgent(Agent):
                     ts=time.time(),
                     type="model_end",
                     model_id=self.provider.config.model or "unknown",
-                    prompt_tokens=0,
-                    completion_tokens=0,
-                    cached_tokens=0,
+                    prompt_tokens=tokens_in,
+                    completion_tokens=tokens_out,
+                    cached_tokens=cached_tokens,
                     cost_krw=0,
                     finish_reason="stop",
                     latency_ms=latency_ms,

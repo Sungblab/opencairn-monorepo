@@ -14,7 +14,7 @@ from .batch_types import (
     BatchNotSupported,
 )
 from .interactions import InteractionEvent, InteractionHandle, InteractionState
-from .tool_types import ToolResult
+from .tool_types import ToolResult, UsageCounts
 
 
 @dataclass
@@ -81,9 +81,16 @@ class ImageGenerationResult:
 class LLMProvider(ABC):
     def __init__(self, config: ProviderConfig) -> None:
         self.config = config
+        self.last_usage: UsageCounts | None = None
 
     @abstractmethod
     async def generate(self, messages: list[dict], **kwargs) -> str: ...
+
+    async def generate_with_usage(
+        self, messages: list[dict], **kwargs
+    ) -> tuple[str, UsageCounts | None]:
+        text = await self.generate(messages, **kwargs)
+        return text, self.last_usage
 
     @abstractmethod
     async def embed(self, inputs: list[EmbedInput]) -> list[list[float]]: ...

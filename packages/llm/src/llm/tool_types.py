@@ -39,6 +39,9 @@ class UsageCounts:
     input_tokens: int
     output_tokens: int
     cached_input_tokens: int = 0
+    thought_tokens: int = 0
+    tool_use_prompt_tokens: int = 0
+    total_tokens: int | None = None
 
 
 @dataclass(frozen=True)

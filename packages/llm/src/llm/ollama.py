@@ -227,16 +227,18 @@ class OllamaProvider(LLMProvider):
             except json.JSONDecodeError:
                 structured = None
 
+        usage = UsageCounts(
+            input_tokens=data.get("prompt_eval_count") or 0,
+            output_tokens=data.get("eval_count") or 0,
+            cached_input_tokens=0,
+        )
+        self.last_usage = usage
         return AssistantTurn(
             final_text=final_text,
             tool_uses=tuple(tool_uses),
             assistant_message=message,
             structured_output=structured,
-            usage=UsageCounts(
-                input_tokens=data.get("prompt_eval_count") or 0,
-                output_tokens=data.get("eval_count") or 0,
-                cached_input_tokens=0,
-            ),
+            usage=usage,
             stop_reason=str(data.get("done_reason") or "STOP"),
         )
 

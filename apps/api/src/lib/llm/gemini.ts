@@ -200,13 +200,7 @@ export function getGeminiProvider(): LLMProvider {
             },
           ];
         }) ?? [];
-      const usage = res.usageMetadata
-        ? {
-            tokensIn: res.usageMetadata.promptTokenCount ?? 0,
-            tokensOut: res.usageMetadata.candidatesTokenCount ?? 0,
-            model: chatModel,
-          }
-        : undefined;
+      const usage = geminiUsage(res.usageMetadata, chatModel);
       return {
         answer: res.text ?? "",
         sources,
@@ -271,19 +265,12 @@ export function getGeminiProvider(): LLMProvider {
       let lastUsage: Usage | null = null;
       for await (const chunk of stream as AsyncIterable<{
         text?: string;
-        usageMetadata?: {
-          promptTokenCount?: number;
-          candidatesTokenCount?: number;
-        };
+        usageMetadata?: GeminiUsageMetadata;
       }>) {
         if (signal?.aborted) return;
         if (chunk.text) yield { delta: chunk.text };
         if (chunk.usageMetadata) {
-          lastUsage = {
-            tokensIn: chunk.usageMetadata.promptTokenCount ?? 0,
-            tokensOut: chunk.usageMetadata.candidatesTokenCount ?? 0,
-            model: chatModel,
-          };
+          lastUsage = geminiUsage(chunk.usageMetadata, chatModel) ?? null;
         }
       }
       // Contract: always emit exactly one usage chunk on normal completion.
@@ -294,4 +281,37 @@ export function getGeminiProvider(): LLMProvider {
       };
     },
   };
+}
+
+type GeminiUsageMetadata = {
+  promptTokenCount?: number;
+  cachedContentTokenCount?: number;
+  candidatesTokenCount?: number;
+  thoughtsTokenCount?: number;
+  toolUsePromptTokenCount?: number;
+  totalTokenCount?: number;
+};
+
+function geminiUsage(
+  meta: GeminiUsageMetadata | undefined,
+  model: string,
+): Usage | undefined {
+  if (!meta) return undefined;
+  const prompt = meta.promptTokenCount ?? 0;
+  const candidates = meta.candidatesTokenCount ?? 0;
+  const cached = meta.cachedContentTokenCount ?? 0;
+  const thoughts = meta.thoughtsTokenCount ?? 0;
+  const toolUsePrompt = meta.toolUsePromptTokenCount ?? 0;
+  const usage: Usage = {
+    tokensIn: prompt + toolUsePrompt,
+    tokensOut: candidates + thoughts,
+    model,
+  };
+  if (meta.cachedContentTokenCount !== undefined) usage.cachedTokens = cached;
+  if (meta.thoughtsTokenCount !== undefined) usage.thoughtTokens = thoughts;
+  if (meta.toolUsePromptTokenCount !== undefined) {
+    usage.toolUsePromptTokens = toolUsePrompt;
+  }
+  if (meta.totalTokenCount !== undefined) usage.totalTokens = meta.totalTokenCount;
+  return usage;
 }

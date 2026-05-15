@@ -29,7 +29,7 @@ import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
 import { validateScope, ScopeValidationError } from "../lib/chat-scope";
 import { computePinDelta } from "../lib/pin-permissions";
-import { tokensToKrw } from "../lib/cost";
+import { estimateTokenCost, tokensToKrw } from "../lib/cost";
 import { runChat } from "../lib/chat-llm";
 import { getChatProvider } from "../lib/llm";
 import {
@@ -725,7 +725,15 @@ chatRoutes.post(
       // candidatesTokens go on the assistant row.
       const tokensIn = usage?.tokensIn ?? 0;
       const tokensOut = usage?.tokensOut ?? 0;
-      const userCostKrw = tokensToKrw(tokensIn, 0);
+      const cachedTokens = usage?.cachedTokens ?? 0;
+      const userCostKrw = estimateTokenCost({
+        provider: "gemini",
+        model:
+          usage?.model ?? process.env.GEMINI_CHAT_MODEL ?? "gemini-3-flash-preview",
+        tokensIn,
+        tokensOut: 0,
+        cachedTokens,
+      }).costKrw;
       const assistantCostKrw = tokensToKrw(0, tokensOut);
       if (usage && billingGate.plan !== "byok") {
         try {
@@ -737,6 +745,7 @@ chatRoutes.post(
             operation: "chat.stream",
             tokensIn,
             tokensOut,
+            cachedTokens,
             sourceType: "chat_message",
             sourceId: conversationId,
             requestId: userRow.id,

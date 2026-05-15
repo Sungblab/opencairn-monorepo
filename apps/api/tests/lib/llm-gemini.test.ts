@@ -318,6 +318,34 @@ describe("GeminiProvider.groundSearch", () => {
     });
   });
 
+  it("maps full Gemini usage metadata for grounded search", async () => {
+    fakeGenerate.mockResolvedValue({
+      text: "grounded answer",
+      candidates: [],
+      usageMetadata: {
+        promptTokenCount: 11,
+        cachedContentTokenCount: 4,
+        candidatesTokenCount: 7,
+        thoughtsTokenCount: 3,
+        toolUsePromptTokenCount: 5,
+        totalTokenCount: 26,
+      },
+    });
+
+    const provider = getGeminiProvider();
+    const result = await provider.groundSearch("latest?");
+
+    expect(result?.usage).toEqual({
+      tokensIn: 16,
+      tokensOut: 10,
+      cachedTokens: 4,
+      thoughtTokens: 3,
+      toolUsePromptTokens: 5,
+      totalTokens: 26,
+      model: "gemini-3-flash-preview",
+    });
+  });
+
   it("retries grounded search without thinkingConfig when the model rejects thinkingLevel", async () => {
     const unsupportedThinking = new Error(
       JSON.stringify({
@@ -410,6 +438,43 @@ describe("GeminiProvider.streamGenerate", () => {
       tokensOut: 5,
     });
     expect(usages[0].usage.model).toMatch(/gemini-3-flash-preview/);
+  });
+
+  it("maps full Gemini usage metadata for streaming", async () => {
+    async function* fakeChunks() {
+      yield {
+        text: "ok",
+        usageMetadata: {
+          promptTokenCount: 100,
+          cachedContentTokenCount: 25,
+          candidatesTokenCount: 20,
+          thoughtsTokenCount: 8,
+          toolUsePromptTokenCount: 12,
+          totalTokenCount: 140,
+        },
+      };
+    }
+    fakeStream.mockReturnValue(fakeChunks());
+
+    const provider = getGeminiProvider();
+    const out: StreamChunk[] = [];
+    for await (const c of provider.streamGenerate({
+      messages: [{ role: "user", content: "x" }],
+    })) {
+      out.push(c);
+    }
+
+    expect(out.at(-1)).toEqual({
+      usage: {
+        tokensIn: 112,
+        tokensOut: 28,
+        cachedTokens: 25,
+        thoughtTokens: 8,
+        toolUsePromptTokens: 12,
+        totalTokens: 140,
+        model: "gemini-3-flash-preview",
+      },
+    });
   });
 
   it("respects GEMINI_CHAT_MODEL env override", async () => {
