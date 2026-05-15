@@ -27,6 +27,7 @@
     "dev:docker:reset": "docker compose --profile app --profile worker --profile hocuspocus --profile ollama down -v"
   },
   "devDependencies": {
+    "svelte": "5.55.7",
     "turbo": "^2.9.7",
     "typescript": "^6.0.3"
   },
@@ -36,12 +37,14 @@
       "@esbuild-kit/core-utils>esbuild": "0.25.12",
       "@react-email/ui>next": "16.2.6",
       "dompurify": "^3.4.0",
+      "devalue": "5.8.1",
       "fast-uri": "3.1.2",
       "fast-xml-builder": "^1.1.7",
       "ip-address": "10.1.1",
       "kysely": "0.28.17",
       "postcss": "^8.5.10",
       "protobufjs": "7.5.6",
+      "svelte": "5.55.7",
       "uuid": "14.0.0"
     },
     "neverBuiltDependencies": [
