@@ -1,6 +1,5 @@
 "use client";
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { authClient, googleOAuthEnabled } from "@/lib/auth-client";
 import { urls } from "@/lib/urls";
@@ -17,7 +16,6 @@ const client = authClient as typeof authClient & {
 };
 
 export function GoogleOneTap() {
-  const router = useRouter();
   const locale = useLocale();
 
   useEffect(() => {
@@ -40,13 +38,13 @@ export function GoogleOneTap() {
 
     void client.oneTap({
       fetchOptions: {
-        onSuccess: () => router.push(urls.dashboard(locale)),
+        onSuccess: () => window.location.replace(urls.dashboard(locale)),
         // Swallow — dismissal, blocked third-party cookies, or multiple
         // signed-in accounts all surface here as non-actionable noise.
         onError: () => {},
       },
     });
-  }, [router, locale]);
+  }, [locale]);
 
   return null;
 }

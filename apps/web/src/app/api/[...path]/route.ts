@@ -25,6 +25,7 @@ async function handler(
     method: req.method,
     headers,
     body: hasBody ? req.body : undefined,
+    redirect: "manual",
     // Node 18+: streaming request bodies require `duplex: "half"`
     // TS DOM RequestInit may not declare this yet — suppress if tsc complains
     ...(hasBody ? { duplex: "half" } : {}),
@@ -47,6 +48,24 @@ async function handler(
     for (const cookie of setCookies) {
       resHeaders.append("set-cookie", cookie);
     }
+  }
+  const isAuthCallback =
+    req.method === "GET" &&
+    path[0] === "auth" &&
+    path[1] === "callback" &&
+    response.status >= 200 &&
+    response.status < 400;
+  if (isAuthCallback) {
+    const locale = req.cookies.get("NEXT_LOCALE")?.value === "en" ? "en" : "ko";
+    const destination = new URL(`/${locale}/dashboard`, req.nextUrl.origin);
+    const redirectHeaders = new Headers({ location: destination.toString() });
+    for (const cookie of setCookies) {
+      redirectHeaders.append("set-cookie", cookie);
+    }
+    return new Response(null, {
+      status: 303,
+      headers: redirectHeaders,
+    });
   }
 
   return new Response(response.body, {
