@@ -127,7 +127,12 @@ export function AppShell({
           />
           <div
             className="hidden lg:block"
-            style={{ width: agentPanelWidth, maxWidth: "22vw", flexShrink: 0 }}
+            style={{
+              width: agentPanelWidth,
+              minWidth: 320,
+              maxWidth: "min(32rem, 42vw)",
+              flexShrink: 0,
+            }}
           >
             <LazyAgentPanel wsSlug={wsSlug} />
           </div>

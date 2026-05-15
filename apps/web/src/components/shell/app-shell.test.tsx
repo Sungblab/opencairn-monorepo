@@ -133,7 +133,8 @@ describe("AppShell compact sheets", () => {
     });
     expect(screen.getByTestId("app-shell-agent-panel").parentElement).toHaveStyle({
       width: "560px",
-      maxWidth: "22vw",
+      minWidth: "320px",
+      maxWidth: "min(32rem, 42vw)",
     });
   });
 });

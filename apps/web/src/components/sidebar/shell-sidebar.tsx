@@ -263,13 +263,12 @@ export function ShellSidebar({
               label={tSections("workflows")}
               Icon={Sparkles}
             >
-              <div className="grid gap-1">
-                {workflowCapabilities.slice(0, 5).map((item) => (
+              <div className="grid gap-1 [&_button]:min-h-9 [&_button]:rounded-md [&_button]:border-transparent [&_button]:bg-transparent [&_button]:px-2 [&_button]:py-1.5 [&_button]:text-xs [&_button]:hover:bg-muted">
+                {workflowCapabilities.slice(0, 4).map((item) => (
                   <SidebarCapabilityButton
                     key={item.id}
                     item={item}
                     label={tTools(`items.${item.i18nKey}.title`)}
-                    description={tTools(`items.${item.i18nKey}.description`)}
                     onClick={() => executeSidebarCapability(item)}
                   />
                 ))}

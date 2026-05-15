@@ -101,8 +101,8 @@ export function ToolDiscoveryTileContent({
           <span
             className={
               emphasis
-                ? "line-clamp-2 block text-xs leading-5 text-primary-foreground/75"
-                : "line-clamp-2 block text-xs leading-5 text-muted-foreground"
+                ? "line-clamp-2 block break-words text-xs leading-5 text-primary-foreground/75"
+                : "line-clamp-2 block break-words text-xs leading-5 text-muted-foreground"
             }
           >
             {description}
@@ -115,12 +115,14 @@ export function ToolDiscoveryTileContent({
   return (
     <>
       {iconEl}
-      <span className="text-sm font-medium leading-5">{title}</span>
+      <span className="min-w-0 max-w-full break-words text-sm font-medium leading-5">
+        {title}
+      </span>
       <span
         className={
           emphasis
-            ? "line-clamp-2 text-xs leading-5 text-primary-foreground/75"
-            : "line-clamp-2 text-xs leading-5 text-muted-foreground"
+            ? "line-clamp-2 min-w-0 max-w-full break-words text-xs leading-5 text-primary-foreground/75"
+            : "line-clamp-2 min-w-0 max-w-full break-words text-xs leading-5 text-muted-foreground"
         }
       >
         {description}

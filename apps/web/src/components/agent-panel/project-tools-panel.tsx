@@ -346,13 +346,15 @@ function ToolTile({
   onToggleFavorite(): void;
   onClick(): void;
 }) {
+  const hasMeta = Boolean(unavailableLabel || statusLabel || favorite || recent);
+
   return (
     <div data-tool-tile={itemId} className="relative min-w-0 max-w-full">
       <button
         type="button"
         disabled={disabled}
         onClick={onClick}
-        className={`group flex min-h-12 w-full min-w-0 max-w-full items-start gap-2 overflow-hidden rounded-[var(--radius-control)] border px-2.5 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${
+        className={`group flex min-h-12 w-full min-w-0 max-w-full items-start gap-2 overflow-hidden rounded-[var(--radius-control)] border py-2 pl-2.5 pr-10 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${
           emphasis
             ? "border-foreground/20 bg-foreground text-background hover:opacity-90"
             : "border-transparent bg-background text-foreground hover:border-border hover:bg-muted/60"
@@ -365,41 +367,47 @@ function ToolTile({
           emphasis={emphasis}
           layout="row"
         />
-        <span className="ml-auto flex max-w-[42%] shrink items-center justify-end gap-1 overflow-hidden pl-1 pr-6">
-          {unavailableLabel ? (
-            <span className="truncate rounded-[var(--radius-control)] bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              {unavailableLabel}
-            </span>
-          ) : null}
-          {statusLabel ? (
-            <span className="truncate rounded-[var(--radius-control)] border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              {statusLabel}
-            </span>
-          ) : null}
-          {favorite ? (
-            <span
-              className={
-                emphasis ? "truncate text-background/70" : "truncate text-muted-foreground"
-              }
-            >
-              {favoriteActiveLabel}
-            </span>
-          ) : recent ? (
-            <span
-              className={
-                emphasis ? "truncate text-background/70" : "truncate text-muted-foreground"
-              }
-            >
-              {recentActiveLabel}
-            </span>
-          ) : null}
-          <ChevronRight
-            aria-hidden
-            className={`size-3.5 ${
-              emphasis ? "text-background/70" : "text-muted-foreground"
-            }`}
-          />
-        </span>
+        {hasMeta ? (
+          <span className="ml-1 flex max-w-[34%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+            {unavailableLabel ? (
+              <span className="truncate rounded-[var(--radius-control)] bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {unavailableLabel}
+              </span>
+            ) : null}
+            {statusLabel ? (
+              <span className="truncate rounded-[var(--radius-control)] border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {statusLabel}
+              </span>
+            ) : null}
+            {favorite ? (
+              <span
+                className={
+                  emphasis
+                    ? "truncate text-background/70"
+                    : "truncate text-muted-foreground"
+                }
+              >
+                {favoriteActiveLabel}
+              </span>
+            ) : recent ? (
+              <span
+                className={
+                  emphasis
+                    ? "truncate text-background/70"
+                    : "truncate text-muted-foreground"
+                }
+              >
+                {recentActiveLabel}
+              </span>
+            ) : null}
+            <ChevronRight
+              aria-hidden
+              className={`size-3.5 shrink-0 ${
+                emphasis ? "text-background/70" : "text-muted-foreground"
+              }`}
+            />
+          </span>
+        ) : null}
       </button>
       <button
         type="button"
